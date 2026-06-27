@@ -228,7 +228,7 @@ function linha(exc, categorias){
     : ['Despesa', 'Contabil', 'Ambos'];
   const cats = categorias.filter(c => permitidas.includes(c.natureza));
   const opcoes = cats.map(c =>
-    `<option value="${c.categoria}">${c.categoria} · ${c.dre_grupo}</option>`
+    `<option value="${c.categoria}">${c.categoria}</option>`
   ).join('');
 
   const ehReceita = (exc.total || 0) >= 0;
