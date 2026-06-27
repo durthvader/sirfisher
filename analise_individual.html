@@ -94,6 +94,47 @@
   .toast.err{background:var(--danger);}
 
   footer{text-align:center; color:var(--ink-dim); font-size:11.5px; margin-top:30px; font-family:var(--mono);}
+/* Ajuste mobile para não quebrar o campo de categoria */
+.controls{
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.controls select{
+  min-width: 0;
+  width: 100%;
+}
+
+@media (max-width: 520px){
+  .wrap{
+    padding: 22px 12px 70px;
+  }
+
+  .row{
+    padding: 12px;
+    gap: 8px;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .controls{
+    grid-template-columns: minmax(0, 1fr) 76px;
+  }
+
+  select{
+    font-size: 13px;
+    padding-left: 8px;
+    padding-right: 26px;
+  }
+
+  button.save{
+    width: 76px;
+    padding: 9px 8px;
+    font-size: 13px;
+  }
+}
+
 </style>
 </head>
 <body>
