@@ -293,7 +293,11 @@ async function drawCanal(anoMes){
   const tbl=document.getElementById('canalTbl');
   const {data,error}=await sb.from('painel_recebimento_canal').select('canal,valor,qtd').eq('ano_mes',anoMes);
   if(error||!data||!data.length){wrap.innerHTML=aguardando();tbl.innerHTML='';return;}
-  const rows=data.map(r=>{const n=normCanal(r.canal);return {label:n.label,cor:n.cor,valor:Number(r.valor)||0,qtd:r.qtd==null?null:Number(r.qtd)};}).sort((a,b)=>b.valor-a.valor);
+  // normaliza e MESCLA linhas que caem no mesmo canal (ex.: variações de "Credito")
+  const norm=data.map(r=>{const n=normCanal(r.canal);return {label:n.label,cor:n.cor,valor:Number(r.valor)||0,qtd:r.qtd==null?null:Number(r.qtd)};});
+  const map=new Map();
+  norm.forEach(r=>{const cur=map.get(r.label)||{label:r.label,cor:r.cor,valor:0,qtd:null};cur.valor+=r.valor;if(r.qtd!=null)cur.qtd=(cur.qtd||0)+r.qtd;map.set(r.label,cur);});
+  const rows=[...map.values()].sort((a,b)=>b.valor-a.valor);
   const total=rows.reduce((s,r)=>s+r.valor,0)||1;
 
   // KPI canal lider
@@ -313,9 +317,11 @@ async function drawCanal(anoMes){
 async function drawDiario(anoMes){
   const wrapD=document.getElementById('diario').parentElement;
   const wrapW=document.getElementById('dow').parentElement;
-  const {data,error}=await sb.from('painel_recebimento_diario').select('data,valor').eq('ano_mes',anoMes).order('data',{ascending:true});
+  // le painel_diario (mesma fonte da home) -> o "recebido por dia" bate exatamente
+  const {data,error}=await sb.from('painel_diario').select('dia,venda_dia').eq('mes',anoMes+'-01').order('dia',{ascending:true});
   if(error||!data||!data.length){wrapD.innerHTML=aguardando();wrapW.innerHTML=aguardando('Aguardando dados de recebimento diário.');return;}
-  const d=data.map(r=>({data:r.data,valor:Number(r.valor)||0}));
+  const d=data.filter(r=>r.venda_dia!=null).map(r=>({data:r.dia,valor:Number(r.venda_dia)||0}));
+  if(!d.length){wrapD.innerHTML=aguardando('Sem dias realizados neste mês ainda.');wrapW.innerHTML=aguardando('Sem dias realizados neste mês ainda.');return;}
   const labels=d.map(r=>r.data.split('-')[2]);
   const valores=d.map(r=>r.valor);
   CHARTS.push(new Chart(document.getElementById('diario'),{type:'line',
