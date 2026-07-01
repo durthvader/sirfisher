@@ -47,7 +47,7 @@ Este documento resume o schema público do Supabase usado pelo painel Sir Fisher
 
 ### painel_saldo_atual
 - Tipo: painel / view agregada
-- Uso: `caixa.html`, `home.html`
+- Uso: `caixa.html`, `index.html`
 - Propósito: fornece saldo atual e saldo comparativo para o painel financeiro.
 - Colunas importantes:
   - `data_ref`
@@ -57,7 +57,7 @@ Este documento resume o schema público do Supabase usado pelo painel Sir Fisher
 
 ### painel_saldo_fim_mes
 - Tipo: painel / view agregada
-- Uso: `caixa.html`, `home.html`
+- Uso: `caixa.html`, `index.html`
 - Propósito: dados de saldo no final do mês para histórico e projeção.
 - Colunas importantes:
   - `mes`
@@ -113,14 +113,14 @@ Este documento resume o schema público do Supabase usado pelo painel Sir Fisher
 
 ### painel_ultima_carga
 - Tipo: painel / view simples
-- Uso: `caixa.html`, `dre.html`, `home.html`, `vendas.html`
+- Uso: `caixa.html`, `dre.html`, `index.html`, `vendas.html`
 - Propósito: indica a data/hora da última carga de dados.
 - Colunas importantes:
   - `ultima`
 
 ### painel_cargas
 - Tipo: painel / view simples
-- Uso: `caixa.html`, `dre.html`, `home.html`, `vendas.html`
+- Uso: `caixa.html`, `dre.html`, `index.html`, `vendas.html`
 - Propósito: mostra histórico de cargas e fontes.
 - Colunas importantes:
   - `quando`
@@ -191,7 +191,7 @@ Este documento resume o schema público do Supabase usado pelo painel Sir Fisher
 
 ### painel_resumo_mensal
 - Tipo: painel / view agregada
-- Uso: `home.html`, `vendas.html`
+- Uso: `index.html`, `vendas.html`
 - Propósito: resumo mensal de faturamento, receita, despesa e margem.
 - Colunas importantes:
   - `mes`
@@ -216,7 +216,7 @@ Este documento resume o schema público do Supabase usado pelo painel Sir Fisher
 
 ### painel_composicao_despesa
 - Tipo: painel / view agregada
-- Uso: `home.html`
+- Uso: `index.html`
 - Propósito: composição de despesas por grupo.
 - Colunas importantes:
   - `mes`
@@ -226,7 +226,7 @@ Este documento resume o schema público do Supabase usado pelo painel Sir Fisher
 
 ### painel_margem_contribuicao
 - Tipo: painel / view agregada
-- Uso: `home.html`
+- Uso: `index.html`
 - Propósito: percentual de margem de contribuição mensal.
 - Colunas importantes:
   - `mes`
@@ -235,7 +235,7 @@ Este documento resume o schema público do Supabase usado pelo painel Sir Fisher
 
 ### painel_diario
 - Tipo: painel / view agregada
-- Uso: `home.html`, `vendas.html`
+- Uso: `index.html`, `vendas.html`
 - Propósito: vendas diárias, metas e projeções.
 - Colunas importantes:
   - `dia`
@@ -293,23 +293,23 @@ Este documento resume o schema público do Supabase usado pelo painel Sir Fisher
 - `analise_individual` → `analise_individual.html`
 - `categoria_dre` → `analise_individual.html`, `classificar_excecoes.html`
 - `ajuste_manual` → gravação via `analise_individual.html`
-- `painel_saldo_atual` → `caixa.html`, `home.html`
-- `painel_saldo_fim_mes` → `caixa.html`, `home.html`
+- `painel_saldo_atual` → `caixa.html`, `index.html`
+- `painel_saldo_fim_mes` → `caixa.html`, `index.html`
 - `painel_fluxo_caixa` → `caixa.html`
 - `recebimento_conhecido` → `caixa.html`
 - `recebimento_projetado` → `caixa.html`
 - `projecao_despesa_fixa` → `caixa.html`
 - `projecao_despesa_direta` → `caixa.html`
-- `painel_ultima_carga` → `caixa.html`, `dre.html`, `home.html`, `vendas.html`
-- `painel_cargas` → `caixa.html`, `dre.html`, `home.html`, `vendas.html`
+- `painel_ultima_carga` → `caixa.html`, `dre.html`, `index.html`, `vendas.html`
+- `painel_cargas` → `caixa.html`, `dre.html`, `index.html`, `vendas.html`
 - `painel_saldo_por_conta` → `caixa.html`
 - `excecoes` → `classificar_excecoes.html`
 - `de_para` → `classificar_excecoes.html` (insert only)
 - `painel_dre_cascata` → `dre.html`
-- `painel_resumo_mensal` → `home.html`, `vendas.html`
-- `painel_composicao_despesa` → `home.html`
-- `painel_margem_contribuicao` → `home.html`
-- `painel_diario` → `home.html`, `vendas.html`
+- `painel_resumo_mensal` → `index.html`, `vendas.html`
+- `painel_composicao_despesa` → `index.html`
+- `painel_margem_contribuicao` → `index.html`
+- `painel_diario` → `index.html`, `vendas.html`
 - `venda_especie` → `venda_especie.html`
 - `painel_recebimento_resumo` → `vendas.html`
 - `painel_recebimento_canal` → `vendas.html`
@@ -319,3 +319,4 @@ Este documento resume o schema público do Supabase usado pelo painel Sir Fisher
 - A tabela `de_para` não é legível pela role `anon` atual: `permission denied for table de_para`.
 - Todas as demais tabelas/views listadas foram acessadas com sucesso e retornaram colunas e dados.
 - Esse documento não altera o banco, apenas descreve o schema público usado pelo app.
+

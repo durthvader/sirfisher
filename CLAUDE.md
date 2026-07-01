@@ -22,7 +22,7 @@ Este projeto é o painel financeiro do Sir Fisher.
 6. Antes de modificar HTML/CSS/JS, informar quais arquivos serão alterados.
 7. Sempre preservar compatibilidade mobile.
 8. Não quebrar as páginas existentes:
-   - home.html
+   - index.html
    - vendas.html
    - caixa.html
    - dre.html
