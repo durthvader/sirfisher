@@ -4,7 +4,7 @@
 
 Este é o projeto **sirfisher-app**, o painel financeiro do restaurante Sir Fisher. A aplicação usa front-end em HTML, CSS e JavaScript, scripts Python para importação de dados, Supabase/Postgres como camada de dados e GitHub Pages para publicação do front-end.
 
-Este arquivo é o manual operacional para qualquer IA que trabalhe no repositório, incluindo Claude Code e Codex. As regras daqui devem ser combinadas com as instruções do `CLAUDE.md`.
+Este arquivo é a fonte canônica das instruções operacionais para qualquer IA que trabalhe no repositório, incluindo Claude Code e Codex. O `CLAUDE.md` importa este arquivo e deve conter apenas orientações exclusivas do Claude Code.
 
 ## Estrutura principal
 
@@ -43,7 +43,7 @@ Este arquivo é o manual operacional para qualquer IA que trabalhe no repositór
 - Nunca commitar `.env`, `.env.*`, arquivos `*.local`, relatórios financeiros, CSVs, XLSX, XLS ou dados brutos.
 - Respeitar integralmente o `.gitignore` e revisar `git status` antes de qualquer commit.
 - Tratar chaves Supabase `service_role`, tokens, senhas e `DATABASE_URL` como segredos.
-- Usar o acesso MCP ao Supabase apenas conforme as restrições do `CLAUDE.md`; não revelar configurações de conexão.
+- Usar o acesso MCP ao Supabase apenas para leitura, análise de schema, tabelas, views e conferência de dados; não revelar configurações de conexão.
 - Se um segredo aparecer acidentalmente, interromper a tarefa, não reproduzi-lo e orientar sua revogação ou rotação.
 
 ## Supabase e banco de dados
@@ -53,6 +53,7 @@ Este arquivo é o manual operacional para qualquer IA que trabalhe no repositór
 - Não alterar migrations antigas sem autorização explícita.
 - Preferir uma nova migration em `supabase/migrations/` quando uma mudança estrutural for necessária.
 - Antes de criar uma migration, explicar o problema, os objetos afetados, o SQL proposto e os riscos.
+- Depois da revisão do usuário, as migrations devem seguir o fluxo normal de commit e push para `main`, onde são aplicadas pela integração do GitHub com o Supabase.
 - Documentar qualquer alteração de schema, tabela, view, materialized view, function, trigger ou policy.
 - Não assumir que uma divergência financeira é erro de código ou banco sem validar a origem, o período, a regra de cálculo e a completude dos dados.
 - Não alterar diretamente o banco por ferramentas configuradas apenas para leitura.
