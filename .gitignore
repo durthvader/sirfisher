@@ -1,0 +1,11 @@
+# Dados financeiros locais / backups de importação
+scripts/importacao/*-old/
+scripts/importacao/relatorio-*-old/
+scripts/importacao/**/*.csv
+scripts/importacao/**/*.xlsx
+scripts/importacao/**/*.xls
+
+# Segredos e configurações locais
+.env
+.env.*
+*.local
