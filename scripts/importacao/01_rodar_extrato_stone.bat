@@ -7,7 +7,10 @@ cd /d "%~dp0"
 
 set "SCRIPT=01_importar_extrato_stone.py"
 set "OLD=relatorio-stone-extrato-old"
-set "ARQUIVO="
+set "DOWNLOADS=%USERPROFILE%\Downloads"
+set "ACHOU=0"
+
+for /f %%D in ('powershell -NoProfile -Command "Get-Date -Format yyMMdd"') do set "DATAIMPORT=%%D"
 
 if not exist "%SCRIPT%" (
     echo.
@@ -23,65 +26,52 @@ if not exist "%OLD%" (
     mkdir "%OLD%"
 )
 
-echo Procurando arquivo de extrato Stone...
+echo Procurando arquivos de extrato Stone em "%DOWNLOADS%"...
 echo Padrao: "Comprovante de Extrato*.csv"
 echo.
 
-for %%F in ("Comprovante de Extrato*.csv") do (
+for %%F in ("%DOWNLOADS%\Comprovante de Extrato*.csv") do (
     if exist "%%~fF" (
-        set "ARQUIVO=%%~fF"
-        set "NOME_ARQUIVO=%%~nxF"
-        goto :achou
+        set "ACHOU=1"
+        echo ============================================
+        echo Importando: %%~nxF
+        echo ============================================
+
+        python "%SCRIPT%" "%%~fF"
+
+        if !ERRORLEVEL! NEQ 0 (
+            echo.
+            echo ERRO ao importar: %%~nxF
+            echo Arquivo NAO foi movido.
+            echo Processo interrompido.
+            pause
+            exit /b 1
+        )
+
+        echo.
+        echo Importacao OK. Movendo para "%OLD%"...
+        move /Y "%%~fF" "%OLD%\%DATAIMPORT% - %%~nxF" >nul
+
+        if !ERRORLEVEL! NEQ 0 (
+            echo ERRO: Importou, mas nao conseguiu mover o arquivo: %%~nxF
+            pause
+            exit /b 1
+        ) else (
+            echo Arquivo movido com sucesso: %DATAIMPORT% - %%~nxF
+        )
+
+        echo.
     )
 )
 
-:achou
-
-if not defined ARQUIVO (
-    echo.
-    echo ERRO: Nenhum arquivo encontrado no padrao:
+if "%ACHOU%"=="0" (
+    echo Nenhum arquivo encontrado em "%DOWNLOADS%" com o padrao:
     echo "Comprovante de Extrato*.csv"
     echo.
     pause
     exit /b 1
 )
 
-echo.
-echo Arquivo encontrado:
-echo "%NOME_ARQUIVO%"
-echo.
-
-echo Importando no banco...
-python "%SCRIPT%" "%ARQUIVO%"
-
-if !ERRORLEVEL! NEQ 0 (
-    echo.
-    echo ERRO ao importar:
-    echo "%NOME_ARQUIVO%"
-    echo Arquivo NAO foi movido.
-    echo Processo interrompido.
-    pause
-    exit /b 1
-)
-
-echo.
-echo Importacao OK. Movendo para "%OLD%"...
-move /Y "%ARQUIVO%" "%OLD%\%NOME_ARQUIVO%" >nul
-
-if !ERRORLEVEL! NEQ 0 (
-    echo.
-    echo ERRO: Importou, mas nao conseguiu mover o arquivo:
-    echo "%NOME_ARQUIVO%"
-    echo Verifique se a pasta "%OLD%" existe e se o arquivo nao esta aberto.
-    echo.
-    pause
-    exit /b 1
-) else (
-    echo Arquivo movido com sucesso:
-    echo "%NOME_ARQUIVO%"
-)
-
-echo.
 echo ============================================
 echo Processo finalizado.
 echo ============================================

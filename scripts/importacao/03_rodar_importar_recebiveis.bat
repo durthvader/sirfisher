@@ -7,7 +7,10 @@ cd /d "%~dp0"
 
 set "SCRIPT=03_importar_recebiveis_stone.py"
 set "OLD=relatorio-stone-recebimentos-old"
+set "DOWNLOADS=%USERPROFILE%\Downloads"
 set "ACHOU=0"
+
+for /f %%D in ('powershell -NoProfile -Command "Get-Date -Format yyMMdd"') do set "DATAIMPORT=%%D"
 
 if not exist "%SCRIPT%" (
     echo ERRO: Script nao encontrado:
@@ -21,10 +24,10 @@ if not exist "%OLD%" (
     mkdir "%OLD%"
 )
 
-echo Procurando arquivos relatorio-recebimentos-*.csv...
+echo Procurando arquivos relatorio-recebimentos-*.csv em "%DOWNLOADS%"...
 echo.
 
-for %%F in ("relatorio-recebimentos-*.csv") do (
+for %%F in ("%DOWNLOADS%\relatorio-recebimentos-*.csv") do (
     if exist "%%~fF" (
         set "ACHOU=1"
         echo ============================================
@@ -44,14 +47,14 @@ for %%F in ("relatorio-recebimentos-*.csv") do (
 
         echo.
         echo Importacao OK. Movendo para "%OLD%"...
-        move /Y "%%~fF" "%OLD%\%%~nxF" >nul
+        move /Y "%%~fF" "%OLD%\%DATAIMPORT% - %%~nxF" >nul
 
         if !ERRORLEVEL! NEQ 0 (
             echo ERRO: Importou, mas nao conseguiu mover o arquivo: %%~nxF
             pause
             exit /b 1
         ) else (
-            echo Arquivo movido com sucesso: %%~nxF
+            echo Arquivo movido com sucesso: %DATAIMPORT% - %%~nxF
         )
 
         echo.
@@ -59,7 +62,7 @@ for %%F in ("relatorio-recebimentos-*.csv") do (
 )
 
 if "%ACHOU%"=="0" (
-    echo Nenhum arquivo encontrado com o padrao:
+    echo Nenhum arquivo encontrado em "%DOWNLOADS%" com o padrao:
     echo relatorio-recebimentos-*.csv
     echo.
     pause

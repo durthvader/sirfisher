@@ -6,7 +6,10 @@ cd /d "%~dp0"
 
 set "SCRIPT=04_importar_bb.py"
 set "OLD=relatorio-bb-extrato-old"
+set "DOWNLOADS=%USERPROFILE%\Downloads"
 set "ENCONTROU=0"
+
+for /f %%D in ('powershell -NoProfile -Command "Get-Date -Format yyMMdd"') do set "DATAIMPORT=%%D"
 
 if not exist "%SCRIPT%" (
     echo ERRO: Script nao encontrado:
@@ -20,11 +23,11 @@ if not exist "%OLD%" (
     mkdir "%OLD%"
 )
 
-echo Procurando arquivos do Banco do Brasil...
+echo Procurando arquivos do Banco do Brasil em "%DOWNLOADS%"...
 echo Padrao: "Extrato conta corrente - ??????.csv"
 echo.
 
-for %%F in ("Extrato conta corrente - ??????.csv") do (
+for %%F in ("%DOWNLOADS%\Extrato conta corrente - ??????.csv") do (
     if exist "%%~fF" (
         set "ENCONTROU=1"
 
@@ -39,7 +42,7 @@ for %%F in ("Extrato conta corrente - ??????.csv") do (
         if !ERRORLEVEL! EQU 0 (
             echo.
             echo Importacao OK. Movendo arquivo para "%OLD%"...
-            move /Y "%%~fF" "%OLD%\%%~nxF" >nul
+            move /Y "%%~fF" "%OLD%\%DATAIMPORT% - %%~nxF" >nul
 
             if !ERRORLEVEL! EQU 0 (
                 echo Arquivo movido com sucesso.
@@ -56,7 +59,7 @@ for %%F in ("Extrato conta corrente - ??????.csv") do (
 )
 
 if "%ENCONTROU%"=="0" (
-    echo ERRO: Nenhum arquivo encontrado no padrao:
+    echo ERRO: Nenhum arquivo encontrado em "%DOWNLOADS%" no padrao:
     echo "Extrato conta corrente - ??????.csv"
     echo.
     pause
