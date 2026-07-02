@@ -177,6 +177,21 @@ async function q(build,tries=3){
   return res;
 }
 
+// busca paginada: contorna o limite padrao de 1000 linhas do PostgREST.
+// baseBuilder deve retornar a query ja com filtros e ordenacao deterministica.
+async function fetchPaginado(baseBuilder){
+  const size=1000;let from=0;const todas=[];
+  for(;;){
+    const res=await q(()=>baseBuilder().range(from,from+size-1));
+    if(res.error)return {data:todas,error:res.error};
+    const chunk=res.data||[];
+    todas.push(...chunk);
+    if(chunk.length<size)break;
+    from+=size;
+  }
+  return {data:todas,error:null};
+}
+
 function kpi(label,iconKey,value,sub,color,descKey){
   return '<div class="kpi"><span class="bar" style="background:'+color+'"></span>'+
     '<div class="label">'+ic(ICON[iconKey])+'<span class="txt">'+label+'</span>'+
@@ -201,7 +216,9 @@ async function main(){
   try{
     const desde=new Date();desde.setMonth(desde.getMonth()-23);desde.setDate(1);
     const desdeStr=desde.toISOString().slice(0,10);
-    const dd=await q(()=>sb.from('mv_despesa_mensal').select('*').gte('mes',desdeStr).order('mes',{ascending:true}));
+    // ordenacao pelo grao completo (unico) -> paginacao consistente
+    const dd=await fetchPaginado(()=>sb.from('mv_despesa_mensal').select('*').gte('mes',desdeStr)
+      .order('mes',{ascending:true}).order('grupo',{ascending:true}).order('categoria',{ascending:true}).order('fornecedor',{ascending:true}));
     if(dd.error)throw dd.error;
     ROWS=dd.data||[];
     const [uc,cg]=await Promise.all([
