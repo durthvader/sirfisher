@@ -22,6 +22,7 @@
   .brand span{font-size:10.5px;color:#9fb3bd;display:block;font-weight:400;}
   .head-meta{text-align:right;flex-shrink:0;}
   .head-meta select{background:#1b3d4d;color:#fff;border:1px solid #2c5468;border-radius:8px;padding:6px 10px;font-family:inherit;font-size:13px;font-weight:500;cursor:pointer;}
+  .head-meta .periodo{display:inline-flex;gap:6px;justify-content:flex-end;}
   .head-meta .unidade{font-size:10.5px;color:#9fb3bd;margin-top:3px;}
   .tabs{display:flex;gap:1px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;border-top:1px solid #21465a;}
   .tabs::-webkit-scrollbar{display:none;}
@@ -86,7 +87,7 @@
         <div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-6 10-6 10 6 10 6-3 6-10 6S2 12 2 12z"/><circle cx="9" cy="12" r="1" fill="#fff"/></svg></div>
         <div><h1>Sir Fisher</h1><span>DRE &amp; Resultado</span></div>
       </div>
-      <div class="head-meta"><select id="mesSel" onchange="renderMes(this.value)"></select><div class="unidade">DRE</div></div>
+      <div class="head-meta"><span class="periodo"><select id="anoSel"></select><select id="mesSel"></select></span><div class="unidade">DRE</div></div>
     </div>
     <nav class="tabs">
       <a href="./">Visão Geral</a>
@@ -152,6 +153,26 @@ function kpi(label,iconKey,value,sub,color,descKey){
     '<div class="value" style="color:'+(value.indexOf('-')===0?C.red:C.text)+'">'+value+'</div>'+(sub||'')+'</div>';
 }
 
+// seletor de periodo reutilizavel: dois selects dependentes (Ano + Mes)
+function montarSeletorPeriodo(anoMesList,selecionado){
+  const set=[...new Set(anoMesList)].filter(Boolean).sort();
+  if(!set.length)return;
+  if(!set.includes(selecionado))selecionado=set[set.length-1];
+  const porAno={};set.forEach(am=>{const a=am.slice(0,4);(porAno[a]=porAno[a]||[]).push(am);});
+  const anos=Object.keys(porAno).sort((a,b)=>b.localeCompare(a));
+  const anoSel=document.getElementById('anoSel'),mesSel=document.getElementById('mesSel');
+  anoSel.innerHTML=anos.map(a=>'<option value="'+a+'">'+a+'</option>').join('');
+  anoSel.value=selecionado.slice(0,4);
+  function fillMeses(ano,alvo){
+    const meses=(porAno[ano]||[]).slice().sort((a,b)=>b.localeCompare(a));
+    mesSel.innerHTML=meses.map(am=>'<option value="'+am+'">'+MESES[+am.slice(5,7)-1]+'</option>').join('');
+    mesSel.value=(alvo&&meses.includes(alvo))?alvo:meses[0];
+  }
+  fillMeses(anoSel.value,selecionado);
+  anoSel.onchange=function(){fillMeses(anoSel.value,null);renderMes(mesSel.value);};
+  mesSel.onchange=function(){renderMes(mesSel.value);};
+}
+
 async function main(){
   try{
     const r=await sb.from('painel_dre_cascata').select('*').order('mes',{ascending:true});
@@ -165,10 +186,8 @@ async function main(){
     CARGAS=cg.error?[]:(cg.data||[]);
 
     if(!ROWS.length)throw new Error('Sem dados de DRE.');
-    const sel=document.getElementById('mesSel');
-    sel.innerHTML=ROWS.map(x=>{const d=new Date(x.mes);return '<option value="'+x.ano_mes+'">'+MESES[d.getUTCMonth()]+' '+d.getUTCFullYear()+'</option>';}).reverse().join('');
-    sel.value=ROWS[ROWS.length-1].ano_mes;
-    renderMes(sel.value);
+    montarSeletorPeriodo(ROWS.map(x=>x.ano_mes), ROWS[ROWS.length-1].ano_mes);
+    renderMes(document.getElementById('mesSel').value);
 
     if(ULTIMA){const d=new Date(ULTIMA);document.getElementById('rodapeAtt').textContent='Atualizado em '+String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
     else{document.getElementById('rodapeAtt').textContent='Atualizado: —';}

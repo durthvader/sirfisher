@@ -22,6 +22,7 @@
   .brand span{font-size:10.5px;color:#9fb3bd;display:block;font-weight:400;}
   .head-meta{text-align:right;flex-shrink:0;}
   .head-meta select{background:#1b3d4d;color:#fff;border:1px solid #2c5468;border-radius:8px;padding:6px 10px;font-family:inherit;font-size:13px;font-weight:500;cursor:pointer;}
+  .head-meta .periodo{display:inline-flex;gap:6px;justify-content:flex-end;}
   .head-meta .unidade{font-size:10.5px;color:#9fb3bd;margin-top:3px;}
   .tabs{display:flex;gap:1px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;border-top:1px solid #21465a;}
   .tabs::-webkit-scrollbar{display:none;}
@@ -77,7 +78,7 @@
         <div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-6 10-6 10 6 10 6-3 6-10 6S2 12 2 12z"/><circle cx="9" cy="12" r="1" fill="#fff"/></svg></div>
         <div><h1>Sir Fisher</h1><span>Caixa &amp; Projeção</span></div>
       </div>
-      <div class="head-meta"><select id="mesSel" onchange="renderMes(this.value)"></select><div class="unidade">Caixa</div></div>
+      <div class="head-meta"><span class="periodo"><select id="anoSel"></select><select id="mesSel"></select></span><div class="unidade">Caixa</div></div>
     </div>
     <nav class="tabs">
       <a href="./">Visão Geral</a>
@@ -158,6 +159,26 @@ async function q(build,tries=3){
 
 let FLUXO_ERRO=false;
 
+// seletor de periodo reutilizavel: dois selects dependentes (Ano + Mes)
+function montarSeletorPeriodo(anoMesList,selecionado){
+  const set=[...new Set(anoMesList)].filter(Boolean).sort();
+  if(!set.length)return;
+  if(!set.includes(selecionado))selecionado=set[set.length-1];
+  const porAno={};set.forEach(am=>{const a=am.slice(0,4);(porAno[a]=porAno[a]||[]).push(am);});
+  const anos=Object.keys(porAno).sort((a,b)=>b.localeCompare(a));
+  const anoSel=document.getElementById('anoSel'),mesSel=document.getElementById('mesSel');
+  anoSel.innerHTML=anos.map(a=>'<option value="'+a+'">'+a+'</option>').join('');
+  anoSel.value=selecionado.slice(0,4);
+  function fillMeses(ano,alvo){
+    const meses=(porAno[ano]||[]).slice().sort((a,b)=>b.localeCompare(a));
+    mesSel.innerHTML=meses.map(am=>'<option value="'+am+'">'+MESES[+am.slice(5,7)-1]+'</option>').join('');
+    mesSel.value=(alvo&&meses.includes(alvo))?alvo:meses[0];
+  }
+  fillMeses(anoSel.value,selecionado);
+  anoSel.onchange=function(){fillMeses(anoSel.value,null);renderMes(mesSel.value);};
+  mesSel.onchange=function(){renderMes(mesSel.value);};
+}
+
 async function main(){
   try{
     const [sa,fm,fx,rc,rp,df,dd,uc,cg]=await Promise.all([
@@ -186,11 +207,10 @@ async function main(){
     HOJE=SALDO_ATUAL?SALDO_ATUAL.data_ref:(FLUXO.filter(r=>r.tipo==='real').slice(-1)[0]||{}).dia;
 
     if(!FIMMES.length)throw new Error('Sem meses de projeção disponíveis.');
-    const sel=document.getElementById('mesSel');
-    sel.innerHTML=FIMMES.map(x=>{const d=new Date(x.mes);return '<option value="'+x.ano_mes+'">'+MESES[d.getUTCMonth()]+' '+d.getUTCFullYear()+'</option>';}).join('');
     const mesHoje=HOJE?HOJE.slice(0,7):FIMMES[FIMMES.length-1].ano_mes;
-    sel.value=FIMMES.some(x=>x.ano_mes===mesHoje)?mesHoje:FIMMES[FIMMES.length-1].ano_mes;
-    renderMes(sel.value);
+    const mesDefault=FIMMES.some(x=>x.ano_mes===mesHoje)?mesHoje:FIMMES[FIMMES.length-1].ano_mes;
+    montarSeletorPeriodo(FIMMES.map(x=>x.ano_mes), mesDefault);
+    renderMes(document.getElementById('mesSel').value);
 
     if(ULTIMA){const d=new Date(ULTIMA);document.getElementById('rodapeAtt').textContent='Atualizado em '+String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
     else{document.getElementById('rodapeAtt').textContent='Atualizado: —';}
