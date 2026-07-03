@@ -36,22 +36,30 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p _site
+          mkdir -p _site/assets
           cp \
             index.html \
             vendas.html \
             caixa.html \
             dre.html \
             despesas.html \
+            analise_individual.html \
+            classificar_excecoes.html \
+            venda_especie.html \
             _site/
+          cp assets/auth.js _site/assets/
 
           expected_files="$(printf '%s\n' \
+            analise_individual.html \
+            assets/auth.js \
             caixa.html \
+            classificar_excecoes.html \
             despesas.html \
             dre.html \
             index.html \
+            venda_especie.html \
             vendas.html)"
-          actual_files="$(find _site -maxdepth 1 -type f -printf '%f\n' | sort)"
+          actual_files="$(find _site -type f -printf '%P\n' | sort)"
 
           if [[ "$actual_files" != "$expected_files" ]]; then
             echo "Unexpected GitHub Pages artifact contents."

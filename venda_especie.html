@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sir Fisher · Sangria em Espécie</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="assets/auth.js"></script>
 <style>
   :root{
     --bg:#0b0e14; --card:#11151f; --border:#1f2733; --text:#e8edf5;
@@ -217,7 +218,7 @@ document.getElementById('btnNovo').addEventListener('click', async () => {
   carregar();
 });
 
-carregar();
+SirFisherAuth.requireRole(sb,['gestor','operador']).then(ctx=>{if(ctx)carregar();});
 </script>
 <footer>venda_especie · Supabase</footer>
 </body>

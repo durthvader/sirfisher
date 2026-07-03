@@ -3,10 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sir Fisher · Vendas</title>
+<title>Sir Fisher · Faturamento</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="assets/auth.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
   :root{--bg:#F7F5EF;--card:#FFFFFF;--header:#12313F;--text:#1F2933;--muted:#6B7280;--border:#E5E7EB;--teal:#00A6A6;--amber:#D6A84F;--green:#2E7D5B;--red:#C94C4C;}
@@ -87,13 +88,13 @@
     <div class="head-row">
       <div class="brand">
         <div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-6 10-6 10 6 10 6-3 6-10 6S2 12 2 12z"/><circle cx="9" cy="12" r="1" fill="#fff"/></svg></div>
-        <div><h1>Sir Fisher</h1><span>Vendas &amp; Recebimentos</span></div>
+        <div><h1>Sir Fisher</h1><span>Faturamento</span></div>
       </div>
-      <div class="head-meta"><span class="periodo"><select id="anoSel"></select><select id="mesSel"></select></span><div class="unidade">Vendas</div></div>
+      <div class="head-meta"><span class="periodo"><select id="anoSel"></select><select id="mesSel"></select></span><div class="unidade">Faturamento</div></div>
     </div>
     <nav class="tabs">
       <a href="./">Visão Geral</a>
-      <a href="vendas.html" class="active">Vendas</a>
+      <a href="vendas.html" class="active">Faturamento</a>
       <a href="caixa.html">Caixa</a>
       <a href="dre.html">DRE</a>
       <a href="despesas.html">Despesas</a>
@@ -127,10 +128,10 @@ const DOW_NOME=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 let MONTHS=[],RESUMO=[],CHARTS=[],ULTIMA=null,CARGAS=[];
 
 const DESC={
-  rec:'Total líquido recebido no mês, somando todos os canais (cartão, Pix, apps e a sangria do dinheiro).',
+  rec:'Faturamento bruto por data da venda, líquido de cancelamentos. Não representa liquidação bancária nem valor líquido após taxas.',
   ntx:'Quantidade de pagamentos no mês nos canais com transação registrada (cartão, Pix, apps). Não inclui o dinheiro, que entra como total diário.',
   tkt:'Valor médio por pagamento nos canais transacionais. Atenção: não é o ticket por cliente — o dinheiro entra agregado e uma mesma conta pode se dividir em mais de uma forma de pagamento.',
-  lider:'Canal que mais trouxe receita no mês e sua participação no total recebido.'
+  lider:'Canal com maior faturamento registrado no mês e sua participação no total.'
 };
 
 function brl(v){if(v==null||isNaN(v))return '—';const a=Math.abs(v);if(a>=1e6)return 'R$ '+(v/1e6).toFixed(2).replace('.',',')+' mi';if(a>=1e3)return 'R$ '+(v/1e3).toFixed(1).replace('.',',')+' mil';return 'R$ '+v.toFixed(0);}
@@ -189,18 +190,18 @@ function montarSeletorPeriodo(anoMesList,selecionado){
 async function main(){
   try{
     // meses para o seletor: reaproveita a view que ja existe (mantem a pagina viva mesmo sem as views de recebimento)
-    const mRes=await sb.from('painel_resumo_mensal').select('ano_mes,mes,faturamento').order('mes',{ascending:true});
+    const mRes=await sb.from('app_painel_resumo_mensal').select('ano_mes,mes,faturamento').order('mes',{ascending:true});
     if(mRes.error)throw mRes.error;
     MONTHS=(mRes.data||[]).filter(x=>Number(x.faturamento)>0);
 
     // resumo de recebimento (pode ainda nao existir -> segue vazio, blocos mostram "aguardando")
-    const rRes=await sb.from('painel_recebimento_resumo').select('*').order('mes',{ascending:true});
+    const rRes=await sb.from('app_painel_recebimento_resumo').select('*').order('mes',{ascending:true});
     RESUMO=rRes.error?[]:(rRes.data||[]);
 
     // footer: ultima carga + historico (views ja existentes)
     const [uc,cg]=await Promise.all([
-      sb.from('painel_ultima_carga').select('ultima'),
-      sb.from('painel_cargas').select('*')
+      sb.from('app_painel_ultima_carga').select('ultima'),
+      sb.from('app_painel_cargas').select('*')
     ]);
     ULTIMA=(!uc.error&&uc.data&&uc.data[0])?uc.data[0].ultima:null;
     CARGAS=cg.error?[]:(cg.data||[]);
@@ -233,14 +234,14 @@ function renderMes(anoMes){
     const ntx=N(cur.qtd_transacoes);
     const tkt=N(cur.ticket_transacao);
     kpisHtml=`<div class="kpis">
-      ${kpi('Recebido no mês','cash',brl0(total),deltaVal(total,prev?N(prev.recebido_total):null),C.header,'rec')}
+      ${kpi('Faturamento no mês','cash',brl0(total),deltaVal(total,prev?N(prev.recebido_total):null),C.header,'rec')}
       ${kpi('Nº de transações','orders',(ntx==null?'—':ntx.toLocaleString('pt-BR')),deltaPct(ntx,prev?N(prev.qtd_transacoes):null),C.teal,'ntx')}
       ${kpi('Ticket por transação','ticket',rs(tkt),deltaPct(tkt,prev?N(prev.ticket_transacao):null),C.amber,'tkt')}
       ${kpi('Canal líder','star','<span id="kpiLiderVal">—</span>','<div class="sub" id="kpiLiderSub">—</div>',C.green,'lider',true)}
     </div>`;
   }else{
     kpisHtml=`<div class="kpis">
-      ${kpi('Recebido no mês','cash','—','<div class="sub">aguardando dados</div>',C.header,'rec')}
+      ${kpi('Faturamento no mês','cash','—','<div class="sub">aguardando dados</div>',C.header,'rec')}
       ${kpi('Nº de transações','orders','—','<div class="sub">aguardando dados</div>',C.teal,'ntx')}
       ${kpi('Ticket por transação','ticket','—','<div class="sub">aguardando dados</div>',C.amber,'tkt')}
       ${kpi('Canal líder','star','—','<div class="sub">aguardando dados</div>',C.green,'lider',true)}
@@ -248,13 +249,13 @@ function renderMes(anoMes){
   }
 
   const html=`
-    <div class="section-title">Recebimentos do mês</div>
-    <div class="nota">Hoje esta página mostra <b>recebimentos</b>, não vendas: valor que entrou por canal, já considerando que dinheiro chega como sangria diária e o cartão/app pode ter taxa. <b>Venda item a item</b> entra nas seções marcadas como “em breve”.</div>
+    <div class="section-title">Faturamento do mês</div>
+    <div class="nota">Esta página mostra <b>faturamento por data da venda</b>: valor bruto registrado, líquido de cancelamentos, somado à venda em espécie. Não representa o dia em que o dinheiro liquidou no banco nem desconta todas as taxas.</div>
     ${kpisHtml}
 
     <div class="section-title">Mix por canal</div>
     <div class="card">
-      <h3>De onde vem o recebimento</h3>
+      <h3>De onde vem o faturamento</h3>
       <div class="hint">Participação de cada forma de pagamento no mês</div>
       <div class="chart-wrap h-donut"><canvas id="donut"></canvas></div>
       <div id="canalTbl"></div>
@@ -262,8 +263,8 @@ function renderMes(anoMes){
 
     <div class="section-title">Trajetória</div>
     <div class="card">
-      <h3>Recebido por dia</h3>
-      <div class="hint">Quanto entrou a cada dia do mês (todos os canais)</div>
+      <h3>Faturado por dia</h3>
+      <div class="hint">Valor registrado pela data da venda em todos os canais</div>
       <div class="chart-wrap h-line"><canvas id="diario"></canvas></div>
     </div>
     <div class="card">
@@ -274,7 +275,7 @@ function renderMes(anoMes){
 
     <div class="section-title">Por hora</div>
     <div class="card">
-      <h3>Recebido por hora do dia</h3>
+      <h3>Faturamento por hora do dia</h3>
       <div class="hint">Só canais com transação (cartão, Pix, apps); o dinheiro entra agregado e fica de fora</div>
       <div class="chart-wrap h-hora"><canvas id="hora"></canvas></div>
     </div>
@@ -310,7 +311,7 @@ Chart.defaults.font.family="'Roboto',Arial,sans-serif";Chart.defaults.color=C.mu
 async function drawCanal(anoMes){
   const wrap=document.getElementById('donut').parentElement;
   const tbl=document.getElementById('canalTbl');
-  const {data,error}=await sb.from('painel_recebimento_canal').select('canal,valor,qtd').eq('ano_mes',anoMes);
+  const {data,error}=await sb.from('app_painel_recebimento_canal').select('canal,valor,qtd').eq('ano_mes',anoMes);
   if(error||!data||!data.length){wrap.innerHTML=aguardando();tbl.innerHTML='';return;}
   // normaliza e MESCLA linhas que caem no mesmo canal (ex.: variações de "Credito")
   const norm=data.map(r=>{const n=normCanal(r.canal);return {label:n.label,cor:n.cor,valor:Number(r.valor)||0,qtd:r.qtd==null?null:Number(r.qtd)};});
@@ -321,14 +322,14 @@ async function drawCanal(anoMes){
 
   // KPI canal lider
   const liderVal=document.getElementById('kpiLiderVal');const liderSub=document.getElementById('kpiLiderSub');
-  if(liderVal&&rows.length){liderVal.textContent=rows[0].label;liderSub.innerHTML='<b>'+pct(rows[0].valor/total*100)+'</b> do recebido';}
+  if(liderVal&&rows.length){liderVal.textContent=rows[0].label;liderSub.innerHTML='<b>'+pct(rows[0].valor/total*100)+'</b> do faturamento';}
 
   CHARTS.push(new Chart(document.getElementById('donut'),{type:'doughnut',
     data:{labels:rows.map(r=>r.label),datasets:[{data:rows.map(r=>r.valor),backgroundColor:rows.map(r=>r.cor),borderColor:'#fff',borderWidth:2}]},
     options:{responsive:true,maintainAspectRatio:false,cutout:'62%',
       plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+c.label+': '+brl(c.parsed)+' ('+pct(c.parsed/total*100)+')'}}}}}));
 
-  tbl.innerHTML='<table class="tbl"><thead><tr><th>Canal</th><th class="r">Recebido</th><th class="r">%</th><th class="r">Transações</th></tr></thead><tbody>'+
+  tbl.innerHTML='<table class="tbl"><thead><tr><th>Canal</th><th class="r">Faturado</th><th class="r">%</th><th class="r">Transações</th></tr></thead><tbody>'+
     rows.map(r=>'<tr><td><span class="dot" style="background:'+r.cor+'"></span>'+r.label+'</td><td class="r">'+brl(r.valor)+'</td><td class="r">'+pct(r.valor/total*100)+'</td><td class="r">'+(r.qtd==null?'—':r.qtd.toLocaleString('pt-BR'))+'</td></tr>').join('')+
     '</tbody><tfoot><tr><td>Total</td><td class="r">'+brl(total)+'</td><td class="r">100%</td><td class="r"></td></tr></tfoot></table>';
 }
@@ -336,15 +337,15 @@ async function drawCanal(anoMes){
 async function drawDiario(anoMes){
   const wrapD=document.getElementById('diario').parentElement;
   const wrapW=document.getElementById('dow').parentElement;
-  // le painel_diario (mesma fonte da home) -> o "recebido por dia" bate exatamente
-  const {data,error}=await sb.from('painel_diario').select('dia,venda_dia').eq('mes',anoMes+'-01').order('dia',{ascending:true});
-  if(error||!data||!data.length){wrapD.innerHTML=aguardando();wrapW.innerHTML=aguardando('Aguardando dados de recebimento diário.');return;}
+  // Le painel_diario, a mesma fonte de faturamento diario usada na home.
+  const {data,error}=await sb.from('app_painel_diario').select('dia,venda_dia').eq('mes',anoMes+'-01').order('dia',{ascending:true});
+  if(error||!data||!data.length){wrapD.innerHTML=aguardando();wrapW.innerHTML=aguardando('Aguardando dados de faturamento diário.');return;}
   const d=data.filter(r=>r.venda_dia!=null).map(r=>({data:r.dia,valor:Number(r.venda_dia)||0}));
   if(!d.length){wrapD.innerHTML=aguardando('Sem dias realizados neste mês ainda.');wrapW.innerHTML=aguardando('Sem dias realizados neste mês ainda.');return;}
   const labels=d.map(r=>r.data.split('-')[2]);
   const valores=d.map(r=>r.valor);
   CHARTS.push(new Chart(document.getElementById('diario'),{type:'line',
-    data:{labels,datasets:[{label:'Recebido',data:valores,borderColor:C.teal,backgroundColor:'rgba(0,166,166,.12)',borderWidth:2,fill:true,pointRadius:0,tension:.25}]},
+    data:{labels,datasets:[{label:'Faturado',data:valores,borderColor:C.teal,backgroundColor:'rgba(0,166,166,.12)',borderWidth:2,fill:true,pointRadius:0,tension:.25}]},
     options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
       plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+brl(c.parsed.y)}}},
       scales:{y:{grid:{color:C.border},ticks:{callback:v=>brl(v),font:{size:10}}},x:{grid:{display:false},ticks:{font:{size:9},maxRotation:0,autoSkip:true,maxTicksLimit:16}}}}}));
@@ -361,7 +362,7 @@ async function drawDiario(anoMes){
 
 async function drawHora(anoMes){
   const wrap=document.getElementById('hora').parentElement;
-  const {data,error}=await sb.from('painel_recebimento_hora').select('hora,valor').eq('ano_mes',anoMes).order('hora',{ascending:true});
+  const {data,error}=await sb.from('app_painel_recebimento_hora').select('hora,valor').eq('ano_mes',anoMes).order('hora',{ascending:true});
   if(error||!data||!data.length){wrap.innerHTML=aguardando('Aguardando hora do pagamento por transação.');return;}
   const d=data.map(r=>({hora:Number(r.hora),valor:Number(r.valor)||0})).sort((a,b)=>a.hora-b.hora);
   CHARTS.push(new Chart(document.getElementById('hora'),{type:'bar',
@@ -396,7 +397,7 @@ document.getElementById('verCargas').addEventListener('click',e=>{e.preventDefau
 document.getElementById('fecharCargas').addEventListener('click',()=>cargasBox.style.display='none');
 cargasBox.addEventListener('click',e=>{if(e.target===cargasBox)cargasBox.style.display='none';});
 
-main();
+SirFisherAuth.requireRole(sb,['gestor']).then(ctx=>{if(ctx)main();});
 </script>
 </body>
 </html>

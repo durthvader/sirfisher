@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="assets/auth.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
   :root{--bg:#F7F5EF;--card:#FFFFFF;--header:#12313F;--text:#1F2933;--muted:#6B7280;--border:#E5E7EB;--teal:#00A6A6;--amber:#D6A84F;--green:#2E7D5B;--red:#C94C4C;}
@@ -91,7 +92,7 @@
     </div>
     <nav class="tabs">
       <a href="./">Visão Geral</a>
-      <a href="vendas.html">Vendas</a>
+      <a href="vendas.html">Faturamento</a>
       <a href="caixa.html">Caixa</a>
       <a href="dre.html" class="active">DRE</a>
       <a href="despesas.html">Despesas</a>
@@ -175,12 +176,12 @@ function montarSeletorPeriodo(anoMesList,selecionado){
 
 async function main(){
   try{
-    const r=await sb.from('painel_dre_cascata').select('*').order('mes',{ascending:true});
+    const r=await sb.from('app_painel_dre_cascata').select('*').order('mes',{ascending:true});
     if(r.error)throw r.error;
     ROWS=r.data||[];
     const [uc,cg]=await Promise.all([
-      sb.from('painel_ultima_carga').select('ultima'),
-      sb.from('painel_cargas').select('*')
+      sb.from('app_painel_ultima_carga').select('ultima'),
+      sb.from('app_painel_cargas').select('*')
     ]);
     ULTIMA=(!uc.error&&uc.data&&uc.data[0])?uc.data[0].ultima:null;
     CARGAS=cg.error?[]:(cg.data||[]);
@@ -366,7 +367,7 @@ document.getElementById('verCargas').addEventListener('click',e=>{e.preventDefau
 document.getElementById('fecharCargas').addEventListener('click',()=>cargasBox.style.display='none');
 cargasBox.addEventListener('click',e=>{if(e.target===cargasBox)cargasBox.style.display='none';});
 
-main();
+SirFisherAuth.requireRole(sb,['gestor']).then(ctx=>{if(ctx)main();});
 </script>
 </body>
 </html>
