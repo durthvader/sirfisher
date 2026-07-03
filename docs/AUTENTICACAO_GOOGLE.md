@@ -72,10 +72,11 @@ set papel = excluded.papel,
 
 ### Etapa D — fechar o legado anônimo
 
-Somente depois de existir pelo menos um gestor validado, criar uma nova migration
-que revogue `select` de `anon` nos 19 endpoints antigos dos dashboards. Essa
-migration final não deve ser incluída antes do teste do primeiro gestor, pois sua
-aplicação antecipada pode bloquear o painel.
+Somente depois de existir pelo menos um gestor validado, aplicar a migration
+`20260703160000_fecha_acesso_anonimo.sql`. Ela remove de `anon` e `PUBLIC` os
+privilégios em objetos do schema `public` e endurece os privilégios padrão de
+objetos futuros. Essa migration final não deve ser aplicada antes do teste do
+primeiro gestor, pois sua aplicação antecipada pode bloquear o painel.
 
 Depois do fechamento, desabilitar no Supabase os demais métodos de login que não
 serão usados. O front-end já oferece apenas Google; a configuração do provedor é
