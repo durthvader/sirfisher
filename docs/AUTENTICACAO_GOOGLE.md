@@ -78,6 +78,11 @@ privilégios em objetos do schema `public` e endurece os privilégios padrão de
 objetos futuros. Essa migration final não deve ser aplicada antes do teste do
 primeiro gestor, pois sua aplicação antecipada pode bloquear o painel.
 
+Depois do fechamento anônimo, aplicar
+`20260703170000_restringe_authenticated_a_allowlist.sql`. Ela remove grants
+legados de `authenticated` e reabre explicitamente somente as views `app_*`, as
+três rotinas operacionais e as funções de autorização usadas pelo aplicativo.
+
 Depois do fechamento, desabilitar no Supabase os demais métodos de login que não
 serão usados. O front-end já oferece apenas Google; a configuração do provedor é
 o que torna a política Google-only completa.
