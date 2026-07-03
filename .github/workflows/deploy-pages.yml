@@ -51,6 +51,8 @@ jobs:
             usuarios.html \
             venda_especie.html \
             _site/
+          cp assets/accessibility.css _site/assets/
+          cp assets/accessibility.js _site/assets/
           cp assets/auth.js _site/assets/
           cp assets/dashboard-common.css _site/assets/
           cp assets/dashboard-utils.js _site/assets/
@@ -60,6 +62,8 @@ jobs:
 
           expected_files="$(printf '%s\n' \
             analise_individual.html \
+            assets/accessibility.css \
+            assets/accessibility.js \
             assets/auth.js \
             assets/dashboard-common.css \
             assets/dashboard-utils.js \

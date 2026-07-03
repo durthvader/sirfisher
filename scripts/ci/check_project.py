@@ -94,6 +94,35 @@ def check_links() -> tuple[int, set[str]]:
     return len(pages), assets
 
 
+def check_accessibility() -> int:
+    pages = sorted(ROOT.glob("*.html"))
+    problems: list[str] = []
+    for page in pages:
+        html = page.read_text(encoding="utf-8")
+        checks = {
+            "idioma pt-BR": re.search(r'<html\s+[^>]*lang=["\']pt-BR["\']', html, re.I),
+            "viewport": re.search(r'<meta\s+[^>]*name=["\']viewport["\']', html, re.I),
+            "título": re.search(r'<title>\s*[^<]+\s*</title>', html, re.I),
+            "título principal": re.search(r'<h1(?:\s|>)', html, re.I),
+            "conteúdo principal": re.search(r'<main(?:\s|>)', html, re.I),
+            "CSS compartilhado": 'href="assets/accessibility.css"' in html,
+            "JS compartilhado": 'src="assets/accessibility.js"' in html,
+        }
+        for label, passed in checks.items():
+            if not passed:
+                problems.append(f"{page.name}: {label}")
+
+    style_sources = pages + sorted((ROOT / "assets").glob("*.css"))
+    for path in style_sources:
+        content = path.read_text(encoding="utf-8")
+        if re.search(r"outline\s*:\s*none", content, re.I):
+            problems.append(f"{path.relative_to(ROOT).as_posix()}: foco suprimido")
+
+    if problems:
+        fail("Acessibilidade estática: " + ", ".join(problems))
+    return len(pages)
+
+
 def check_contracts() -> int:
     sources = "\n".join(
         path.read_text(encoding="utf-8-sig", errors="ignore")
@@ -163,13 +192,14 @@ def main() -> int:
     python_count = check_python()
     js_external, js_inline = check_javascript(args.require_node)
     page_count, assets = check_links()
+    accessibility_count = check_accessibility()
     contract_count = check_contracts()
     secret_count = check_secrets(tracked)
     artifact_count = check_artifact(assets)
     print(
         "QUALITY_OK "
         f"python={python_count} js_external={js_external} js_inline={js_inline} "
-        f"pages={page_count} contracts={contract_count} scanned={secret_count} "
+        f"pages={page_count} a11y={accessibility_count} contracts={contract_count} scanned={secret_count} "
         f"artifact={artifact_count}"
     )
     return 0
