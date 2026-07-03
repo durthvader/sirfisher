@@ -32,10 +32,37 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
+      - name: Prepare public site
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p _site
+          cp \
+            index.html \
+            vendas.html \
+            caixa.html \
+            dre.html \
+            despesas.html \
+            _site/
+
+          expected_files="$(printf '%s\n' \
+            caixa.html \
+            despesas.html \
+            dre.html \
+            index.html \
+            vendas.html)"
+          actual_files="$(find _site -maxdepth 1 -type f -printf '%f\n' | sort)"
+
+          if [[ "$actual_files" != "$expected_files" ]]; then
+            echo "Unexpected GitHub Pages artifact contents."
+            printf 'Expected:\n%s\nActual:\n%s\n' "$expected_files" "$actual_files"
+            exit 1
+          fi
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: '.'
+          path: '_site'
 
       - name: Deploy to GitHub Pages
         id: deployment
