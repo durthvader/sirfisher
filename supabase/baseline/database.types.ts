@@ -918,6 +918,30 @@ export type Database = {
         }
         Relationships: []
       }
+      app_conciliacao_stone: {
+        Row: {
+          bruto_receb: number | null
+          bruto_venda: number | null
+          data_venda: string | null
+          diferenca_bruto: number | null
+          liquido_receb: number | null
+          n_parcelas: number | null
+          n_venda: number | null
+          primeiro_venc: string | null
+          situacao: string | null
+          stone_id: string | null
+        }
+        Relationships: []
+      }
+      app_conciliacao_stone_resumo: {
+        Row: {
+          qtd: number | null
+          situacao: string | null
+          total_recebivel: number | null
+          total_venda: number | null
+        }
+        Relationships: []
+      }
       app_excecoes: {
         Row: {
           chave_tipo: string | null
@@ -1015,6 +1039,18 @@ export type Database = {
           ano_mes: string | null
           mc_perc: number | null
           mes: string | null
+        }
+        Relationships: []
+      }
+      app_painel_meta_real_mensal: {
+        Row: {
+          ano: number | null
+          ano_mes: string | null
+          mes: string | null
+          mes_num: number | null
+          meta: number | null
+          perc_atingido: number | null
+          realizado: number | null
         }
         Relationships: []
       }
@@ -1116,6 +1152,19 @@ export type Database = {
         }
         Relationships: []
       }
+      app_qualidade_cargas: {
+        Row: {
+          atraso_dias: number | null
+          fonte: string | null
+          linhas: number | null
+          periodo_fim: string | null
+          periodo_inicio: string | null
+          situacao: string | null
+          ultima_carga: string | null
+          ultima_importacao: string | null
+        }
+        Relationships: []
+      }
       app_recebimento_conhecido: {
         Row: {
           dia: string | null
@@ -1127,6 +1176,18 @@ export type Database = {
         Row: {
           dia: string | null
           valor: number | null
+        }
+        Relationships: []
+      }
+      app_usuarios_acesso: {
+        Row: {
+          ativo: boolean | null
+          criado_em: string | null
+          email: string | null
+          nome: string | null
+          papel: string | null
+          ultimo_login: string | null
+          user_id: string | null
         }
         Relationships: []
       }
@@ -1650,6 +1711,15 @@ export type Database = {
       }
     }
     Functions: {
+      definir_acesso_usuario: {
+        Args: { p_ativo?: boolean; p_papel: string; p_user_id: string }
+        Returns: {
+          ativo: boolean
+          email: string
+          papel: string
+          user_id: string
+        }[]
+      }
       normaliza_nome: { Args: { txt: string }; Returns: string }
       papel_usuario_atual: { Args: never; Returns: string }
       recalcular_saldo_fechamento: {

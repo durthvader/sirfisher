@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; upgrade-insecure-requests">
+<title>Sir Fisher · Conciliação</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="assets/dashboard-common.css" rel="stylesheet">
+<link href="assets/product-pages.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.108.2" integrity="sha384-JWEyvHh+lRf0sN/WWY+QTQwX+CyWqmNg4tkc8GQzAMEtR2wGNrCJlvnu1lHD1kDm" crossorigin="anonymous"></script>
+<script src="assets/supabase-client.js"></script>
+<script src="assets/auth.js"></script>
+<script src="assets/safe-dom.js"></script>
+<script src="assets/dashboard-utils.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" integrity="sha384-bs/nf9FbdNouRbMiFcrcZfLXYPKiPaGVGplVbv7dLGECccEXDW+S3zjqSKR5ZEaD" crossorigin="anonymous"></script>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="head-row"><div class="brand"><div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M2 12s3-6 10-6 10 6 10 6-3 6-10 6S2 12 2 12z"/><circle cx="9" cy="12" r="1" fill="#fff"/></svg></div><div><h1>Sir Fisher</h1><span>Painel de Gestão</span></div></div><div class="head-meta"><div class="unidade">Conciliação</div></div></div>
+    <nav class="tabs"><a href="./">Visão Geral</a><a href="vendas.html">Faturamento</a><a href="caixa.html">Caixa</a><a href="dre.html">DRE</a><a href="despesas.html">Despesas</a><a href="conciliacao.html" class="active">Conciliação</a><a href="planejamento.html">Planejamento</a></nav>
+  </header>
+  <main id="main"><div class="loading">Conciliando vendas e recebíveis…</div></main>
+</div>
+<script>
+const sb=SirFisherSupabase;
+const esc=SirFisherDOM.escapeHTML;
+const {brl,rs,pct}=SirFisherFormat;
+let chart=null;
+function fmtDay(value){if(!value)return'—';return new Date(`${value}T12:00:00`).toLocaleDateString('pt-BR');}
+function statusInfo(value){if(value==='ok')return['Conciliado','ok'];if(value==='cancelado/estornado')return['Cancelado/estornado','neutral'];return[value||'Divergência','bad'];}
+
+async function loadReconciliation(){
+  const main=document.getElementById('main');
+  main.innerHTML='<div class="loading">Conciliando vendas e recebíveis…</div>';
+  const [summaryResult,detailResult]=await Promise.all([
+    sb.from('app_conciliacao_stone_resumo').select('*'),
+    sb.from('app_conciliacao_stone').select('*').neq('situacao','ok').order('data_venda',{ascending:false}).limit(200)
+  ]);
+  if(summaryResult.error||detailResult.error){main.innerHTML='<div class="erro">Não foi possível carregar a conciliação.</div>';return;}
+  const summary=summaryResult.data||[];const details=detailResult.data||[];
+  const total=summary.reduce((sum,row)=>sum+Number(row.qtd||0),0);const ok=Number(summary.find(row=>row.situacao==='ok')?.qtd||0);const divergences=total-ok-Number(summary.find(row=>row.situacao==='cancelado/estornado')?.qtd||0);const rate=total?ok/total*100:0;
+  main.innerHTML=`<div class="page-intro"><div><h2>Conciliação Stone</h2><p>Correspondência por STONE ID entre vendas e agenda de recebíveis.</p></div><button id="reloadConciliation" class="button secondary">Atualizar</button></div>
+    <div class="summary-grid"><div class="summary-card"><div class="label">Registros analisados</div><div class="value">${total.toLocaleString('pt-BR')}</div></div><div class="summary-card"><div class="label">Conciliados</div><div class="value">${ok.toLocaleString('pt-BR')}</div></div><div class="summary-card"><div class="label">Taxa conciliada</div><div class="value">${pct(rate)}</div></div><div class="summary-card"><div class="label">Divergências</div><div class="value">${divergences.toLocaleString('pt-BR')}</div></div></div>
+    <div class="notice"><b>Etapa bancária:</b> ainda não há uma chave confirmada ligando cada parcela Stone ao lançamento do extrato. O painel não faz pareamento aproximado por data/valor para evitar falsos positivos; o extrato continua monitorado em Qualidade.</div>
+    <section class="panel"><div class="panel-head"><div><h3>Distribuição</h3><div class="hint">Quantidade por situação.</div></div></div><div class="chart-box"><canvas id="conciliationChart"></canvas></div></section>
+    <section class="panel"><div class="panel-head"><div><h3>Divergências recentes</h3><div class="hint">Até 200 registros não conciliados, ordenados pela data da venda.</div></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>STONE ID</th><th>Data</th><th>Situação</th><th class="right">Venda</th><th class="right">Recebível bruto</th><th class="right">Recebível líquido</th><th class="right">Diferença</th></tr></thead><tbody>${details.map(row=>{const [label,klass]=statusInfo(row.situacao);return`<tr><td class="mono">${esc(row.stone_id||'—')}</td><td>${fmtDay(row.data_venda)}</td><td><span class="status ${klass}">${esc(label)}</span></td><td class="right">${rs(row.bruto_venda)}</td><td class="right">${rs(row.bruto_receb)}</td><td class="right">${rs(row.liquido_receb)}</td><td class="right">${rs(row.diferenca_bruto)}</td></tr>`;}).join('')||'<tr><td colspan="7" class="empty">Nenhuma divergência encontrada.</td></tr>'}</tbody></table></div></section>`;
+  document.getElementById('reloadConciliation').addEventListener('click',loadReconciliation);
+  if(chart)chart.destroy();
+  const colors={'ok':'#2E7D5B','venda sem recebível':'#C94C4C','recebível sem venda':'#D6A84F','cancelado/estornado':'#9aa6b2'};
+  chart=new Chart(document.getElementById('conciliationChart'),{type:'bar',data:{labels:summary.map(row=>row.situacao),datasets:[{data:summary.map(row=>Number(row.qtd||0)),backgroundColor:summary.map(row=>colors[row.situacao]||'#00A6A6'),borderRadius:5}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:context=>Number(context.raw).toLocaleString('pt-BR')}}},scales:{y:{beginAtZero:true,ticks:{callback:value=>Number(value).toLocaleString('pt-BR')}},x:{grid:{display:false}}}}});
+}
+
+(async()=>{const auth=await SirFisherAuth.requireRole(sb,['gestor']);if(auth)await loadReconciliation();})();
+</script>
+</body>
+</html>

@@ -45,24 +45,36 @@ jobs:
             despesas.html \
             analise_individual.html \
             classificar_excecoes.html \
+            conciliacao.html \
+            planejamento.html \
+            qualidade.html \
+            usuarios.html \
             venda_especie.html \
             _site/
           cp assets/auth.js _site/assets/
           cp assets/dashboard-common.css _site/assets/
           cp assets/dashboard-utils.js _site/assets/
+          cp assets/product-pages.css _site/assets/
           cp assets/safe-dom.js _site/assets/
+          cp assets/supabase-client.js _site/assets/
 
           expected_files="$(printf '%s\n' \
             analise_individual.html \
             assets/auth.js \
             assets/dashboard-common.css \
             assets/dashboard-utils.js \
+            assets/product-pages.css \
             assets/safe-dom.js \
+            assets/supabase-client.js \
             caixa.html \
             classificar_excecoes.html \
+            conciliacao.html \
             despesas.html \
             dre.html \
             index.html \
+            planejamento.html \
+            qualidade.html \
+            usuarios.html \
             venda_especie.html \
             vendas.html)"
           actual_files="$(find _site -type f -printf '%P\n' | sort)"

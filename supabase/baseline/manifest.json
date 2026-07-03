@@ -2,14 +2,14 @@
   "generated_at": "2026-07-03",
   "scope": ["public", "private"],
   "contract_file": "database.types.ts",
-  "contract_sha256": "36a69bff99612cb34c5a1798709b4c806a8840205586997afdbf23f6cb4d6be5",
-  "contract_bytes": 50360,
+  "contract_sha256": "6199d1d739c9381107e6e13f907376a08b5830333c9808cde73bbe2aa89c00b7",
+  "contract_bytes": 52319,
   "catalog": {
     "tables": 24,
-    "views": 65,
+    "views": 70,
     "materialized_views": 2,
     "sequences": 12,
-    "functions": 32,
+    "functions": 38,
     "policies": 14,
     "indexes": 38,
     "triggers": 0

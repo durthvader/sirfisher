@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; upgrade-insecure-requests">
+<title>Sir Fisher · Usuários</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="assets/dashboard-common.css" rel="stylesheet">
+<link href="assets/product-pages.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.108.2" integrity="sha384-JWEyvHh+lRf0sN/WWY+QTQwX+CyWqmNg4tkc8GQzAMEtR2wGNrCJlvnu1lHD1kDm" crossorigin="anonymous"></script>
+<script src="assets/supabase-client.js"></script>
+<script src="assets/auth.js"></script>
+<script src="assets/safe-dom.js"></script>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="head-row">
+      <div class="brand"><div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M2 12s3-6 10-6 10 6 10 6-3 6-10 6S2 12 2 12z"/><circle cx="9" cy="12" r="1" fill="#fff"/></svg></div><div><h1>Sir Fisher</h1><span>Painel de Gestão</span></div></div>
+      <div class="head-meta"><div class="unidade">Usuários e acessos</div></div>
+    </div>
+    <nav class="tabs">
+      <a href="./">Visão Geral</a><a href="vendas.html">Faturamento</a><a href="caixa.html">Caixa</a><a href="dre.html">DRE</a><a href="despesas.html">Despesas</a><a href="conciliacao.html">Conciliação</a><a href="planejamento.html">Planejamento</a>
+    </nav>
+  </header>
+  <main id="main"><div class="loading">Carregando usuários…</div></main>
+</div>
+<script>
+const sb=SirFisherSupabase;
+const esc=SirFisherDOM.escapeHTML;
+let USERS=[];
+let CURRENT_USER_ID=null;
+
+function fmtDate(value){return value?new Date(value).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'}):'—';}
+function stateOf(user){if(!user.papel)return ['Pendente','warn'];if(!user.ativo)return ['Inativo','bad'];return ['Ativo','ok'];}
+
+function render(){
+  const main=document.getElementById('main');
+  const query=(document.getElementById('userFilter')?.value||'').trim().toLowerCase();
+  const filtered=USERS.filter(user=>!query||[user.email,user.nome,user.papel].some(value=>(value||'').toLowerCase().includes(query)));
+  const pending=USERS.filter(user=>!user.papel).length;
+  const managers=USERS.filter(user=>user.papel==='gestor'&&user.ativo).length;
+  const active=USERS.filter(user=>user.papel&&user.ativo).length;
+  main.innerHTML=`
+    <div class="page-intro"><div><h2>Usuários e acessos</h2><p>Libere contas Google já autenticadas, escolha o papel e desative acessos sem excluir o histórico.</p></div><div class="actions"><input id="userFilter" class="field filter" type="search" placeholder="Buscar nome, e-mail ou papel" value="${esc(query)}"><button id="reloadUsers" class="button secondary">Atualizar</button></div></div>
+    <div class="summary-grid"><div class="summary-card"><div class="label">Usuários</div><div class="value">${USERS.length}</div></div><div class="summary-card"><div class="label">Pendentes</div><div class="value">${pending}</div></div><div class="summary-card"><div class="label">Ativos</div><div class="value">${active}</div></div><div class="summary-card"><div class="label">Gestores ativos</div><div class="value">${managers}</div></div></div>
+    <section class="panel"><div class="panel-head"><div><h3>Contas Google</h3><div class="hint">O último gestor ativo é protegido contra desativação ou rebaixamento.</div></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Usuário</th><th>Cadastro</th><th>Último login</th><th>Estado</th><th>Papel</th><th>Ação</th></tr></thead><tbody>${filtered.map(user=>{
+      const [label,klass]=stateOf(user);const role=user.papel||'operador';const isSelf=user.user_id===CURRENT_USER_ID;
+      return `<tr data-user="${esc(user.user_id)}"><td><b>${esc(user.nome||user.email||'Conta Google')}</b>${isSelf?' <span class="status neutral">Você</span>':''}<br><span class="muted">${esc(user.email||'sem e-mail')}</span></td><td>${fmtDate(user.criado_em)}</td><td>${fmtDate(user.ultimo_login)}</td><td><span class="status ${klass}">${label}</span></td><td><select class="field role"><option value="operador"${role==='operador'?' selected':''}>Operador</option><option value="gestor"${role==='gestor'?' selected':''}>Gestor</option></select></td><td><div class="actions"><button class="button save">${user.papel?'Salvar':'Liberar'}</button>${user.papel&&user.ativo?'<button class="button danger disable">Desativar</button>':user.papel?'<button class="button secondary enable">Reativar</button>':''}</div></td></tr>`;
+    }).join('')||'<tr><td colspan="6" class="empty">Nenhum usuário encontrado.</td></tr>'}</tbody></table></div></section>`;
+  const filter=document.getElementById('userFilter');
+  filter.addEventListener('input',render);
+  if(query){filter.focus();filter.setSelectionRange(query.length,query.length);}
+  document.getElementById('reloadUsers').addEventListener('click',loadUsers);
+  main.querySelectorAll('tr[data-user]').forEach(row=>{
+    const userId=row.dataset.user;const role=()=>row.querySelector('.role').value;
+    row.querySelector('.save')?.addEventListener('click',event=>saveAccess(userId,role(),true,event.currentTarget));
+    row.querySelector('.disable')?.addEventListener('click',event=>saveAccess(userId,role(),false,event.currentTarget));
+    row.querySelector('.enable')?.addEventListener('click',event=>saveAccess(userId,role(),true,event.currentTarget));
+  });
+}
+
+async function saveAccess(userId,role,active,button){
+  button.disabled=true;
+  const {error}=await sb.rpc('definir_acesso_usuario',{p_user_id:userId,p_papel:role,p_ativo:active});
+  if(error){alert('Não foi possível alterar o acesso. Confirme que existe outro gestor ativo antes de rebaixar ou desativar um gestor.');button.disabled=false;return;}
+  await loadUsers();
+}
+
+async function loadUsers(){
+  const main=document.getElementById('main');
+  if(main&&!USERS.length)main.innerHTML='<div class="loading">Carregando usuários…</div>';
+  const {data,error}=await sb.from('app_usuarios_acesso').select('*').order('criado_em',{ascending:false});
+  if(error){main.innerHTML='<div class="erro">Não foi possível carregar os usuários.</div>';return;}
+  USERS=data||[];render();
+}
+
+(async()=>{
+  const auth=await SirFisherAuth.requireRole(sb,['gestor']);
+  if(!auth)return;
+  CURRENT_USER_ID=auth.session.user.id;
+  await loadUsers();
+})();
+</script>
+</body>
+</html>

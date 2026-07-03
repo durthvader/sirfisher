@@ -70,6 +70,11 @@ set papel = excluded.papel,
 5. Para liberar outro usuário, repetir o provisionamento usando `gestor` ou
    `operador`. Nunca conceder papel automaticamente apenas pelo domínio do e-mail.
 
+Depois da migration da fase 5, gestores também podem usar `usuarios.html`. A
+tela lista contas presentes em `auth.users`, inclusive as pendentes, e chama a
+RPC `definir_acesso_usuario()` para liberar, alterar o papel, desativar ou
+reativar. A RPC impede que o último gestor ativo seja removido.
+
 ### Etapa D — fechar o legado anônimo
 
 Somente depois de existir pelo menos um gestor validado, aplicar a migration

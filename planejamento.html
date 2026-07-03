@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; upgrade-insecure-requests">
+<title>Sir Fisher · Planejamento</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="assets/dashboard-common.css" rel="stylesheet">
+<link href="assets/product-pages.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.108.2" integrity="sha384-JWEyvHh+lRf0sN/WWY+QTQwX+CyWqmNg4tkc8GQzAMEtR2wGNrCJlvnu1lHD1kDm" crossorigin="anonymous"></script>
+<script src="assets/supabase-client.js"></script>
+<script src="assets/auth.js"></script>
+<script src="assets/dashboard-utils.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" integrity="sha384-bs/nf9FbdNouRbMiFcrcZfLXYPKiPaGVGplVbv7dLGECccEXDW+S3zjqSKR5ZEaD" crossorigin="anonymous"></script>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="head-row"><div class="brand"><div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M2 12s3-6 10-6 10 6 10 6-3 6-10 6S2 12 2 12z"/><circle cx="9" cy="12" r="1" fill="#fff"/></svg></div><div><h1>Sir Fisher</h1><span>Painel de Gestão</span></div></div><div class="head-meta"><div class="unidade">Planejamento</div></div></div>
+    <nav class="tabs"><a href="./">Visão Geral</a><a href="vendas.html">Faturamento</a><a href="caixa.html">Caixa</a><a href="dre.html">DRE</a><a href="despesas.html">Despesas</a><a href="conciliacao.html">Conciliação</a><a href="planejamento.html" class="active">Planejamento</a></nav>
+  </header>
+  <main id="main"><div class="loading">Carregando metas…</div></main>
+</div>
+<script>
+const sb=SirFisherSupabase;
+const {brl,pct,rs}=SirFisherFormat;
+const MONTHS=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+let ROWS=[];let chart=null;let selectedYear=new Date().getFullYear();
+
+function render(){
+  const main=document.getElementById('main');const years=[...new Set(ROWS.map(row=>Number(row.ano)))].sort((a,b)=>b-a);if(!years.includes(selectedYear))selectedYear=years[0];
+  const current=new Date();const visible=ROWS.filter(row=>Number(row.ano)===selectedYear).sort((a,b)=>Number(a.mes_num)-Number(b.mes_num));
+  const considered=visible.filter(row=>selectedYear<current.getFullYear()||Number(row.mes_num)<=current.getMonth()+1);
+  const meta=considered.reduce((sum,row)=>sum+Number(row.meta||0),0);const realized=considered.reduce((sum,row)=>sum+Number(row.realizado||0),0);const attainment=meta?realized/meta*100:0;const currentRow=visible.find(row=>Number(row.mes_num)===(selectedYear===current.getFullYear()?current.getMonth()+1:12))||visible[visible.length-1];
+  main.innerHTML=`<div class="page-intro"><div><h2>Orçado × realizado</h2><p>Metas mensais da unidade PRAIA comparadas ao faturamento realizado.</p></div><div class="actions"><select id="yearFilter" class="field">${years.map(year=>`<option value="${year}"${year===selectedYear?' selected':''}>${year}</option>`).join('')}</select><button id="reloadPlanning" class="button secondary">Atualizar</button></div></div>
+    <div class="summary-grid"><div class="summary-card"><div class="label">Meta acumulada</div><div class="value">${brl(meta)}</div></div><div class="summary-card"><div class="label">Realizado acumulado</div><div class="value">${brl(realized)}</div></div><div class="summary-card"><div class="label">Atingimento</div><div class="value">${pct(attainment)}</div></div><div class="summary-card"><div class="label">Mês de referência</div><div class="value">${currentRow?MONTHS[Number(currentRow.mes_num)-1]:'—'}</div></div></div>
+    <section class="panel"><div class="panel-head"><div><h3>Evolução mensal</h3><div class="hint">Valores brutos de meta e realizado.</div></div></div><div class="chart-box"><canvas id="planningChart"></canvas></div></section>
+    <section class="panel"><div class="panel-head"><div><h3>Detalhamento</h3></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Mês</th><th class="right">Meta</th><th class="right">Realizado</th><th class="right">Diferença</th><th class="right">Atingimento</th><th>Estado</th></tr></thead><tbody>${visible.map(row=>{const diff=Number(row.realizado||0)-Number(row.meta||0);const achieved=Number(row.perc_atingido||0);const future=selectedYear>current.getFullYear()||(selectedYear===current.getFullYear()&&Number(row.mes_num)>current.getMonth()+1);const label=future?'Planejado':achieved>=100?'Atingida':achieved>=90?'Próxima':'Abaixo';const klass=future?'neutral':achieved>=100?'ok':achieved>=90?'warn':'bad';return`<tr><td><b>${MONTHS[Number(row.mes_num)-1]}</b></td><td class="right">${rs(row.meta)}</td><td class="right">${future?'—':rs(row.realizado)}</td><td class="right">${future?'—':rs(diff)}</td><td class="right">${future?'—':pct(achieved)}</td><td><span class="status ${klass}">${label}</span></td></tr>`;}).join('')}</tbody></table></div></section>`;
+  document.getElementById('yearFilter').addEventListener('change',event=>{selectedYear=Number(event.target.value);render();});document.getElementById('reloadPlanning').addEventListener('click',loadPlanning);
+  if(chart)chart.destroy();chart=new Chart(document.getElementById('planningChart'),{type:'bar',data:{labels:visible.map(row=>MONTHS[Number(row.mes_num)-1]),datasets:[{label:'Meta',data:visible.map(row=>Number(row.meta||0)),backgroundColor:'#D6A84F',borderRadius:4},{label:'Realizado',data:visible.map(row=>Number(row.realizado||0)),backgroundColor:'#00A6A6',borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{tooltip:{callbacks:{label:context=>`${context.dataset.label}: ${rs(context.raw)}`}}},scales:{y:{beginAtZero:true,ticks:{callback:value=>brl(Number(value))}},x:{grid:{display:false}}}}});
+}
+
+async function loadPlanning(){const main=document.getElementById('main');main.innerHTML='<div class="loading">Carregando metas…</div>';const{data,error}=await sb.from('app_painel_meta_real_mensal').select('*').order('mes',{ascending:true});if(error){main.innerHTML='<div class="erro">Não foi possível carregar metas e realizado.</div>';return;}ROWS=data||[];render();}
+(async()=>{const auth=await SirFisherAuth.requireRole(sb,['gestor']);if(auth)await loadPlanning();})();
+</script>
+</body>
+</html>

@@ -6,7 +6,11 @@
     'vendas.html',
     'caixa.html',
     'dre.html',
-    'despesas.html'
+    'despesas.html',
+    'conciliacao.html',
+    'planejamento.html',
+    'qualidade.html',
+    'usuarios.html'
   ]);
   const OPERATION_PAGES = new Set([
     'analise_individual.html',
@@ -207,6 +211,18 @@
     const home = document.createElement('a');
     home.href = './';
     home.textContent = 'Início';
+    const managerLinks = [];
+    if (role === 'gestor') {
+      [
+        ['Qualidade', 'qualidade.html'],
+        ['Usuários', 'usuarios.html']
+      ].forEach(([label, href]) => {
+        const link = document.createElement('a');
+        link.href = href;
+        link.textContent = label;
+        managerLinks.push(link);
+      });
+    }
     const logout = document.createElement('button');
     logout.type = 'button';
     logout.textContent = 'Sair';
@@ -215,7 +231,7 @@
       await sb.auth.signOut();
       window.location.replace('./');
     });
-    box.append(identity, home, logout);
+    box.append(identity, ...managerLinks, home, logout);
     document.body.appendChild(box);
   }
 
