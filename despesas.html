@@ -3,12 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; upgrade-insecure-requests">
 <title>Sir Fisher · Despesas</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.108.2" integrity="sha384-JWEyvHh+lRf0sN/WWY+QTQwX+CyWqmNg4tkc8GQzAMEtR2wGNrCJlvnu1lHD1kDm" crossorigin="anonymous"></script>
 <script src="assets/auth.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="assets/safe-dom.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" integrity="sha384-bs/nf9FbdNouRbMiFcrcZfLXYPKiPaGVGplVbv7dLGECccEXDW+S3zjqSKR5ZEaD" crossorigin="anonymous"></script>
 <style>
   :root{--bg:#F7F5EF;--card:#FFFFFF;--header:#12313F;--text:#1F2933;--muted:#6B7280;--border:#E5E7EB;--teal:#00A6A6;--amber:#D6A84F;--green:#2E7D5B;--red:#C94C4C;}
   *{box-sizing:border-box;margin:0;padding:0;}
@@ -135,6 +137,7 @@
 const SUPABASE_URL="https://qqefegpievdlaprwzktx.supabase.co";
 const SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFxZWZlZ3BpZXZkbGFwcnd6a3R4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0ODQxNzAsImV4cCI6MjA5ODA2MDE3MH0.1h_585aBtTnXtA0FLtbNvhkYpVokgfHbUpKcAIBImKY";
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+const esc=SirFisherDOM.escapeHTML;
 const C={header:'#12313F',teal:'#00A6A6',amber:'#D6A84F',green:'#2E7D5B',red:'#C94C4C',muted:'#6B7280',border:'#E5E7EB'};
 const MESES=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const MES3=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
@@ -267,9 +270,9 @@ async function main(){
     if(ULTIMA){const d=new Date(ULTIMA);document.getElementById('rodapeAtt').textContent='Atualizado em '+String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
     else{document.getElementById('rodapeAtt').textContent='Atualizado: —';}
     const lista=document.getElementById('cargasLista');
-    lista.innerHTML=CARGAS.length?CARGAS.map(c=>'<div style="padding:7px 0;border-bottom:1px solid var(--border)"><b>'+c.quando+'</b><br><span style="color:var(--muted)">'+c.fontes+'</span></div>').join(''):'<div style="color:var(--muted)">Ainda sem registros de carga.</div>';
+    lista.innerHTML=CARGAS.length?CARGAS.map(c=>'<div style="padding:7px 0;border-bottom:1px solid var(--border)"><b>'+esc(c.quando)+'</b><br><span style="color:var(--muted)">'+esc(c.fontes)+'</span></div>').join(''):'<div style="color:var(--muted)">Ainda sem registros de carga.</div>';
     document.getElementById('rodape').style.display='flex';
-  }catch(e){document.getElementById('main').innerHTML='<div class="erro">Não foi possível carregar os dados: '+(e.message||e)+'</div>';}
+  }catch(e){document.getElementById('main').innerHTML='<div class="erro">Não foi possível carregar os dados: '+esc(e.message||e)+'</div>';}
 }
 
 Chart.defaults.font.family="'Roboto',Arial,sans-serif";Chart.defaults.color=C.muted;
@@ -303,7 +306,7 @@ function renderMes(anoMes){
     ${alertaHtml}
     <div class="kpis">
       ${kpi('Despesa total','out',brl0(total),deltaDesp(total,prevAm?totalPrev:null),C.header,'total')}
-      ${kpi('Maior grupo','pie',maior?nomeGrupo(maior.grupo):'—',maior?('<div class="sub"><b>'+brl(maior.valor)+'</b> · '+pp(maior.valor/total*100)+' do total</div>'):'',corGrupo(maior?maior.grupo:''),'grupo')}
+      ${kpi('Maior grupo','pie',maior?esc(nomeGrupo(maior.grupo)):'—',maior?('<div class="sub"><b>'+brl(maior.valor)+'</b> · '+pp(maior.valor/total*100)+' do total</div>'):'',corGrupo(maior?maior.grupo:''),'grupo')}
       ${kpi('Concentração top 5','conc',pp(conc),'<div class="sub">'+porForn.length+' fornecedores no mês</div>',conc>=60?C.red:conc>=45?C.amber:C.green,'conc')}
       ${kpi('Não classificado','alert',naoCat>0.5?brl0(naoCat):'R$ 0',naoCat>0.5?'<div class="sub down">precisa classificar</div>':'<div class="sub up">tudo classificado</div>',naoCat>0.5?C.red:C.green,'naocat')}
     </div>
@@ -368,7 +371,7 @@ function drawComposicao(porGrupo,total){
     options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
       plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+brl(c.parsed.x)+' · '+pp(c.parsed.x/total*100)}}},
       scales:{x:{grid:{color:C.border},ticks:{callback:v=>brlK(v),font:{size:10}}},y:{grid:{display:false},ticks:{font:{size:11},color:C.text,autoSkip:false}}}}}));
-  const tbl=porGrupo.map(g=>'<tr><td><span class="chip" style="background:'+corGrupo(g.grupo)+'">&nbsp;</span> '+nomeGrupo(g.grupo)+'</td><td class="r">'+rs(g.valor)+'</td><td class="r" style="color:var(--muted)">'+pp(g.valor/total*100)+'</td></tr>').join('');
+  const tbl=porGrupo.map(g=>'<tr><td><span class="chip" style="background:'+corGrupo(g.grupo)+'">&nbsp;</span> '+esc(nomeGrupo(g.grupo))+'</td><td class="r">'+rs(g.valor)+'</td><td class="r" style="color:var(--muted)">'+pp(g.valor/total*100)+'</td></tr>').join('');
   document.getElementById('compTbl').innerHTML='<table class="tbl">'+tbl+'</table>';
 }
 
@@ -396,9 +399,9 @@ function drawRanking(porForn,anoMes){
     if(media!=null){const d=(f.valor-media)/media*100;deltaHtml='<span class="'+(d>=0?'delta-up':'delta-down')+'">'+(d>=0?'▲':'▼')+' '+Math.abs(d).toFixed(0)+'%</span> vs média '+brl(media);}
     const gd=grupoDom.get(f.fornecedor);const gg=gd?gd.g:'';
     h+='<div class="row"><div class="pos">'+(i+1)+'</div><div class="body">'+
-       '<div class="top"><span class="nome">'+f.fornecedor+'</span><span class="val">'+brl(f.valor)+'</span></div>'+
+       '<div class="top"><span class="nome">'+esc(f.fornecedor)+'</span><span class="val">'+brl(f.valor)+'</span></div>'+
        '<div class="track"><div class="fill" style="width:'+Math.max(f.valor/max*100,2)+'%;background:'+corGrupo(gg)+'"></div></div>'+
-       '<div class="meta"><span class="chip" style="background:'+corGrupo(gg)+'">'+nomeGrupo(gg)+'</span><span>'+deltaHtml+'</span></div>'+
+       '<div class="meta"><span class="chip" style="background:'+corGrupo(gg)+'">'+esc(nomeGrupo(gg))+'</span><span>'+deltaHtml+'</span></div>'+
        '</div></div>';
   });
   h+='</div>';
@@ -424,10 +427,10 @@ function drawVazamentos(porForn,anoMes){
   let h='';
   top.forEach(l=>{
     if(l.tipo==='novo'){
-      h+='<div class="leak novo"><div class="h"><span class="nm">'+l.nome+'</span><span class="ex">'+brl(l.valor)+'</span></div>'+
+      h+='<div class="leak novo"><div class="h"><span class="nm">'+esc(l.nome)+'</span><span class="ex">'+brl(l.valor)+'</span></div>'+
          '<div class="d">Fornecedor <b>novo</b> no período — primeiro gasto relevante, sem histórico para comparar.</div></div>';
     }else{
-      h+='<div class="leak"><div class="h"><span class="nm">'+l.nome+'</span><span class="ex">+'+brl(l.excesso)+'</span></div>'+
+      h+='<div class="leak"><div class="h"><span class="nm">'+esc(l.nome)+'</span><span class="ex">+'+brl(l.excesso)+'</span></div>'+
          '<div class="d">Gastou <b>'+brl(l.valor)+'</b> — <b>'+l.pct.toFixed(0)+'% acima</b> da média de '+brl(l.media)+'.</div></div>';
     }
   });
@@ -457,7 +460,7 @@ function drawRecorrencia(rows,anoMes,idx,total){
   const lst=(arr,tit)=>{
     if(!arr.length)return '<div style="flex:1;min-width:180px"><div class="hint">'+tit+'</div><div class="vazio" style="padding:10px">—</div></div>';
     return '<div style="flex:1;min-width:180px"><div class="hint">'+tit+'</div><table class="tbl">'+
-      arr.slice(0,5).map(f=>'<tr><td>'+f.fornecedor+'</td><td class="r">'+brl(f.valor)+'</td></tr>').join('')+'</table></div>';
+      arr.slice(0,5).map(f=>'<tr><td>'+esc(f.fornecedor)+'</td><td class="r">'+brl(f.valor)+'</td></tr>').join('')+'</table></div>';
   };
   h+='<div style="display:flex;gap:16px;flex-wrap:wrap">'+lst(recList,'Maiores recorrentes')+lst(ponList,'Maiores pontuais do mês')+'</div>';
   document.getElementById('recorrencia').innerHTML=h;
@@ -478,16 +481,16 @@ function drawEvolucao(){
     options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
       plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.y>0?' '+nomeGrupo(c.dataset.label)+': '+brl(c.parsed.y):null}}},
       scales:{x:{stacked:true,grid:{display:false},ticks:{font:{size:9},maxRotation:0,autoSkip:true,maxTicksLimit:12}},y:{stacked:true,grid:{color:C.border},ticks:{callback:v=>brlK(v),font:{size:10}}}}}}));
-  document.getElementById('evoLeg').innerHTML=grupos.map(g=>'<span><i style="background:'+corGrupo(g)+'"></i>'+nomeGrupo(g)+'</span>').join('');
+  document.getElementById('evoLeg').innerHTML=grupos.map(g=>'<span><i style="background:'+corGrupo(g)+'"></i>'+esc(nomeGrupo(g))+'</span>').join('');
 }
 
 function drawDetalhe(rows,total){
   const porGrupo=[...aggBy(rows,r=>r.grupo).entries()].map(([g,v])=>({grupo:g,valor:v.valor})).sort((a,b)=>b.valor-a.valor);
   let h='<table class="tbl">';
   porGrupo.forEach(g=>{
-    h+='<tr class="grp"><td>'+nomeGrupo(g.grupo)+'</td><td class="r">'+rs(g.valor)+'</td><td class="r" style="color:var(--muted)">'+pp(g.valor/total*100)+'</td></tr>';
+    h+='<tr class="grp"><td>'+esc(nomeGrupo(g.grupo))+'</td><td class="r">'+rs(g.valor)+'</td><td class="r" style="color:var(--muted)">'+pp(g.valor/total*100)+'</td></tr>';
     const cats=[...aggBy(rows.filter(r=>r.grupo===g.grupo),r=>r.categoria).entries()].map(([c,v])=>({cat:c,valor:v.valor})).sort((a,b)=>b.valor-a.valor);
-    cats.forEach(c=>{h+='<tr><td class="ind">'+c.cat+'</td><td class="r">'+rs(c.valor)+'</td><td class="r" style="color:var(--muted)">'+pp(c.valor/total*100)+'</td></tr>';});
+    cats.forEach(c=>{h+='<tr><td class="ind">'+esc(c.cat)+'</td><td class="r">'+rs(c.valor)+'</td><td class="r" style="color:var(--muted)">'+pp(c.valor/total*100)+'</td></tr>';});
   });
   h+='</table>';
   document.getElementById('detalhe').innerHTML=h;

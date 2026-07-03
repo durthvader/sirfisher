@@ -1,0 +1,17 @@
+{
+  "generated_at": "2026-07-03",
+  "scope": ["public", "private"],
+  "contract_file": "database.types.ts",
+  "contract_sha256": "36a69bff99612cb34c5a1798709b4c806a8840205586997afdbf23f6cb4d6be5",
+  "contract_bytes": 50360,
+  "catalog": {
+    "tables": 24,
+    "views": 65,
+    "materialized_views": 2,
+    "sequences": 12,
+    "functions": 32,
+    "policies": 14,
+    "indexes": 38,
+    "triggers": 0
+  }
+}

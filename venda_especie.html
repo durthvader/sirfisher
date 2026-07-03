@@ -3,9 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; upgrade-insecure-requests">
 <title>Sir Fisher · Sangria em Espécie</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.108.2" integrity="sha384-JWEyvHh+lRf0sN/WWY+QTQwX+CyWqmNg4tkc8GQzAMEtR2wGNrCJlvnu1lHD1kDm" crossorigin="anonymous"></script>
 <script src="assets/auth.js"></script>
+<script src="assets/safe-dom.js"></script>
 <style>
   :root{
     --bg:#0b0e14; --card:#11151f; --border:#1f2733; --text:#e8edf5;
@@ -97,6 +99,7 @@
 const SUPABASE_URL = "https://qqefegpievdlaprwzktx.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFxZWZlZ3BpZXZkbGFwcnd6a3R4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0ODQxNzAsImV4cCI6MjA5ODA2MDE3MH0.1h_585aBtTnXtA0FLtbNvhkYpVokgfHbUpKcAIBImKY";
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const esc = SirFisherDOM.escapeHTML;
 
 const DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
 
@@ -160,7 +163,7 @@ function linha(dataISO, registro){
       <div class="diasemana">${dow}</div>
     </div>
     <div class="direita">
-      <input type="number" step="0.01" placeholder="0,00" value="${registro ? registro.valor : ''}">
+      <input type="number" step="0.01" placeholder="0,00" value="${registro ? (Number(registro.valor)||0) : ''}">
       <button class="save">${registro ? 'Atualizar' : 'Salvar'}</button>
     </div>
   `;

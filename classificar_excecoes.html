@@ -3,9 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; upgrade-insecure-requests">
 <title>Sir Fisher · Classificar exceções</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.108.2" integrity="sha384-JWEyvHh+lRf0sN/WWY+QTQwX+CyWqmNg4tkc8GQzAMEtR2wGNrCJlvnu1lHD1kDm" crossorigin="anonymous"></script>
 <script src="assets/auth.js"></script>
+<script src="assets/safe-dom.js"></script>
 <style>
   :root{
     --bg:#11161c;
@@ -163,6 +165,7 @@ const SUPABASE_URL = "https://qqefegpievdlaprwzktx.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFxZWZlZ3BpZXZkbGFwcnd6a3R4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0ODQxNzAsImV4cCI6MjA5ODA2MDE3MH0.1h_585aBtTnXtA0FLtbNvhkYpVokgfHbUpKcAIBImKY";
 
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const esc = SirFisherDOM.escapeHTML;
 const content  = document.getElementById('content');
 const contador = document.getElementById('contador');
 const toastEl  = document.getElementById('toast');
@@ -197,7 +200,7 @@ async function carregar(){
   ]);
 
   if (e1 || e2) {
-    content.innerHTML = `<div class="state error">Não consegui carregar.<br>${(e1||e2).message}</div>`;
+    content.innerHTML = `<div class="state error">Não consegui carregar.<br>${esc((e1||e2).message)}</div>`;
     return;
   }
 
@@ -229,7 +232,7 @@ function linha(exc, categorias){
     : ['Despesa', 'Contabil', 'Ambos'];
   const cats = categorias.filter(c => permitidas.includes(c.natureza));
   const opcoes = cats.map(c =>
-    `<option value="${c.categoria}">${c.categoria}</option>`
+    `<option value="${esc(c.categoria)}">${esc(c.categoria)}</option>`
   ).join('');
 
   const ehReceita = (exc.total || 0) >= 0;
@@ -241,14 +244,14 @@ function linha(exc, categorias){
 
   el.innerHTML = `
     <div class="info">
-      <div class="nome">${exc.contraparte_nome || '(sem nome)'}</div>
+      <div class="nome">${esc(exc.contraparte_nome || '(sem nome)')}</div>
       <div class="meta">
-        <span class="doc">${exc.chave_tipo === 'cnpj' ? 'CNPJ ' + (exc.contraparte_doc||'') : 'pessoa física'}</span>
-        <span class="data">${fmtData(exc.data_min, exc.data_max)}</span>
+        <span class="doc">${esc(exc.chave_tipo === 'cnpj' ? 'CNPJ ' + (exc.contraparte_doc||'') : 'pessoa física')}</span>
+        <span class="data">${esc(fmtData(exc.data_min, exc.data_max))}</span>
         ${selo}
       </div>
     </div>
-    <div class="${classeValor}">${sinal} ${fmtMoeda(exc.total)}<span class="qtd">${exc.qtd_lancamentos}x</span></div>
+    <div class="${classeValor}">${sinal} ${fmtMoeda(exc.total)}<span class="qtd">${Number(exc.qtd_lancamentos)||0}x</span></div>
     <div class="controls">
       <select class="unselected">
         <option value="" disabled selected>Escolher categoria…</option>

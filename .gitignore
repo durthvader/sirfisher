@@ -1,11 +1,31 @@
 # Dados financeiros locais / backups de importação
 scripts/importacao/*-old/
 scripts/importacao/relatorio-*-old/
-scripts/importacao/**/*.csv
-scripts/importacao/**/*.xlsx
-scripts/importacao/**/*.xls
+*.csv
+*.tsv
+*.xlsx
+*.xls
+*.bak
+*.backup
+*.dump
+*.log
 
 # Segredos e configurações locais
 .env
 .env.*
 *.local
+.mcp.json
+
+# Python e ambientes virtuais
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Ferramentas locais
+.vscode/
+.idea/
+*.code-workspace
+.DS_Store
+Thumbs.db
+supabase/.temp/

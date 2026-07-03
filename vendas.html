@@ -3,12 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; upgrade-insecure-requests">
 <title>Sir Fisher · Faturamento</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.108.2" integrity="sha384-JWEyvHh+lRf0sN/WWY+QTQwX+CyWqmNg4tkc8GQzAMEtR2wGNrCJlvnu1lHD1kDm" crossorigin="anonymous"></script>
 <script src="assets/auth.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="assets/safe-dom.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" integrity="sha384-bs/nf9FbdNouRbMiFcrcZfLXYPKiPaGVGplVbv7dLGECccEXDW+S3zjqSKR5ZEaD" crossorigin="anonymous"></script>
 <style>
   :root{--bg:#F7F5EF;--card:#FFFFFF;--header:#12313F;--text:#1F2933;--muted:#6B7280;--border:#E5E7EB;--teal:#00A6A6;--amber:#D6A84F;--green:#2E7D5B;--red:#C94C4C;}
   *{box-sizing:border-box;margin:0;padding:0;}
@@ -122,6 +124,7 @@
 const SUPABASE_URL="https://qqefegpievdlaprwzktx.supabase.co";
 const SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFxZWZlZ3BpZXZkbGFwcnd6a3R4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0ODQxNzAsImV4cCI6MjA5ODA2MDE3MH0.1h_585aBtTnXtA0FLtbNvhkYpVokgfHbUpKcAIBImKY";
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+const esc=SirFisherDOM.escapeHTML;
 const C={header:'#12313F',teal:'#00A6A6',amber:'#D6A84F',green:'#2E7D5B',red:'#C94C4C',muted:'#6B7280',border:'#E5E7EB',brown:'#B98A2E',grey:'#9aa6b2'};
 const MESES=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const DOW_NOME=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
@@ -214,10 +217,10 @@ async function main(){
     else{document.getElementById('rodapeAtt').textContent='Atualizado: —';}
     const lista=document.getElementById('cargasLista');
     lista.innerHTML=CARGAS.length
-      ? CARGAS.map(c=>'<div style="padding:7px 0;border-bottom:1px solid var(--border)"><b>'+c.quando+'</b><br><span style="color:var(--muted)">'+c.fontes+'</span></div>').join('')
+      ? CARGAS.map(c=>'<div style="padding:7px 0;border-bottom:1px solid var(--border)"><b>'+esc(c.quando)+'</b><br><span style="color:var(--muted)">'+esc(c.fontes)+'</span></div>').join('')
       : '<div style="color:var(--muted)">Ainda sem registros de carga.</div>';
     document.getElementById('rodape').style.display='flex';
-  }catch(e){document.getElementById('main').innerHTML='<div class="erro">Não foi possível carregar os dados: '+(e.message||e)+'</div>';}
+  }catch(e){document.getElementById('main').innerHTML='<div class="erro">Não foi possível carregar os dados: '+esc(e.message||e)+'</div>';}
 }
 
 function renderMes(anoMes){
@@ -330,7 +333,7 @@ async function drawCanal(anoMes){
       plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+c.label+': '+brl(c.parsed)+' ('+pct(c.parsed/total*100)+')'}}}}}));
 
   tbl.innerHTML='<table class="tbl"><thead><tr><th>Canal</th><th class="r">Faturado</th><th class="r">%</th><th class="r">Transações</th></tr></thead><tbody>'+
-    rows.map(r=>'<tr><td><span class="dot" style="background:'+r.cor+'"></span>'+r.label+'</td><td class="r">'+brl(r.valor)+'</td><td class="r">'+pct(r.valor/total*100)+'</td><td class="r">'+(r.qtd==null?'—':r.qtd.toLocaleString('pt-BR'))+'</td></tr>').join('')+
+    rows.map(r=>'<tr><td><span class="dot" style="background:'+r.cor+'"></span>'+esc(r.label)+'</td><td class="r">'+brl(r.valor)+'</td><td class="r">'+pct(r.valor/total*100)+'</td><td class="r">'+(r.qtd==null?'—':r.qtd.toLocaleString('pt-BR'))+'</td></tr>').join('')+
     '</tbody><tfoot><tr><td>Total</td><td class="r">'+brl(total)+'</td><td class="r">100%</td><td class="r"></td></tr></tfoot></table>';
 }
 

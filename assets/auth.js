@@ -78,6 +78,20 @@
     if (safe && safe !== 'index.html') sessionStorage.setItem(NEXT_KEY, safe);
   }
 
+  function consumeOAuthError() {
+    const query = new URLSearchParams(window.location.search);
+    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    const code = query.get('error_code') || hash.get('error_code');
+    const hasError = query.has('error') || hash.has('error');
+    if (!hasError) return null;
+
+    window.history.replaceState(null, '', window.location.pathname || './');
+    if (code === 'unexpected_failure') {
+      return 'O provedor Google respondeu, mas a sessão não foi criada. Verifique Client ID e Client Secret no Supabase.';
+    }
+    return 'O login com Google não foi concluído. Tente novamente ou peça a um gestor para revisar a configuração.';
+  }
+
   function consumeNext(role) {
     const next = safeNext(sessionStorage.getItem(NEXT_KEY));
     sessionStorage.removeItem(NEXT_KEY);
@@ -103,6 +117,12 @@
     const error = document.createElement('p');
     error.className = 'sf-auth-error';
     card.append(button, error);
+
+    const oauthMessage = consumeOAuthError();
+    if (oauthMessage) {
+      error.textContent = oauthMessage;
+      error.style.display = 'block';
+    }
 
     button.addEventListener('click', async () => {
       button.disabled = true;
