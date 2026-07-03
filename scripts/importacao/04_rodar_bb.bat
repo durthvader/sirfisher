@@ -39,19 +39,24 @@ for %%F in ("%DOWNLOADS%\Extrato conta corrente - ??????.csv") do (
         echo Importando no banco...
         python "%SCRIPT%" "%%~fF"
 
-        if !ERRORLEVEL! EQU 0 (
-            echo.
-            echo Importacao OK. Movendo arquivo para "%OLD%"...
-            move /Y "%%~fF" "%OLD%\%DATAIMPORT% - %%~nxF" >nul
-
-            if !ERRORLEVEL! EQU 0 (
-                echo Arquivo movido com sucesso.
-            ) else (
-                echo ERRO: Importou, mas nao conseguiu mover o arquivo.
-            )
-        ) else (
+        if !ERRORLEVEL! NEQ 0 (
             echo.
             echo ERRO: Falha na importacao. Arquivo NAO foi movido.
+            echo Processo interrompido.
+            pause
+            exit /b 1
+        )
+
+        echo.
+        echo Importacao OK. Movendo arquivo para "%OLD%"...
+        move /Y "%%~fF" "%OLD%\%DATAIMPORT% - %%~nxF" >nul
+
+        if !ERRORLEVEL! NEQ 0 (
+            echo ERRO: Importou, mas nao conseguiu mover o arquivo.
+            pause
+            exit /b 1
+        ) else (
+            echo Arquivo movido com sucesso.
         )
 
         echo.
@@ -69,3 +74,4 @@ if "%ENCONTROU%"=="0" (
 echo ========================================
 echo Finalizado.
 pause
+exit /b 0

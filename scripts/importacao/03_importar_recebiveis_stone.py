@@ -1,365 +1,197 @@
 #!/usr/bin/env python3
-# =====================================================================
-# SIR FISHER - ETAPA 1 - Arquivo 10
-# Importador de RECEBIVEIS STONE (agenda de recebimento)
-#
-# O que faz:
-#   1. le o CSV cru da agenda de recebiveis Stone
-#   2. limpa datas e valores
-#   3. deduplica por STONE ID + numero da parcela
-#   4. insere em raw_stone_recebiveis; o que ja existe e ignorado
-#   5. recalcula automaticamente o saldo de fechamento mensal
-#
-# COMO RODAR:
-#   Simulacao (nao toca no banco):
-#       python 10_importar_recebiveis_stone.py recebiveis.csv --dry-run
-#
-#   De verdade (precisa do .env com DATABASE_URL):
-#       python 10_importar_recebiveis_stone.py recebiveis.csv
-#
-# Reimportar o mesmo periodo e SEGURO.
-# =====================================================================
+"""Importa recebíveis Stone com validação integral antes da transação."""
 
 import sys
-import csv
-import re
-from datetime import datetime
+from collections import Counter
+
+from importacao_core import (
+    Rejeicao,
+    abrir_csv_validado,
+    adicionar_rejeicao,
+    atualizar_painel,
+    campo,
+    criar_parser,
+    executar_com_saida,
+    importar_registros,
+    imprimir_resultado,
+    ler_opcoes,
+    parse_data_formatos,
+    parse_datetime_formatos,
+    parse_inteiro,
+    parse_valor_brasileiro,
+    validar_leitura,
+    valor_informado_invalido,
+)
 
 
-# ---- parsing de valores no formato brasileiro -----------------------
-def parse_valor(s):
-    if s is None:
-        return None
-
-    cleaned = re.sub(r'[^\d,.\-]', '', str(s))
-
-    if cleaned in ('', '-', '.', ','):
-        return None
-
-    neg = cleaned.startswith('-')
-    cleaned = cleaned.replace('.', '').replace(',', '.').lstrip('-')
-
-    if cleaned == '':
-        return None
-
-    try:
-        v = float(cleaned)
-    except ValueError:
-        return None
-
-    return -v if neg else v
-
-
-def parse_data(s):
-    s = (s or '').strip()
-
-    for fmt in ('%d/%m/%Y %H:%M:%S', '%d/%m/%Y %H:%M', '%d/%m/%Y'):
-        try:
-            return datetime.strptime(s, fmt)
-        except ValueError:
-            continue
-
-    return None
-
-
-def parse_data_simples(s):
-    dt = parse_data(s)
-    return dt.date() if dt else None
-
-
-def parse_int(s):
-    s = (s or '').strip()
-
-    try:
-        return int(s)
-    except ValueError:
-        return None
-
-
-def g(row, key):
-    v = row.get(key)
-
-    if v is None:
-        return None
-
-    v = str(v).strip()
-    return v if v != '' else None
-
-
-# ---- leitura e transformacao do CSV ---------------------------------
-def ler_csv(caminho):
-    registros = []
-
-    with open(caminho, encoding='utf-8-sig', newline='') as fh:
-        reader = csv.DictReader(fh, delimiter=';')
-
-        for row in reader:
-            stone_id = g(row, 'STONE ID')
-            n_parcela = parse_int(g(row, 'Nº DA PARCELA'))
-
-            if not stone_id or n_parcela is None:
-                continue  # sem chave completa, nao tem como deduplicar
-
-            registros.append({
-                'documento':                g(row, 'DOCUMENTO'),
-                'stonecode':                g(row, 'STONECODE'),
-                'categoria':                g(row, 'CATEGORIA'),
-                'data_venda':               parse_data(g(row, 'DATA DA VENDA')),
-                'data_vencimento':          parse_data_simples(g(row, 'DATA DE VENCIMENTO')),
-                'data_vencimento_original': parse_data_simples(g(row, 'DATA DE VENCIMENTO ORIGINAL')),
-                'bandeira':                 g(row, 'BANDEIRA'),
-                'produto':                  g(row, 'PRODUTO'),
-                'stone_id':                 stone_id,
-                'qtd_parcelas':             parse_int(g(row, 'QTD DE PARCELAS')),
-                'n_parcela':                n_parcela,
-                'valor_bruto':              parse_valor(g(row, 'VALOR BRUTO')),
-                'valor_liquido':            parse_valor(g(row, 'VALOR LÍQUIDO')),
-                'desconto_mdr':             parse_valor(g(row, 'DESCONTO DE MDR')),
-                'desconto_antecipacao':     parse_valor(g(row, 'DESCONTO DE ANTECIPAÇÃO')),
-                'desconto_unificado':       parse_valor(g(row, 'DESCONTO UNIFICADO')),
-                'ultimo_status':            g(row, 'ÚLTIMO STATUS'),
-                'data_ultimo_status':       parse_data(g(row, 'DATA DO ÚLTIMO STATUS')),
-                'entradas_brutas':          parse_valor(g(row, 'ENTRADAS BRUTAS')),
-                'saidas_brutas':            parse_valor(g(row, 'SAÍDAS BRUTAS')),
-            })
-
-    return registros
-
-
+FORMATOS_DATA = ("%d/%m/%Y %H:%M:%S", "%d/%m/%Y %H:%M", "%d/%m/%Y")
+CABECALHOS = {
+    "DOCUMENTO", "STONECODE", "CATEGORIA", "DATA DA VENDA",
+    "DATA DE VENCIMENTO", "DATA DE VENCIMENTO ORIGINAL", "BANDEIRA", "PRODUTO",
+    "STONE ID", "QTD DE PARCELAS", "Nº DA PARCELA", "VALOR BRUTO",
+    "VALOR LÍQUIDO", "DESCONTO DE MDR", "DESCONTO DE ANTECIPAÇÃO",
+    "DESCONTO UNIFICADO", "ÚLTIMO STATUS", "DATA DO ÚLTIMO STATUS",
+    "ENTRADAS BRUTAS", "SAÍDAS BRUTAS",
+}
 COLUNAS = [
-    'conta_id',
-    'documento',
-    'stonecode',
-    'categoria',
-    'data_venda',
-    'data_vencimento',
-    'data_vencimento_original',
-    'bandeira',
-    'produto',
-    'stone_id',
-    'qtd_parcelas',
-    'n_parcela',
-    'valor_bruto',
-    'valor_liquido',
-    'desconto_mdr',
-    'desconto_antecipacao',
-    'desconto_unificado',
-    'ultimo_status',
-    'data_ultimo_status',
-    'entradas_brutas',
-    'saidas_brutas',
+    "conta_id", "documento", "stonecode", "categoria", "data_venda",
+    "data_vencimento", "data_vencimento_original", "bandeira", "produto",
+    "stone_id", "qtd_parcelas", "n_parcela", "valor_bruto", "valor_liquido",
+    "desconto_mdr", "desconto_antecipacao", "desconto_unificado",
+    "ultimo_status", "data_ultimo_status", "entradas_brutas", "saidas_brutas",
 ]
 
 
-def resumo(registros):
-    from collections import Counter
+def ler_csv(caminho, opcoes):
+    registros = []
+    rejeicoes: list[Rejeicao] = []
+    total = 0
+    with abrir_csv_validado(
+        caminho,
+        encoding="utf-8-sig",
+        delimiter=";",
+        cabecalhos_obrigatorios=CABECALHOS,
+    ) as reader:
+        for row in reader:
+            total += 1
+            bruto = {
+                "data_venda": campo(row, "DATA DA VENDA"),
+                "data_vencimento": campo(row, "DATA DE VENCIMENTO"),
+                "data_vencimento_original": campo(row, "DATA DE VENCIMENTO ORIGINAL"),
+                "qtd_parcelas": campo(row, "QTD DE PARCELAS"),
+                "n_parcela": campo(row, "Nº DA PARCELA"),
+                "valor_bruto": campo(row, "VALOR BRUTO"),
+                "valor_liquido": campo(row, "VALOR LÍQUIDO"),
+                "desconto_mdr": campo(row, "DESCONTO DE MDR"),
+                "desconto_antecipacao": campo(row, "DESCONTO DE ANTECIPAÇÃO"),
+                "desconto_unificado": campo(row, "DESCONTO UNIFICADO"),
+                "data_ultimo_status": campo(row, "DATA DO ÚLTIMO STATUS"),
+                "entradas_brutas": campo(row, "ENTRADAS BRUTAS"),
+                "saidas_brutas": campo(row, "SAÍDAS BRUTAS"),
+            }
+            convertido = {
+                "data_venda": parse_datetime_formatos(bruto["data_venda"], FORMATOS_DATA),
+                "data_vencimento": parse_data_formatos(bruto["data_vencimento"], FORMATOS_DATA),
+                "data_vencimento_original": parse_data_formatos(
+                    bruto["data_vencimento_original"], FORMATOS_DATA
+                ),
+                "qtd_parcelas": parse_inteiro(bruto["qtd_parcelas"]),
+                "n_parcela": parse_inteiro(bruto["n_parcela"]),
+                "valor_bruto": parse_valor_brasileiro(bruto["valor_bruto"]),
+                "valor_liquido": parse_valor_brasileiro(bruto["valor_liquido"]),
+                "desconto_mdr": parse_valor_brasileiro(bruto["desconto_mdr"]),
+                "desconto_antecipacao": parse_valor_brasileiro(bruto["desconto_antecipacao"]),
+                "desconto_unificado": parse_valor_brasileiro(bruto["desconto_unificado"]),
+                "data_ultimo_status": parse_datetime_formatos(
+                    bruto["data_ultimo_status"], FORMATOS_DATA
+                ),
+                "entradas_brutas": parse_valor_brasileiro(bruto["entradas_brutas"]),
+                "saidas_brutas": parse_valor_brasileiro(bruto["saidas_brutas"]),
+            }
+            stone_id = campo(row, "STONE ID")
+            motivos = []
+            if not stone_id:
+                motivos.append("STONE ID ausente")
+            if convertido["n_parcela"] is None:
+                motivos.append("número da parcela inválido")
+            if convertido["valor_liquido"] is None:
+                motivos.append("valor líquido inválido")
+            datas_linha = (
+                convertido["data_vencimento"],
+                convertido["data_venda"],
+                convertido["data_vencimento_original"],
+            )
+            if not any(datas_linha):
+                motivos.append("nenhuma data de referência válida")
+            rotulos = {
+                "data_venda": "data da venda inválida",
+                "data_vencimento": "data de vencimento inválida",
+                "data_vencimento_original": "data de vencimento original inválida",
+                "qtd_parcelas": "quantidade de parcelas inválida",
+                "valor_bruto": "valor bruto inválido",
+                "desconto_mdr": "desconto MDR inválido",
+                "desconto_antecipacao": "desconto de antecipação inválido",
+                "desconto_unificado": "desconto unificado inválido",
+                "data_ultimo_status": "data do último status inválida",
+                "entradas_brutas": "entradas brutas inválidas",
+                "saidas_brutas": "saídas brutas inválidas",
+            }
+            motivos.extend(
+                mensagem
+                for chave, mensagem in rotulos.items()
+                if valor_informado_invalido(bruto[chave], convertido[chave])
+            )
+            adicionar_rejeicao(rejeicoes, reader.line_num, motivos)
+            if motivos:
+                continue
 
-    print(f"  linhas lidas:        {len(registros)}")
+            registros.append({
+                "documento": campo(row, "DOCUMENTO"),
+                "stonecode": campo(row, "STONECODE"),
+                "categoria": campo(row, "CATEGORIA"),
+                "bandeira": campo(row, "BANDEIRA"),
+                "produto": campo(row, "PRODUTO"),
+                "stone_id": stone_id,
+                "ultimo_status": campo(row, "ÚLTIMO STATUS"),
+                **convertido,
+            })
 
-    chaves = set((r['stone_id'], r['n_parcela']) for r in registros)
-    print(f"  chaves (id+parcela) unicas: {len(chaves)} (duplicatas no arquivo: {len(registros) - len(chaves)})")
-
-    print(f"  status:              {dict(Counter(r['ultimo_status'] for r in registros))}")
-
-    venc = [r['data_vencimento'] for r in registros if r['data_vencimento']]
-
-    if venc:
-        print(f"  vencimento min/max:  {min(venc)} / {max(venc)}")
-
-    print(f"  soma valor liquido:  {sum(r['valor_liquido'] or 0 for r in registros):,.2f}")
-
-
-# ---- gravacao no banco e recalculo do saldo -------------------------
-def gravar(registros):
-    if not registros:
-        print("AVISO: nenhum registro para gravar.")
-        return
-
-    import os
-    import psycopg2
-    from psycopg2.extras import execute_values
-
-    try:
-        from dotenv import load_dotenv
-        load_dotenv()
-    except ImportError:
-        pass
-
-    url = os.environ.get('DATABASE_URL')
-
-    if not url:
-        print("ERRO: variavel DATABASE_URL nao encontrada (arquivo .env).")
-        sys.exit(1)
-
-    conn = None
-    cur = None
-
-    try:
-        conn = psycopg2.connect(url)
-        conn.autocommit = False
-        cur = conn.cursor()
-
-        cur.execute("select id from conta where nome = 'Stone' limit 1;")
-        r = cur.fetchone()
-
-        if not r:
-            print("ERRO: conta 'Stone' nao encontrada. Rode o arquivo 01 (schema) antes.")
-            conn.rollback()
-            sys.exit(1)
-
-        conta_id = r[0]
-
-        valores = [
-            [conta_id] + [reg[c] for c in COLUNAS[1:]]
-            for reg in registros
-        ]
-
-        sql = f"""
-            insert into raw_stone_recebiveis ({', '.join(COLUNAS)})
-            values %s
-            on conflict (stone_id, n_parcela) do nothing
-            returning 1
-        """
-
-        inseridos_retorno = execute_values(
-            cur,
-            sql,
-            valores,
-            page_size=500,
-            fetch=True
+    datas_periodo = []
+    for item in registros:
+        datas_periodo.append(
+            item["data_vencimento"]
+            or (item["data_venda"].date() if item["data_venda"] else None)
+            or item["data_vencimento_original"]
         )
-
-        inseridos = len(inseridos_retorno)
-
-        # Primeiro salva a importacao.
-        conn.commit()
-
-        print(f"  novas linhas inseridas: {inseridos}")
-        print(f"  ja existiam (ignoradas): {len(registros) - inseridos}")
-
-        # Para recebiveis, o periodo relevante para saldo e a data de vencimento.
-        # Se faltar vencimento, usa data da venda como fallback.
-        datas_validas = []
-
-        for reg in registros:
-            if reg.get('data_vencimento') is not None:
-                datas_validas.append(reg['data_vencimento'])
-            elif reg.get('data_venda') is not None:
-                datas_validas.append(reg['data_venda'].date())
-            elif reg.get('data_vencimento_original') is not None:
-                datas_validas.append(reg['data_vencimento_original'])
-
-        if datas_validas:
-            data_min_importada = min(datas_validas)
-            data_max_importada = max(datas_validas)
-
-            print("\n== Recalculando saldo de fechamento ==")
-            print(f"  periodo impactado: {data_min_importada} ate {data_max_importada}")
-
-            cur.execute(
-                "select * from recalcular_saldo_fechamento(%s, %s, 0);",
-                (data_min_importada, data_max_importada)
-            )
-
-            resultado = cur.fetchall()
-
-            cur.execute(
-                "insert into log_carga (fontes) values (%s);",
-                ("Recebíveis Stone",)
-            )
-
-            conn.commit()
-
-            print("  saldo recalculado com sucesso.")
-            print("  log de carga registrado.")
+    periodo = validar_leitura(
+        registros=registros,
+        total_linhas=total,
+        rejeicoes=rejeicoes,
+        datas=datas_periodo,
+        opcoes=opcoes,
+    )
+    return registros, periodo
 
 
-            if resultado:
-                print(f"  retorno: {resultado}")
-
-        else:
-            print("\nAVISO: nenhuma data valida encontrada. Saldo de fechamento nao recalculado.")
-
-    except Exception as e:
-        if conn:
-            conn.rollback()
-
-        print("\nERRO ao gravar/recalcular saldo:")
-        print(e)
-        sys.exit(1)
-
-    finally:
-        if cur:
-            cur.close()
-
-        if conn:
-            conn.close()
-
-
-# ---- atualizacao do painel -----------------------------------------
-def atualizar_painel():
-    """Atualiza o snapshot do painel (mv_fluxo_caixa_diario) via refresh_painel().
-
-    Best-effort: roda numa conexao propria, depois da carga ja comitada.
-    Se a funcao ainda nao existir (migration nao aplicada) ou falhar,
-    apenas avisa -- a importacao ja esta salva e nao e desfeita.
-    """
-    import os
-    import psycopg2
-
-    try:
-        from dotenv import load_dotenv
-        load_dotenv()
-    except ImportError:
-        pass
-
-    url = os.environ.get('DATABASE_URL')
-
-    if not url:
-        print("  AVISO: DATABASE_URL nao encontrada; painel nao atualizado.")
-        return
-
-    try:
-        conn = psycopg2.connect(url)
-        conn.autocommit = True
-        cur = conn.cursor()
-        cur.execute("select refresh_painel();")
-        cur.close()
-        conn.close()
-        print("  painel atualizado (mv_fluxo_caixa_diario).")
-    except Exception as e:
-        print(f"  AVISO: nao foi possivel atualizar o painel: {e}")
-
-
-# ---- main -----------------------------------------------------------
-def main():
-    args = [a for a in sys.argv[1:] if not a.startswith('--')]
-    dry = '--dry-run' in sys.argv
-
-    if not args:
-        print("Uso: python 10_importar_recebiveis_stone.py <arquivo.csv> [--dry-run]")
-        sys.exit(1)
-
-    caminho = args[0]
-
-    print(f"Lendo: {caminho}")
-
-    registros = ler_csv(caminho)
-
+def resumo(registros):
+    chaves = {(item["stone_id"], item["n_parcela"]) for item in registros}
     print("\n== Resumo do arquivo ==")
+    print(f"  registros:           {len(registros)}")
+    print(f"  chaves únicas:       {len(chaves)}")
+    print(f"  duplicatas internas: {len(registros) - len(chaves)}")
+    print(f"  status:              {dict(Counter(item['ultimo_status'] for item in registros))}")
+
+
+def gravar(registros, periodo):
+    return importar_registros(
+        registros=registros,
+        tabela="raw_stone_recebiveis",
+        colunas=COLUNAS,
+        conflito="(stone_id, n_parcela)",
+        montar_linha=lambda item, conta_id: (
+            [conta_id] + [item[coluna] for coluna in COLUNAS[1:]]
+        ),
+        conta_nome="Stone",
+        fonte_log="Recebíveis Stone",
+        periodo=periodo,
+    )
+
+
+def fluxo():
+    opcoes = ler_opcoes(criar_parser("Importa recebíveis Stone"))
+    print(f"Lendo: {opcoes.arquivo}")
+    registros, periodo = ler_csv(opcoes.arquivo, opcoes)
     resumo(registros)
-
-    if dry:
-        print("\n[DRY-RUN] Nada foi gravado no banco.")
-    else:
-        print("\n== Gravando no banco ==")
-        gravar(registros)
-
-        print("\n== Atualizando painel ==")
-        atualizar_painel()
-
+    if opcoes.dry_run:
+        print("\n[DRY-RUN] Arquivo válido; nada foi gravado no banco.")
+        return
+    print("\n== Gravando, recalculando e registrando carga ==")
+    imprimir_resultado(gravar(registros, periodo))
+    print("\n== Atualizando painel ==")
+    atualizar_painel()
+    print("  painel atualizado.")
     print("\nOK.")
 
 
-if __name__ == '__main__':
-    main()
+if __name__ == "__main__":
+    sys.exit(executar_com_saida(fluxo))

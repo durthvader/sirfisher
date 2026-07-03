@@ -1,0 +1,54 @@
+:root {
+  --bg: #f7f5ef;
+  --card: #fff;
+  --header: #12313f;
+  --text: #1f2933;
+  --muted: #6b7280;
+  --border: #e5e7eb;
+  --teal: #00a6a6;
+  --amber: #d6a84f;
+  --green: #2e7d5b;
+  --red: #c94c4c;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: 'Roboto', Arial, sans-serif; font-size: 14px; line-height: 1.4; -webkit-font-smoothing: antialiased; }
+.app { max-width: 960px; margin: 0 auto; padding-bottom: 30px; }
+.brand { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.brand .mark { width: 30px; height: 30px; border-radius: 7px; background: var(--teal); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.brand .mark svg { width: 18px; height: 18px; }
+.brand h1 { font-size: 16px; font-weight: 700; letter-spacing: .2px; }
+.brand span { font-size: 10.5px; color: #9fb3bd; display: block; font-weight: 400; }
+.head-meta { text-align: right; flex-shrink: 0; }
+.head-meta select { background: #1b3d4d; color: #fff; border: 1px solid #2c5468; border-radius: 8px; padding: 6px 10px; font-family: inherit; font-size: 13px; font-weight: 500; cursor: pointer; }
+.head-meta .periodo { display: inline-flex; gap: 6px; justify-content: flex-end; }
+.head-meta .unidade { font-size: 10.5px; color: #9fb3bd; margin-top: 3px; }
+.tabs::-webkit-scrollbar { display: none; }
+.tabs a,
+.tabs span { flex-shrink: 0; padding: 9px 13px 10px; font-size: 12.5px; font-weight: 500; color: #9fb3bd; text-decoration: none; border-bottom: 2.5px solid transparent; white-space: nowrap; }
+.tabs a:hover { color: #dce8ec; }
+.tabs a.active { color: #fff; border-bottom-color: var(--teal); font-weight: 700; }
+.tabs span.soon { color: #52707d; cursor: default; }
+main { padding: 16px 14px 0; }
+.section-title { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; margin: 22px 4px 10px; }
+.section-title:first-child { margin-top: 6px; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 11px; }
+.kpi { background: var(--card); border: 1px solid var(--border); border-radius: 11px; padding: 13px 14px; position: relative; overflow: hidden; }
+.kpi .bar { position: absolute; left: 0; top: 0; bottom: 0; width: 4px; }
+.kpi .label { font-size: 11px; color: var(--muted); font-weight: 500; margin-bottom: 7px; display: flex; align-items: center; gap: 5px; }
+.kpi .label svg { width: 13px; height: 13px; opacity: .75; flex-shrink: 0; }
+.kpi .label .txt { flex: 1; }
+.kpi-info { width: 15px; height: 15px; border-radius: 50%; border: 1px solid var(--border); color: var(--muted); font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
+.kpi .sub { font-size: 10.8px; margin-top: 5px; color: var(--muted); }
+.kpi .sub b { font-weight: 700; }
+.up { color: var(--green); }
+.down { color: var(--red); }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 15px 15px 13px; margin-bottom: 14px; }
+.card h3 { font-size: 14px; font-weight: 700; margin-bottom: 2px; }
+.card .hint { font-size: 11px; color: var(--muted); margin-bottom: 12px; }
+.chart-wrap { position: relative; width: 100%; }
+footer { margin: 18px 14px 0; padding-top: 12px; border-top: 1px solid var(--border); font-size: 10px; color: var(--muted); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px; }
+.loading { padding: 60px 0; text-align: center; color: var(--muted); font-size: 13px; }
+.erro { color: var(--red); font-size: 12px; padding: 14px; text-align: center; }
+#tip { position: absolute; z-index: 50; max-width: 230px; background: var(--header); color: #fff; font-size: 11.5px; line-height: 1.45; padding: 9px 11px; border-radius: 8px; box-shadow: 0 4px 16px rgba(0, 0, 0, .18); display: none; }
+#tip::after { content: ''; position: absolute; top: -5px; left: var(--ax, 20px); border: 5px solid transparent; border-bottom-color: var(--header); border-top: 0; }

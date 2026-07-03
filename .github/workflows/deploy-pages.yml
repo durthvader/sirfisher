@@ -48,11 +48,15 @@ jobs:
             venda_especie.html \
             _site/
           cp assets/auth.js _site/assets/
+          cp assets/dashboard-common.css _site/assets/
+          cp assets/dashboard-utils.js _site/assets/
           cp assets/safe-dom.js _site/assets/
 
           expected_files="$(printf '%s\n' \
             analise_individual.html \
             assets/auth.js \
+            assets/dashboard-common.css \
+            assets/dashboard-utils.js \
             assets/safe-dom.js \
             caixa.html \
             classificar_excecoes.html \
