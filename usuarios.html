@@ -67,7 +67,15 @@ function render(){
 async function saveAccess(userId,role,active,button){
   button.disabled=true;
   const {error}=await sb.rpc('definir_acesso_usuario',{p_user_id:userId,p_papel:role,p_ativo:active});
-  if(error){alert('Não foi possível alterar o acesso. Confirme que existe outro gestor ativo antes de rebaixar ou desativar um gestor.');button.disabled=false;return;}
+  if(error){
+    console.error('Falha ao alterar acesso do usuário:',error);
+    const lastManagerError=error.code==='23514';
+    alert(lastManagerError
+      ? 'Não foi possível alterar o acesso. É necessário manter pelo menos um gestor ativo.'
+      : 'Não foi possível alterar o acesso. Tente novamente e, se o problema continuar, consulte o erro no console.');
+    button.disabled=false;
+    return;
+  }
   await loadUsers();
 }
 
