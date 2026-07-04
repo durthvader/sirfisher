@@ -11,6 +11,7 @@
     'planejamento.html'
   ]);
   const OPERATION_PAGES = new Set([
+    'rotinas.html',
     'analise_individual.html',
     'classificar_excecoes.html',
     'venda_especie.html'

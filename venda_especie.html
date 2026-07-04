@@ -3,98 +3,43 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; upgrade-insecure-requests">
-<title>Sir Fisher · Sangria em Espécie</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; upgrade-insecure-requests">
+<title>Sir Fisher · Venda em Espécie</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="assets/dashboard-common.css" rel="stylesheet">
+<link href="assets/product-pages.css" rel="stylesheet">
+<link href="assets/accessibility.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.108.2" integrity="sha384-JWEyvHh+lRf0sN/WWY+QTQwX+CyWqmNg4tkc8GQzAMEtR2wGNrCJlvnu1lHD1kDm" crossorigin="anonymous"></script>
 <script src="assets/supabase-client.js"></script>
 <script src="assets/auth.js"></script>
 <script src="assets/safe-dom.js"></script>
 <script src="assets/accessibility.js"></script>
-<link href="assets/accessibility.css" rel="stylesheet">
-<style>
-  :root{
-    --bg:#0b0e14; --card:#11151f; --border:#1f2733; --text:#e8edf5;
-    --muted:#8a94a6; --accent:#34d399; --danger:#f87171; --mono:'Courier New',monospace;
-  }
-  *{box-sizing:border-box;}
-  body{
-    margin:0; background:var(--bg); color:var(--text);
-    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
-    padding:24px 16px 80px;
-  }
-  .wrap{max-width:640px; margin:0 auto;}
-  header{display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:4px;}
-  h1{font-size:22px; margin:0;}
-  .badge{font-family:var(--mono); font-size:11px; color:var(--muted); border:1px solid var(--border); border-radius:6px; padding:4px 10px;}
-  .sub{color:var(--muted); font-size:13px; margin:6px 0 22px;}
-
-  .novo{
-    background:var(--card); border:1px solid var(--border); border-radius:14px;
-    padding:16px; margin-bottom:24px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;
-  }
-  .novo input[type=date]{
-    background:#0d1118; border:1px solid var(--border); border-radius:8px; color:var(--text);
-    padding:9px 10px; font-family:var(--mono); font-size:13px;
-  }
-  .novo input[type=number]{
-    background:#0d1118; border:1px solid var(--border); border-radius:8px; color:var(--text);
-    padding:9px 10px; font-family:var(--mono); font-size:14px; width:140px;
-  }
-  .novo button{
-    background:var(--accent); color:#06231a; border:none; border-radius:8px;
-    padding:10px 16px; font-weight:600; font-size:13px; cursor:pointer;
-  }
-  .novo button:disabled{opacity:.4; cursor:default;}
-
-  .row{
-    background:var(--card); border:1px solid var(--border); border-radius:12px;
-    padding:12px 14px; margin-bottom:8px;
-    display:flex; justify-content:space-between; align-items:center; gap:12px;
-  }
-  .row .esquerda{display:flex; flex-direction:column; gap:2px;}
-  .row .data{font-weight:600; font-size:14.5px;}
-  .row .diasemana{font-size:11.5px; color:var(--muted); font-family:var(--mono);}
-  .row .direita{display:flex; align-items:center; gap:10px;}
-  .row input[type=number]{
-    background:#0d1118; border:1px solid var(--border); border-radius:8px; color:var(--accent);
-    padding:8px 10px; font-family:var(--mono); font-size:14px; width:120px; text-align:right;
-  }
-  .row button.save{
-    background:#1c2433; color:var(--text); border:1px solid var(--border); border-radius:8px;
-    padding:8px 12px; font-size:12.5px; cursor:pointer;
-  }
-  .row button.save:disabled{opacity:.35; cursor:default;}
-  .row.salvo{border-color:var(--accent);}
-  .row.salvo .data{color:var(--accent);}
-
-  .toast{
-    position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
-    background:#1c2433; border:1px solid var(--border); color:var(--text);
-    padding:10px 18px; border-radius:10px; font-size:13px; opacity:0; transition:opacity .25s;
-    pointer-events:none;
-  }
-  .toast.show{opacity:1;}
-  .toast.err{border-color:var(--danger); color:var(--danger);}
-  footer{text-align:center; color:var(--muted); font-size:11.5px; margin-top:32px;}
-  footer a{color:var(--muted);}
-</style>
 </head>
 <body>
-<main class="wrap" id="main-content">
+<div class="app">
   <header>
-    <h1>Venda em Espécie</h1>
-    <span class="badge">Sir Fisher</span>
+    <div class="head-row"><div class="brand"><div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M2 12s3-6 10-6 10 6 10 6-3 6-10 6S2 12 2 12z"/><circle cx="9" cy="12" r="1" fill="#fff"/></svg></div><div><h1>Sir Fisher</h1><span>Painel de Gestão</span></div></div><div class="head-meta"><div class="unidade">Venda em espécie</div></div></div>
+    <nav class="tabs"><a href="./">Visão Geral</a><a href="vendas.html">Faturamento</a><a href="caixa.html">Caixa</a><a href="dre.html">DRE</a><a href="despesas.html">Despesas</a><a href="conciliacao.html">Conciliação</a><a href="planejamento.html">Planejamento</a><a href="rotinas.html" class="routines">Rotinas</a></nav>
   </header>
-  <p class="sub">Lance o valor da sangria em dinheiro espécie de cada dia (você confere no grupo do zap). Isso entra na venda total do dia e fica separado do caixa bancário até ser depositado.</p>
+  <main id="main">
+    <div class="page-intro"><div><h2>Venda em espécie</h2><p>Lance o valor da sangria em dinheiro espécie de cada dia (você confere no grupo do zap). Isso entra na venda total do dia e fica separado do caixa bancário até ser depositado.</p></div></div>
 
-  <div class="novo">
-    <input type="date" id="novaData">
-    <input type="number" id="novoValor" step="0.01" placeholder="R$ 0,00">
-    <button id="btnNovo">Lançar</button>
-  </div>
+    <div class="panel">
+      <div class="panel-head"><div><h3>Novo lançamento</h3></div></div>
+      <div class="actions">
+        <input type="date" id="novaData" class="field">
+        <input type="number" id="novoValor" step="0.01" placeholder="R$ 0,00" class="field">
+        <button id="btnNovo" class="button">Lançar</button>
+      </div>
+    </div>
 
-  <div id="lista"></div>
-</main>
+    <div class="panel">
+      <div class="panel-head"><div><h3>Últimos 14 dias</h3></div></div>
+      <div id="lista" class="op-list"></div>
+    </div>
+  </main>
+</div>
 
 <div class="toast" id="toast"></div>
 
@@ -155,17 +100,17 @@ async function carregar(){
 
 function linha(dataISO, registro){
   const el = document.createElement('div');
-  el.className = 'row' + (registro ? ' salvo' : '');
+  el.className = 'op-row';
   const { label, dow } = fmtDataLabel(dataISO);
 
   el.innerHTML = `
-    <div class="esquerda">
-      <div class="data">${label}</div>
-      <div class="diasemana">${dow}</div>
+    <div class="info">
+      <div class="nome">${label}</div>
+      <div class="meta"><span>${dow}</span>${registro ? '<span class="status ok">Lançado</span>' : ''}</div>
     </div>
     <div class="direita">
       <input type="number" step="0.01" placeholder="0,00" value="${registro ? (Number(registro.valor)||0) : ''}">
-      <button class="save">${registro ? 'Atualizar' : 'Salvar'}</button>
+      <button class="button save">${registro ? 'Atualizar' : 'Salvar'}</button>
     </div>
   `;
 
@@ -197,8 +142,9 @@ async function salvar(dataISO, valorStr, el, btn){
     toast('Não salvou: ' + error.message, true);
     return;
   }
-  el.classList.add('salvo');
   btn.textContent = 'Atualizar';
+  const selo = el.querySelector('.status');
+  if (!selo) el.querySelector('.meta').insertAdjacentHTML('beforeend', '<span class="status ok">Lançado</span>');
   toast('Lançado: R$ ' + valor.toFixed(2).replace('.', ','));
 }
 
@@ -224,6 +170,5 @@ document.getElementById('btnNovo').addEventListener('click', async () => {
 
 SirFisherAuth.requireRole(sb,['admin','gestor','operador']).then(ctx=>{if(ctx)carregar();});
 </script>
-<footer>venda_especie · Supabase</footer>
 </body>
 </html>
