@@ -47,7 +47,7 @@ jobs:
             classificar_excecoes.html \
             conciliacao.html \
             planejamento.html \
-            qualidade.html \
+            status.html \
             usuarios.html \
             venda_especie.html \
             _site/
@@ -77,7 +77,7 @@ jobs:
             dre.html \
             index.html \
             planejamento.html \
-            qualidade.html \
+            status.html \
             usuarios.html \
             venda_especie.html \
             vendas.html)"
