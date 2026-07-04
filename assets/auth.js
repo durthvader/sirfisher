@@ -1,22 +1,28 @@
 (function () {
   'use strict';
 
-  const DASHBOARD_PAGES = new Set([
+  const FINANCE_PAGES = new Set([
     'index.html',
     'vendas.html',
     'caixa.html',
     'dre.html',
     'despesas.html',
     'conciliacao.html',
-    'planejamento.html',
-    'qualidade.html',
-    'usuarios.html'
+    'planejamento.html'
   ]);
   const OPERATION_PAGES = new Set([
     'analise_individual.html',
     'classificar_excecoes.html',
     'venda_especie.html'
   ]);
+  const ADMIN_PAGES = new Set([
+    'status.html',
+    'usuarios.html'
+  ]);
+  const PAGE_ROLES = new Map();
+  FINANCE_PAGES.forEach(page => PAGE_ROLES.set(page, ['admin', 'gestor']));
+  OPERATION_PAGES.forEach(page => PAGE_ROLES.set(page, ['admin', 'gestor', 'operador']));
+  ADMIN_PAGES.forEach(page => PAGE_ROLES.set(page, ['admin']));
   const NEXT_KEY = 'sirfisher_auth_next';
 
   function currentPage() {
@@ -74,7 +80,7 @@
   function safeNext(value) {
     if (!value) return null;
     const page = value.split(/[?#]/, 1)[0];
-    return DASHBOARD_PAGES.has(page) || OPERATION_PAGES.has(page) ? page : null;
+    return PAGE_ROLES.has(page) ? page : null;
   }
 
   function rememberNext(page) {
@@ -93,15 +99,15 @@
     if (code === 'unexpected_failure') {
       return 'O provedor Google respondeu, mas a sessão não foi criada. Verifique Client ID e Client Secret no Supabase.';
     }
-    return 'O login com Google não foi concluído. Tente novamente ou peça a um gestor para revisar a configuração.';
+    return 'O login com Google não foi concluído. Tente novamente ou peça a um administrador para revisar a configuração.';
   }
 
   function consumeNext(role) {
     const next = safeNext(sessionStorage.getItem(NEXT_KEY));
     sessionStorage.removeItem(NEXT_KEY);
     if (!next) return false;
-    const allowed = role === 'gestor' || (role === 'operador' && OPERATION_PAGES.has(next));
-    if (!allowed || next === currentPage()) return false;
+    const allowedRoles = PAGE_ROLES.get(next) || [];
+    if (!allowedRoles.includes(role) || next === currentPage()) return false;
     window.location.replace(next);
     return true;
   }
@@ -147,7 +153,7 @@
   }
 
   function renderPending(sb) {
-    const card = authCard('Acesso aguardando liberação', 'A conta Google foi autenticada, mas ainda não recebeu um papel no Sir Fisher. Peça a um gestor para liberar seu acesso.');
+    const card = authCard('Acesso aguardando liberação', 'A conta Google foi autenticada, mas ainda não recebeu um papel no Sir Fisher. Peça a um administrador para liberar seu acesso.');
     if (!card) return;
     const actions = document.createElement('div');
     actions.className = 'sf-auth-actions';
@@ -179,7 +185,7 @@
   }
 
   function renderOperatorHome() {
-    const card = authCard('Rotinas operacionais', 'Escolha uma rotina. Indicadores financeiros são restritos ao papel gestor.');
+    const card = authCard('Rotinas operacionais', 'Escolha uma rotina. Indicadores financeiros são restritos aos perfis admin e gestor.');
     if (!card) return;
     const actions = document.createElement('div');
     actions.className = 'sf-auth-actions';
@@ -212,9 +218,9 @@
     home.href = './';
     home.textContent = 'Início';
     const managerLinks = [];
-    if (role === 'gestor') {
+    if (role === 'admin') {
       [
-        ['Qualidade', 'qualidade.html'],
+        ['Status', 'status.html'],
         ['Usuários', 'usuarios.html']
       ].forEach(([label, href]) => {
         const link = document.createElement('a');
@@ -233,6 +239,18 @@
     });
     box.append(identity, ...managerLinks, home, logout);
     document.body.appendChild(box);
+  }
+
+  function pruneNav(role) {
+    const nav = document.querySelector('nav.tabs');
+    if (!nav) return;
+    nav.querySelectorAll('a[href]').forEach(a => {
+      const href = a.getAttribute('href');
+      const page = href === './' ? 'index.html' : href;
+      const allowedRoles = PAGE_ROLES.get(page);
+      if (allowedRoles && !allowedRoles.includes(role)) a.remove();
+    });
+    if (!nav.querySelector('a')) nav.style.display = 'none';
   }
 
   async function requireRole(sb, allowedRoles, options) {
@@ -263,6 +281,7 @@
     }
 
     installSessionBadge(sb, session, role);
+    pruneNav(role);
     if (settings.loginPage && consumeNext(role)) return null;
 
     if (!allowedRoles.includes(role)) {

@@ -25,4 +25,4 @@ do foco em todas as páginas.
 
 Após alterações visuais, percorrer cada fluxo apenas com `Tab`, `Shift+Tab`,
 `Enter`, espaço e `Esc`, além de conferir zoom de 200% e larguras móveis. Os
-fluxos autenticados devem ser testados com os papéis gestor e operador.
+fluxos autenticados devem ser testados com os papéis admin, gestor e operador.

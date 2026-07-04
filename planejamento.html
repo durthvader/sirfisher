@@ -45,7 +45,7 @@ function render(){
 }
 
 async function loadPlanning(){const main=document.getElementById('main');main.innerHTML='<div class="loading">Carregando metas…</div>';const{data,error}=await sb.from('app_painel_meta_real_mensal').select('*').order('mes',{ascending:true});if(error){main.innerHTML='<div class="erro">Não foi possível carregar metas e realizado.</div>';return;}ROWS=data||[];render();}
-(async()=>{const auth=await SirFisherAuth.requireRole(sb,['gestor']);if(auth)await loadPlanning();})();
+(async()=>{const auth=await SirFisherAuth.requireRole(sb,['admin','gestor']);if(auth)await loadPlanning();})();
 </script>
 </body>
 </html>

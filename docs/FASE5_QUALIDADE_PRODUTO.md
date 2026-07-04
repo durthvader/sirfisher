@@ -2,8 +2,9 @@
 
 ## Entregas
 
-- `usuarios.html`: gestão de contas Google e papéis, exclusiva para gestores;
-- `qualidade.html`: cobertura, atraso e última importação das quatro fontes;
+- `usuarios.html`: gestão de contas Google e papéis, exclusiva para admin;
+- `status.html`: cobertura, atraso e última importação das quatro fontes,
+  exclusiva para admin;
 - `conciliacao.html`: conciliação Stone entre venda e recebível;
 - `planejamento.html`: meta mensal versus faturamento realizado;
 - workflow `Quality gates`: Python, JavaScript, links, contratos Supabase,
@@ -58,11 +59,15 @@ realizado do ano corrente.
 A migration `20260703200000_fase5_qualidade_produto.sql` cria os endpoints:
 
 - `app_usuarios_acesso`;
-- `app_qualidade_cargas`;
+- `app_qualidade_cargas` (substituída por `app_status_cargas` na migration
+  `20260704000000_papel_admin_e_reorganiza_acessos.sql`);
 - `app_conciliacao_stone_resumo`;
 - `app_conciliacao_stone`;
 - `app_painel_meta_real_mensal`;
 - RPC `definir_acesso_usuario(uuid, text, boolean)`.
 
 Todos os endpoints são negados a `PUBLIC` e `anon`; `authenticated` recebe
-somente os grants necessários e a regra de negócio ainda valida o papel gestor.
+somente os grants necessários. Desde a migration de 3 papéis, `app_usuarios_acesso`
+e `app_status_cargas` validam o papel `admin`; `app_conciliacao_stone_resumo`,
+`app_conciliacao_stone` e `app_painel_meta_real_mensal` validam `admin` ou
+`gestor`.

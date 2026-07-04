@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; upgrade-insecure-requests">
-<title>Sir Fisher · Qualidade das Cargas</title>
+<title>Sir Fisher · Status do Site</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
 <link href="assets/dashboard-common.css" rel="stylesheet">
@@ -19,7 +19,7 @@
 <body>
 <div class="app">
   <header>
-    <div class="head-row"><div class="brand"><div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M2 12s3-6 10-6 10 6 10 6-3 6-10 6S2 12 2 12z"/><circle cx="9" cy="12" r="1" fill="#fff"/></svg></div><div><h1>Sir Fisher</h1><span>Painel de Gestão</span></div></div><div class="head-meta"><div class="unidade">Qualidade das cargas</div></div></div>
+    <div class="head-row"><div class="brand"><div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M2 12s3-6 10-6 10 6 10 6-3 6-10 6S2 12 2 12z"/><circle cx="9" cy="12" r="1" fill="#fff"/></svg></div><div><h1>Sir Fisher</h1><span>Painel de Gestão</span></div></div><div class="head-meta"><div class="unidade">Status do site</div></div></div>
     <nav class="tabs"><a href="./">Visão Geral</a><a href="vendas.html">Faturamento</a><a href="caixa.html">Caixa</a><a href="dre.html">DRE</a><a href="despesas.html">Despesas</a><a href="conciliacao.html">Conciliação</a><a href="planejamento.html">Planejamento</a></nav>
   </header>
   <main id="main"><div class="loading">Analisando cargas…</div></main>
@@ -31,20 +31,20 @@ function fmtDate(value){return value?new Date(value).toLocaleString('pt-BR',{dat
 function fmtDay(value){if(!value)return'—';return new Date(`${value}T12:00:00`).toLocaleDateString('pt-BR');}
 function statusInfo(value){if(value==='em dia')return['Em dia','ok'];if(value==='atenção')return['Atenção','warn'];return[value==='atrasada'?'Atrasada':'Sem carga','bad'];}
 
-async function loadQuality(){
+async function loadStatus(){
   const main=document.getElementById('main');
   main.innerHTML='<div class="loading">Analisando cargas…</div>';
-  const {data,error}=await sb.from('app_qualidade_cargas').select('*').order('fonte');
-  if(error){main.innerHTML='<div class="erro">Não foi possível carregar a qualidade das fontes.</div>';return;}
+  const {data,error}=await sb.from('app_status_cargas').select('*').order('fonte');
+  if(error){main.innerHTML='<div class="erro">Não foi possível carregar o status das fontes.</div>';return;}
   const rows=data||[];const ok=rows.filter(row=>row.situacao==='em dia').length;const warn=rows.filter(row=>row.situacao==='atenção').length;const bad=rows.length-ok-warn;
-  main.innerHTML=`<div class="page-intro"><div><h2>Qualidade das cargas</h2><p>Cobertura, última importação e atraso das fontes que alimentam o painel.</p></div><button id="reloadQuality" class="button secondary">Atualizar</button></div>
+  main.innerHTML=`<div class="page-intro"><div><h2>Status do site</h2><p>Cobertura, última importação e atraso das fontes que alimentam o painel.</p></div><button id="reloadStatus" class="button secondary">Atualizar</button></div>
     <div class="summary-grid"><div class="summary-card"><div class="label">Fontes monitoradas</div><div class="value">${rows.length}</div></div><div class="summary-card"><div class="label">Em dia</div><div class="value">${ok}</div></div><div class="summary-card"><div class="label">Atenção</div><div class="value">${warn}</div></div><div class="summary-card"><div class="label">Atrasadas/sem carga</div><div class="value">${bad}</div></div></div>
     <div class="notice">Critério operacional: até 2 dias sem nova importação = em dia; de 3 a 5 dias = atenção; acima de 5 dias = atrasada. Recebíveis podem ter período futuro porque representam agenda.</div>
     <section class="panel"><div class="panel-head"><div><h3>Fontes</h3><div class="hint">A contagem representa linhas disponíveis na origem bruta.</div></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Fonte</th><th>Estado</th><th class="right">Linhas</th><th>Cobertura</th><th>Última importação</th><th>Log de carga</th><th class="right">Atraso</th></tr></thead><tbody>${rows.map(row=>{const [label,klass]=statusInfo(row.situacao);return`<tr><td><b>${esc(row.fonte)}</b></td><td><span class="status ${klass}">${label}</span></td><td class="right">${Number(row.linhas||0).toLocaleString('pt-BR')}</td><td>${fmtDay(row.periodo_inicio)} a ${fmtDay(row.periodo_fim)}</td><td>${fmtDate(row.ultima_importacao)}</td><td>${fmtDate(row.ultima_carga)}</td><td class="right">${row.atraso_dias==null?'—':`${row.atraso_dias} dia(s)`}</td></tr>`;}).join('')||'<tr><td colspan="7" class="empty">Nenhuma fonte encontrada.</td></tr>'}</tbody></table></div></section>`;
-  document.getElementById('reloadQuality').addEventListener('click',loadQuality);
+  document.getElementById('reloadStatus').addEventListener('click',loadStatus);
 }
 
-(async()=>{const auth=await SirFisherAuth.requireRole(sb,['gestor']);if(auth)await loadQuality();})();
+(async()=>{const auth=await SirFisherAuth.requireRole(sb,['admin']);if(auth)await loadStatus();})();
 </script>
 </body>
 </html>

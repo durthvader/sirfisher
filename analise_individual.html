@@ -304,7 +304,7 @@ function linha(tx, categorias){
   return el;
 }
 
-SirFisherAuth.requireRole(sb,['gestor','operador']).then(ctx=>{if(ctx)carregar();});
+SirFisherAuth.requireRole(sb,['admin','gestor','operador']).then(ctx=>{if(ctx)carregar();});
 </script>
 </body>
 </html>

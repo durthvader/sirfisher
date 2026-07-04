@@ -222,7 +222,7 @@ document.getElementById('btnNovo').addEventListener('click', async () => {
   carregar();
 });
 
-SirFisherAuth.requireRole(sb,['gestor','operador']).then(ctx=>{if(ctx)carregar();});
+SirFisherAuth.requireRole(sb,['admin','gestor','operador']).then(ctx=>{if(ctx)carregar();});
 </script>
 <footer>venda_especie · Supabase</footer>
 </body>

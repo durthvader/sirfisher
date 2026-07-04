@@ -7,7 +7,11 @@ o usuário; a autorização é controlada pela tabela `public.perfil_usuario`.
 
 Papéis disponíveis:
 
-- `gestor`: dashboards financeiros e rotinas operacionais;
+- `admin`: acesso irrestrito, incluindo dashboards financeiros, rotinas
+  operacionais e administração do site (gestão de usuários em `usuarios.html`
+  e status técnico das cargas em `status.html`);
+- `gestor`: dashboards financeiros e rotinas operacionais, sem acesso à
+  administração do site;
 - `operador`: somente classificação, análise individual e venda em espécie.
 
 Uma conta Google autenticada sem perfil ativo vê a tela de acesso aguardando
@@ -48,32 +52,35 @@ endpoints antigos dos dashboards. Assim, o site atual não é interrompido.
    caminho do repositório e a barra final.
 5. Não salvar Client Secret, tokens ou credenciais no repositório.
 
-### Etapa C — publicar e provisionar o primeiro gestor
+### Etapa C — publicar e provisionar o primeiro administrador
 
-1. Publicar `assets/auth.js`, as oito páginas HTML e o workflow atualizado.
-2. Entrar pela primeira vez com a conta Google que será gestora. A tela deve
-   informar que o acesso aguarda liberação.
+1. Publicar `assets/auth.js`, as páginas HTML e o workflow atualizado.
+2. Entrar pela primeira vez com a conta Google que será administradora. A tela
+   deve informar que o acesso aguarda liberação.
 3. No SQL Editor do Supabase, substituir o marcador pelo e-mail Google correto e
    executar:
 
 ```sql
 insert into public.perfil_usuario (user_id, papel, ativo)
-select id, 'gestor', true
+select id, 'admin', true
 from auth.users
-where lower(email) = lower('<EMAIL_GOOGLE_DO_GESTOR>')
+where lower(email) = lower('<EMAIL_GOOGLE_DO_ADMIN>')
 on conflict (user_id) do update
 set papel = excluded.papel,
     ativo = excluded.ativo;
 ```
 
-4. Sair, entrar novamente e validar todos os dashboards e rotinas.
-5. Para liberar outro usuário, repetir o provisionamento usando `gestor` ou
-   `operador`. Nunca conceder papel automaticamente apenas pelo domínio do e-mail.
+4. Sair, entrar novamente e validar todos os dashboards, rotinas e as páginas
+   `usuarios.html` e `status.html`.
+5. Para liberar outro usuário, usar a tela `usuarios.html` (ou repetir o
+   provisionamento acima trocando o papel) com `admin`, `gestor` ou `operador`.
+   Nunca conceder papel automaticamente apenas pelo domínio do e-mail.
 
-Depois da migration da fase 5, gestores também podem usar `usuarios.html`. A
-tela lista contas presentes em `auth.users`, inclusive as pendentes, e chama a
-RPC `definir_acesso_usuario()` para liberar, alterar o papel, desativar ou
-reativar. A RPC impede que o último gestor ativo seja removido.
+Depois da migration da fase 5, apenas administradores podem usar
+`usuarios.html`. A tela lista contas presentes em `auth.users`, inclusive as
+pendentes, e chama a RPC `definir_acesso_usuario()` para liberar, alterar o
+papel, desativar ou reativar. A RPC impede que o último administrador ativo
+seja removido ou rebaixado.
 
 ### Etapa D — fechar o legado anônimo
 
@@ -96,8 +103,13 @@ o que torna a política Google-only completa.
 
 - sem sessão: a página inicial exibe somente “Continuar com Google”;
 - conta sem perfil: nenhuma consulta financeira é liberada;
-- `operador`: abre as três rotinas operacionais e não abre dashboards;
-- `gestor`: abre dashboards e rotinas;
+- `operador`: abre as três rotinas operacionais e não abre dashboards nem
+  `usuarios.html`/`status.html`; o menu de navegação não mostra links para
+  páginas sem acesso;
+- `gestor`: abre dashboards e rotinas operacionais, mas não abre
+  `usuarios.html` nem `status.html`;
+- `admin`: abre dashboards, rotinas, `usuarios.html` e `status.html` sem
+  restrição;
 - logout: remove a sessão e retorna à tela de login;
 - console do navegador: sem erros nos fluxos acima;
 - Network: dashboards consultam somente endpoints `app_*`;
