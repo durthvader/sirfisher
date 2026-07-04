@@ -1,30 +1,46 @@
 (function () {
   'use strict';
 
-  const FINANCE_PAGES = new Set([
+  const ADMIN_ONLY_PAGES = new Set([
+    'usuarios.html',
+    'status.html',
+    'permissoes.html'
+  ]);
+  const CONFIGURABLE_PAGES = new Set([
     'index.html',
     'vendas.html',
     'caixa.html',
     'dre.html',
     'despesas.html',
     'conciliacao.html',
-    'planejamento.html'
-  ]);
-  const OPERATION_PAGES = new Set([
+    'planejamento.html',
     'rotinas.html',
     'analise_individual.html',
     'classificar_excecoes.html',
     'venda_especie.html'
   ]);
-  const ADMIN_PAGES = new Set([
-    'status.html',
-    'usuarios.html'
-  ]);
-  const PAGE_ROLES = new Map();
-  FINANCE_PAGES.forEach(page => PAGE_ROLES.set(page, ['admin', 'gestor']));
-  OPERATION_PAGES.forEach(page => PAGE_ROLES.set(page, ['admin', 'gestor', 'operador']));
-  ADMIN_PAGES.forEach(page => PAGE_ROLES.set(page, ['admin']));
+  const KNOWN_PAGES = new Set([...ADMIN_ONLY_PAGES, ...CONFIGURABLE_PAGES]);
   const NEXT_KEY = 'sirfisher_auth_next';
+
+  let permissionsPromise = null;
+  function fetchPermissions(sb) {
+    if (!permissionsPromise) {
+      permissionsPromise = sb.from('pagina_permissao').select('pagina, papeis').then(({ data, error }) => {
+        const map = new Map();
+        if (!error) (data || []).forEach(row => map.set(row.pagina, new Set(row.papeis || [])));
+        return map;
+      });
+    }
+    return permissionsPromise;
+  }
+
+  async function pageAllowsRole(sb, pagina, role) {
+    if (role === 'admin') return true;
+    if (ADMIN_ONLY_PAGES.has(pagina)) return false;
+    const permissions = await fetchPermissions(sb);
+    const allowed = permissions.get(pagina);
+    return allowed ? allowed.has(role) : false;
+  }
 
   function currentPage() {
     const page = window.location.pathname.split('/').pop();
@@ -81,7 +97,7 @@
   function safeNext(value) {
     if (!value) return null;
     const page = value.split(/[?#]/, 1)[0];
-    return PAGE_ROLES.has(page) ? page : null;
+    return KNOWN_PAGES.has(page) ? page : null;
   }
 
   function rememberNext(page) {
@@ -103,12 +119,12 @@
     return 'O login com Google não foi concluído. Tente novamente ou peça a um administrador para revisar a configuração.';
   }
 
-  function consumeNext(role) {
+  async function consumeNext(sb, role) {
     const next = safeNext(sessionStorage.getItem(NEXT_KEY));
     sessionStorage.removeItem(NEXT_KEY);
     if (!next) return false;
-    const allowedRoles = PAGE_ROLES.get(next) || [];
-    if (!allowedRoles.includes(role) || next === currentPage()) return false;
+    const allowed = await pageAllowsRole(sb, next, role);
+    if (!allowed || next === currentPage()) return false;
     window.location.replace(next);
     return true;
   }
@@ -222,7 +238,8 @@
     if (role === 'admin') {
       [
         ['Status', 'status.html'],
-        ['Usuários', 'usuarios.html']
+        ['Usuários', 'usuarios.html'],
+        ['Permissões', 'permissoes.html']
       ].forEach(([label, href]) => {
         const link = document.createElement('a');
         link.href = href;
@@ -242,19 +259,21 @@
     document.body.appendChild(box);
   }
 
-  function pruneNav(role) {
+  async function pruneNav(sb, role) {
     const nav = document.querySelector('nav.tabs');
     if (!nav) return;
-    nav.querySelectorAll('a[href]').forEach(a => {
+    const links = Array.from(nav.querySelectorAll('a[href]'));
+    for (const a of links) {
       const href = a.getAttribute('href');
       const page = href === './' ? 'index.html' : href;
-      const allowedRoles = PAGE_ROLES.get(page);
-      if (allowedRoles && !allowedRoles.includes(role)) a.remove();
-    });
+      if (!KNOWN_PAGES.has(page)) continue;
+      const allowed = await pageAllowsRole(sb, page, role);
+      if (!allowed) a.remove();
+    }
     if (!nav.querySelector('a')) nav.style.display = 'none';
   }
 
-  async function requireRole(sb, allowedRoles, options) {
+  async function requireRole(sb, options) {
     injectStyles();
     const settings = options || {};
     const { data, error } = await sb.auth.getSession();
@@ -282,10 +301,11 @@
     }
 
     installSessionBadge(sb, session, role);
-    pruneNav(role);
-    if (settings.loginPage && consumeNext(role)) return null;
+    await pruneNav(sb, role);
+    if (settings.loginPage && await consumeNext(sb, role)) return null;
 
-    if (!allowedRoles.includes(role)) {
+    const allowed = await pageAllowsRole(sb, currentPage(), role);
+    if (!allowed) {
       renderDenied(role);
       return null;
     }

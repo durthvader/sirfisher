@@ -326,7 +326,7 @@ document.getElementById('verCargas').addEventListener('click',e=>{e.preventDefau
 document.getElementById('fecharCargas').addEventListener('click',()=>cargasBox.style.display='none');
 cargasBox.addEventListener('click',e=>{if(e.target===cargasBox)cargasBox.style.display='none';});
 
-SirFisherAuth.requireRole(sb,['admin','gestor','operador'],{loginPage:true}).then(ctx=>{
+SirFisherAuth.requireRole(sb,{loginPage:true}).then(ctx=>{
   if(!ctx)return;
   if(ctx.role==='admin'||ctx.role==='gestor')main();
   else SirFisherAuth.renderOperatorHome();

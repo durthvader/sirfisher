@@ -334,7 +334,7 @@ document.getElementById('verCargas').addEventListener('click',e=>{e.preventDefau
 document.getElementById('fecharCargas').addEventListener('click',()=>cargasBox.style.display='none');
 cargasBox.addEventListener('click',e=>{if(e.target===cargasBox)cargasBox.style.display='none';});
 
-SirFisherAuth.requireRole(sb,['admin','gestor']).then(ctx=>{if(ctx)main();});
+SirFisherAuth.requireRole(sb).then(ctx=>{if(ctx)main();});
 </script>
 </body>
 </html>

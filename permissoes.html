@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; upgrade-insecure-requests">
+<title>Sir Fisher · Permissões</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="assets/dashboard-common.css" rel="stylesheet">
+<link href="assets/product-pages.css" rel="stylesheet">
+<link href="assets/accessibility.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.108.2" integrity="sha384-JWEyvHh+lRf0sN/WWY+QTQwX+CyWqmNg4tkc8GQzAMEtR2wGNrCJlvnu1lHD1kDm" crossorigin="anonymous"></script>
+<script src="assets/supabase-client.js"></script>
+<script src="assets/auth.js"></script>
+<script src="assets/safe-dom.js"></script>
+<script src="assets/accessibility.js"></script>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="head-row"><div class="brand"><div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M2 12s3-6 10-6 10 6 10 6-3 6-10 6S2 12 2 12z"/><circle cx="9" cy="12" r="1" fill="#fff"/></svg></div><div><h1>Sir Fisher</h1><span>Painel de Gestão</span></div></div><div class="head-meta"><div class="unidade">Permissões</div></div></div>
+    <nav class="tabs"><a href="./">Visão Geral</a><a href="vendas.html">Faturamento</a><a href="caixa.html">Caixa</a><a href="dre.html">DRE</a><a href="despesas.html">Despesas</a><a href="conciliacao.html">Conciliação</a><a href="planejamento.html">Planejamento</a><a href="rotinas.html" class="routines">Rotinas</a></nav>
+  </header>
+  <main id="main"><div class="loading">Carregando permissões…</div></main>
+</div>
+<script>
+const sb=SirFisherSupabase;
+const esc=SirFisherDOM.escapeHTML;
+let ROWS=[];
+
+const LABELS={
+  'index.html':'Visão Geral',
+  'vendas.html':'Faturamento',
+  'caixa.html':'Caixa',
+  'dre.html':'DRE',
+  'despesas.html':'Despesas',
+  'conciliacao.html':'Conciliação',
+  'planejamento.html':'Planejamento',
+  'rotinas.html':'Rotinas',
+  'analise_individual.html':'Análise individual',
+  'classificar_excecoes.html':'Classificar exceções',
+  'venda_especie.html':'Venda em espécie'
+};
+const ORDEM=Object.keys(LABELS);
+
+function render(){
+  const main=document.getElementById('main');
+  main.innerHTML=`
+    <div class="page-intro"><div><h2>Permissões por página</h2><p>Escolha quais páginas cada papel pode acessar. O admin sempre tem acesso irrestrito a tudo, independente desta tela. Páginas de administração do site (Usuários, Status, Permissões) não aparecem aqui — ficam sempre exclusivas do admin.</p></div></div>
+    <section class="panel"><div class="table-wrap"><table class="data-table"><thead><tr><th>Página</th><th>Admin</th><th>Gestor</th><th>Operador</th><th>Ação</th></tr></thead><tbody>${ORDEM.map(pagina=>{
+      const row=ROWS.find(r=>r.pagina===pagina)||{pagina,papeis:[]};
+      const papeis=row.papeis||[];
+      return `<tr data-pagina="${esc(pagina)}"><td><b>${esc(LABELS[pagina])}</b></td><td><input type="checkbox" checked disabled aria-label="Admin sempre tem acesso"></td><td><input type="checkbox" class="gestor" ${papeis.includes('gestor')?'checked':''} aria-label="Gestor acessa ${esc(LABELS[pagina])}"></td><td><input type="checkbox" class="operador" ${papeis.includes('operador')?'checked':''} aria-label="Operador acessa ${esc(LABELS[pagina])}"></td><td><button class="button save">Salvar</button></td></tr>`;
+    }).join('')}</tbody></table></div></section>`;
+  main.querySelectorAll('tr[data-pagina]').forEach(row=>{
+    const pagina=row.dataset.pagina;
+    row.querySelector('.save').addEventListener('click',event=>salvar(pagina,row,event.currentTarget));
+  });
+}
+
+async function salvar(pagina,row,button){
+  button.disabled=true;
+  const papeis=[];
+  if(row.querySelector('.gestor').checked)papeis.push('gestor');
+  if(row.querySelector('.operador').checked)papeis.push('operador');
+  const {error}=await sb.rpc('definir_permissao_pagina',{p_pagina:pagina,p_papeis:papeis});
+  if(error){
+    console.error('Falha ao alterar permissão:',error);
+    alert('Não foi possível salvar. Tente novamente e, se o problema continuar, consulte o erro no console.');
+    button.disabled=false;
+    return;
+  }
+  const idx=ROWS.findIndex(r=>r.pagina===pagina);
+  if(idx>=0)ROWS[idx]={pagina,papeis};else ROWS.push({pagina,papeis});
+  button.disabled=false;
+  button.textContent='Salvo';
+  setTimeout(()=>{button.textContent='Salvar';},1500);
+}
+
+async function carregar(){
+  const main=document.getElementById('main');
+  main.innerHTML='<div class="loading">Carregando permissões…</div>';
+  const {data,error}=await sb.from('pagina_permissao').select('*');
+  if(error){main.innerHTML='<div class="erro">Não foi possível carregar as permissões.</div>';return;}
+  ROWS=data||[];
+  render();
+}
+
+SirFisherAuth.requireRole(sb).then(ctx=>{if(ctx)carregar();});
+</script>
+</body>
+</html>

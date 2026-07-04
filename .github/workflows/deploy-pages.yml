@@ -46,6 +46,7 @@ jobs:
             analise_individual.html \
             classificar_excecoes.html \
             conciliacao.html \
+            permissoes.html \
             planejamento.html \
             rotinas.html \
             status.html \
@@ -77,6 +78,7 @@ jobs:
             despesas.html \
             dre.html \
             index.html \
+            permissoes.html \
             planejamento.html \
             rotinas.html \
             status.html \

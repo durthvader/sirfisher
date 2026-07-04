@@ -55,7 +55,7 @@ async function loadReconciliation(){
   chart=new Chart(document.getElementById('conciliationChart'),{type:'bar',data:{labels:summary.map(row=>row.situacao),datasets:[{data:summary.map(row=>Number(row.qtd||0)),backgroundColor:summary.map(row=>colors[row.situacao]||'#00A6A6'),borderRadius:5}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:context=>Number(context.raw).toLocaleString('pt-BR')}}},scales:{y:{beginAtZero:true,ticks:{callback:value=>Number(value).toLocaleString('pt-BR')}},x:{grid:{display:false}}}}});
 }
 
-(async()=>{const auth=await SirFisherAuth.requireRole(sb,['admin','gestor']);if(auth)await loadReconciliation();})();
+(async()=>{const auth=await SirFisherAuth.requireRole(sb);if(auth)await loadReconciliation();})();
 </script>
 </body>
 </html>
