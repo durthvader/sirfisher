@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; upgrade-insecure-requests">
+<title>Sir Fisher · Parâmetros</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="assets/dashboard-common.css" rel="stylesheet">
+<link href="assets/product-pages.css" rel="stylesheet">
+<link href="assets/accessibility.css" rel="stylesheet">
+<style>
+  .voltar{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;color:var(--muted);text-decoration:none;margin-bottom:6px}
+  .voltar:hover{color:var(--teal)}
+  .data-table td .field{width:100%;min-width:96px}
+  .data-table td.right .field{max-width:150px;text-align:right}
+  .data-table td input[type=checkbox]{width:18px;height:18px}
+  .data-table tr.add-row td{border-top:2px solid var(--border);background:#fbfcfc}
+  .data-table tr.add-row .novo{font-weight:700;color:var(--teal);font-size:10.5px;text-transform:uppercase;letter-spacing:.4px}
+  tr.saving{opacity:.5}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.108.2" integrity="sha384-JWEyvHh+lRf0sN/WWY+QTQwX+CyWqmNg4tkc8GQzAMEtR2wGNrCJlvnu1lHD1kDm" crossorigin="anonymous"></script>
+<script src="assets/supabase-client.js"></script>
+<script src="assets/auth.js"></script>
+<script src="assets/safe-dom.js"></script>
+<script src="assets/accessibility.js"></script>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="head-row"><div class="brand"><div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M2 12s3-6 10-6 10 6 10 6-3 6-10 6S2 12 2 12z"/><circle cx="9" cy="12" r="1" fill="#fff"/></svg></div><div><h1>Sir Fisher</h1><span>Painel de Gestão</span></div></div><div class="head-meta"><div class="unidade" id="hdUnidade">Parâmetros</div></div></div>
+    <nav class="tabs"><a href="./">Visão Geral</a><a href="vendas.html">Faturamento</a><a href="caixa.html">Caixa</a><a href="dre.html">DRE</a><a href="despesas.html">Despesas</a><a href="conciliacao.html">Conciliação</a><a href="planejamento.html">Planejamento</a><a href="rotinas.html" class="routines">Rotinas</a></nav>
+  </header>
+  <main id="main"><div class="loading">Carregando…</div></main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const sb=SirFisherSupabase;
+const esc=SirFisherDOM.escapeHTML;
+const toastEl=document.getElementById('toast');
+function toast(msg,isErr){toastEl.textContent=msg;toastEl.className='toast show'+(isErr?' err':'');setTimeout(()=>toastEl.className='toast',2400);}
+
+const num=x=>x===''||x==null?null:Number(x);
+const int=x=>x===''||x==null?null:Math.trunc(Number(x));
+
+// Config de cada tabela de parametro. colunas: {key,label,type,readOnly,keyOnAdd,addHidden,options}
+const TABELAS={
+  recebimento_regra:{
+    titulo:'Regras de recebimento',
+    subtitulo:'Como cada forma de pagamento cai no caixa: percentual das vendas (fração), prazo em dias e taxa.',
+    listRpc:'admin_listar_recebimento_regra', saveRpc:'admin_salvar_recebimento_regra',
+    colunas:[
+      {key:'forma',label:'Forma',readOnly:true},
+      {key:'percentual',label:'% das vendas',type:'number'},
+      {key:'dias',label:'Prazo (dias)',type:'number'},
+      {key:'taxa',label:'Taxa',type:'number'}
+    ],
+    toParams:v=>({p_forma:v.forma,p_percentual:num(v.percentual),p_dias:int(v.dias),p_taxa:num(v.taxa)})
+  },
+  peso_dia_semana:{
+    titulo:'Peso por dia da semana',
+    subtitulo:'Peso relativo de venda de cada dia, usado nas projeções de faturamento e caixa.',
+    listRpc:'admin_listar_peso_dia_semana', saveRpc:'admin_salvar_peso_dia_semana',
+    colunas:[
+      {key:'dia_nome',label:'Dia',readOnly:true},
+      {key:'peso',label:'Peso',type:'number'}
+    ],
+    toParams:v=>({p_dow:int(v.dow),p_peso:num(v.peso)})
+  },
+  grupo_variavel:{
+    titulo:'Grupos variáveis',
+    subtitulo:'Marque quais grupos de despesa são variáveis (acompanham a venda). Os demais são tratados como fixos.',
+    listRpc:'admin_listar_grupo_variavel', saveRpc:'admin_salvar_grupo_variavel',
+    colunas:[
+      {key:'grupo',label:'Grupo',readOnly:true},
+      {key:'variavel',label:'Variável',type:'boolean'}
+    ],
+    toParams:v=>({p_grupo:v.grupo,p_variavel:!!v.variavel})
+  },
+  saldo_inicial:{
+    titulo:'Saldo inicial',
+    subtitulo:'Saldo semente que inicia o fluxo de caixa de cada conta.',
+    listRpc:'admin_listar_saldo_inicial', saveRpc:'admin_salvar_saldo_inicial',
+    colunas:[
+      {key:'conta',label:'Conta',keyOnAdd:true},
+      {key:'data_base',label:'Data base',type:'date'},
+      {key:'saldo',label:'Saldo',type:'number'},
+      {key:'obs',label:'Observação',type:'text'}
+    ],
+    toParams:v=>({p_conta:v.conta,p_data_base:v.data_base||null,p_saldo:num(v.saldo),p_obs:v.obs||null}),
+    canAdd:true, addTemplate:{conta:'',data_base:'',saldo:'',obs:''}
+  },
+  meta_mensal:{
+    titulo:'Metas mensais',
+    subtitulo:'Meta de faturamento bruto por mês e unidade. Adicione novos meses no fim da tabela.',
+    listRpc:'admin_listar_meta_mensal', saveRpc:'admin_salvar_meta_mensal',
+    colunas:[
+      {key:'mes',label:'Mês',type:'month',keyOnAdd:true},
+      {key:'unidade',label:'Unidade',type:'text',keyOnAdd:true},
+      {key:'meta_bruta',label:'Meta bruta',type:'number'}
+    ],
+    toParams:v=>({p_mes:v.mes?(String(v.mes).length===7?v.mes+'-01':v.mes):null,p_unidade:v.unidade,p_meta_bruta:num(v.meta_bruta)}),
+    canAdd:true, addTemplate:{mes:'',unidade:'PRAIA',meta_bruta:''}
+  },
+  conta:{
+    titulo:'Contas bancárias',
+    subtitulo:'Cadastro de contas por unidade. Para "remover" uma conta, desmarque Ativa.',
+    listRpc:'admin_listar_conta', saveRpc:'admin_salvar_conta',
+    colunas:[
+      {key:'id',label:'#',readOnly:true,addHidden:true},
+      {key:'nome',label:'Nome',type:'text'},
+      {key:'banco',label:'Banco',type:'text'},
+      {key:'unidade_id',label:'Unidade',type:'select',options:[]},
+      {key:'ativa',label:'Ativa',type:'boolean'}
+    ],
+    toParams:v=>({p_id:int(v.id),p_nome:v.nome,p_banco:v.banco,p_unidade_id:int(v.unidade_id),p_ativa:!!v.ativa}),
+    canAdd:true, addTemplate:{nome:'',banco:'',unidade_id:'',ativa:true},
+    prepare:async(cfg)=>{
+      const {data}=await sb.rpc('admin_listar_unidade');
+      const opts=(data||[]).map(u=>({value:u.id,label:u.nome}));
+      cfg.colunas.find(c=>c.key==='unidade_id').options=opts;
+      if(opts.length) cfg.addTemplate.unidade_id=opts[0].value;
+    }
+  },
+  unidade:{
+    titulo:'Unidades',
+    subtitulo:'Cadastro de unidades do negócio. Para "remover", desmarque Ativa.',
+    listRpc:'admin_listar_unidade', saveRpc:'admin_salvar_unidade',
+    colunas:[
+      {key:'id',label:'#',readOnly:true,addHidden:true},
+      {key:'nome',label:'Nome',type:'text'},
+      {key:'ativa',label:'Ativa',type:'boolean'}
+    ],
+    toParams:v=>({p_id:int(v.id),p_nome:v.nome,p_ativa:!!v.ativa}),
+    canAdd:true, addTemplate:{nome:'',ativa:true}
+  }
+};
+
+function displayValue(value,col){
+  if(value==null||value==='') return '—';
+  if(col.type==='month') return String(value).slice(0,7);
+  if(col.type==='boolean') return value?'Sim':'Não';
+  if(col.type==='select'){const o=(col.options||[]).find(x=>String(x.value)===String(value));return o?o.label:String(value);}
+  return String(value);
+}
+function buildInput(col,value){
+  let el;
+  if(col.type==='boolean'){el=document.createElement('input');el.type='checkbox';el.checked=!!value;}
+  else if(col.type==='select'){el=document.createElement('select');(col.options||[]).forEach(o=>{const op=document.createElement('option');op.value=String(o.value);op.textContent=o.label;el.appendChild(op);});el.value=value==null?'':String(value);}
+  else{el=document.createElement('input');el.type=col.type==='number'?'number':col.type==='date'?'date':col.type==='month'?'month':'text';if(col.type==='number')el.step='any';el.value=value==null?'':(col.type==='month'?String(value).slice(0,7):String(value));}
+  el.className='field';
+  return el;
+}
+function readInput(el,col){return col.type==='boolean'?el.checked:el.value;}
+function setInput(el,value,col){if(col.type==='boolean')el.checked=!!value;else if(col.type==='month')el.value=value==null?'':String(value).slice(0,7);else el.value=value==null?'':String(value);}
+
+function buildRow(cfg,row,isAdd){
+  const tr=document.createElement('tr');
+  if(isAdd)tr.className='add-row';
+  const inputs={};
+  const btn=document.createElement('button');
+  btn.type='button';btn.className='button save';btn.textContent=isAdd?'Adicionar':'Salvar';
+  if(!isAdd)btn.disabled=true;
+
+  cfg.colunas.forEach(col=>{
+    const td=document.createElement('td');
+    if(col.type==='number')td.className='right';
+    const editable = isAdd ? !col.addHidden : (!col.readOnly && !col.keyOnAdd);
+    if(isAdd && col.addHidden){
+      const s=document.createElement('span');s.className='novo';s.textContent='novo';td.appendChild(s);
+    } else if(editable){
+      const inp=buildInput(col,row?row[col.key]:undefined);
+      inputs[col.key]=inp;
+      if(!isAdd){inp.addEventListener('input',()=>btn.disabled=false);inp.addEventListener('change',()=>btn.disabled=false);}
+      td.appendChild(inp);
+    } else {
+      td.textContent=displayValue(row?row[col.key]:'',col);
+    }
+    tr.appendChild(td);
+  });
+
+  const tdAcao=document.createElement('td');
+  tdAcao.appendChild(btn);
+  tr.appendChild(tdAcao);
+
+  btn.addEventListener('click',async()=>{
+    const base=isAdd?Object.assign({},cfg.addTemplate):Object.assign({},row);
+    cfg.colunas.forEach(col=>{if(inputs[col.key])base[col.key]=readInput(inputs[col.key],col);});
+    btn.disabled=true;tr.classList.add('saving');
+    const {data,error}=await sb.rpc(cfg.saveRpc,cfg.toParams(base,isAdd));
+    tr.classList.remove('saving');
+    if(error){btn.disabled=false;toast('Não salvou: '+error.message,true);return;}
+    if(isAdd){toast('Adicionado');carregar(cfg);return;}
+    if(data)Object.assign(row,data);
+    cfg.colunas.forEach(col=>{if(inputs[col.key])setInput(inputs[col.key],row[col.key],col);});
+    toast('Salvo');
+  });
+
+  return tr;
+}
+
+async function carregar(cfg){
+  const tbody=document.getElementById('tbody');
+  tbody.innerHTML='';
+  const {data,error}=await sb.rpc(cfg.listRpc);
+  if(error){tbody.innerHTML=`<tr><td colspan="${cfg.colunas.length+1}" class="erro">Não consegui carregar. ${esc(error.message)}</td></tr>`;return;}
+  (data||[]).forEach(row=>tbody.appendChild(buildRow(cfg,row,false)));
+  if(!data||!data.length){const tr=document.createElement('tr');tr.innerHTML=`<td colspan="${cfg.colunas.length+1}" class="empty">Sem registros.</td>`;tbody.appendChild(tr);}
+  if(cfg.canAdd)tbody.appendChild(buildRow(cfg,null,true));
+}
+
+(async()=>{
+  const t=new URLSearchParams(location.search).get('t');
+  const cfg=TABELAS[t];
+  const main=document.getElementById('main');
+  const auth=await SirFisherAuth.requireRole(sb);
+  if(!auth)return;
+  if(!cfg){
+    main.innerHTML='<div class="page-intro"><div><a href="parametros.html" class="voltar">← Parâmetros</a><h2>Parâmetro desconhecido</h2><p>Escolha um item na página de parâmetros.</p></div></div>';
+    return;
+  }
+  document.title='Sir Fisher · '+cfg.titulo;
+  document.getElementById('hdUnidade').textContent=cfg.titulo;
+  if(cfg.prepare)await cfg.prepare(cfg);
+  const thead=`<tr>${cfg.colunas.map(c=>`<th class="${c.type==='number'?'right':''}">${esc(c.label)}</th>`).join('')}<th>Ação</th></tr>`;
+  main.innerHTML=`
+    <div class="page-intro"><div><a href="parametros.html" class="voltar">← Parâmetros</a><h2>${esc(cfg.titulo)}</h2><p>${esc(cfg.subtitulo)}</p></div></div>
+    <div class="panel"><div class="table-wrap"><table class="data-table"><thead>${thead}</thead><tbody id="tbody"><tr><td colspan="${cfg.colunas.length+1}" class="loading">Carregando…</td></tr></tbody></table></div></div>`;
+  carregar(cfg);
+})();
+</script>
+</body>
+</html>

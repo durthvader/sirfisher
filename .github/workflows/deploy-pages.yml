@@ -49,6 +49,7 @@ jobs:
             conciliacao.html \
             contas_recorrentes.html \
             parametros.html \
+            parametros_editor.html \
             parametros_gerais.html \
             permissoes.html \
             planejamento.html \
@@ -87,6 +88,7 @@ jobs:
             gerente.html \
             index.html \
             parametros.html \
+            parametros_editor.html \
             parametros_gerais.html \
             permissoes.html \
             planejamento.html \

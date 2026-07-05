@@ -6,6 +6,7 @@
     'status.html',
     'permissoes.html',
     'parametros.html',
+    'parametros_editor.html',
     'parametros_gerais.html'
   ]);
   const CONFIGURABLE_PAGES = new Set([
