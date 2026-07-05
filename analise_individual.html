@@ -14,6 +14,7 @@
 <script src="assets/supabase-client.js"></script>
 <script src="assets/auth.js"></script>
 <script src="assets/safe-dom.js"></script>
+<script src="assets/classification-actions.js"></script>
 <script src="assets/accessibility.js"></script>
 </head>
 <body>
@@ -25,6 +26,10 @@
   <main id="main">
     <div class="page-intro"><div><h2>Análise individual</h2><p>Transações de fornecedores marcados como "analisar individual". Cada uma é classificada à parte. <b id="contador">—</b></p></div></div>
     <div class="panel"><div id="content"><div class="loading">Carregando…</div></div></div>
+    <div class="panel classification-panel">
+      <div class="panel-head"><div><h3>Classificações recentes</h3><div class="hint">Corrija a categoria ou desfaça um ajuste por transação.</div></div></div>
+      <div id="classificacoesRecentes"><div class="loading">Carregando…</div></div>
+    </div>
   </main>
 </div>
 
@@ -153,12 +158,11 @@ function linha(tx, categorias){
     btn.disabled = true;
 
     // Ajuste por TRANSACAO (nao cria regra de fornecedor).
-    // upsert: se eu reclassificar a mesma transacao, atualiza.
-    const { error } = await sb.from('ajuste_manual').upsert({
-      origem: tx.origem,
-      raw_id: tx.raw_id,
-      categoria: categoria
-    }, { onConflict: 'origem,raw_id' });
+    const { data: classificacaoId, error } = await sb.rpc('classificar_transacao', {
+      p_origem: tx.origem,
+      p_raw_id: tx.raw_id,
+      p_categoria: categoria
+    });
 
     if (error) {
       el.classList.remove('saving');
@@ -168,6 +172,12 @@ function linha(tx, categorias){
     }
 
     toast('Classificado: ' + categoria);
+    SirFisherClassifications.offerUndo({
+      tipo: 'individual',
+      id: classificacaoId,
+      message: 'Transação classificada como ' + categoria + '.'
+    });
+    SirFisherClassifications.refresh();
     el.classList.add('done');
     setTimeout(() => {
       el.remove();
@@ -180,7 +190,18 @@ function linha(tx, categorias){
   return el;
 }
 
-SirFisherAuth.requireRole(sb).then(ctx=>{if(ctx)carregar();});
+SirFisherAuth.requireRole(sb).then(ctx=>{
+  if(!ctx)return;
+  carregar();
+  SirFisherClassifications.init({
+    sb,
+    targetId:'classificacoesRecentes',
+    escape:esc,
+    notify:toast,
+    onChanged:carregar,
+    filterType:'individual'
+  });
+});
 </script>
 </body>
 </html>

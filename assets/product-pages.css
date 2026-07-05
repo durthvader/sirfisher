@@ -63,4 +63,18 @@ header{background:var(--header);color:#fff;position:sticky;top:0;z-index:10}
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(8px);background:var(--header);color:#fff;font-size:12.5px;font-weight:600;padding:9px 16px;border-radius:20px;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;box-shadow:0 6px 20px rgba(0,0,0,.18);z-index:70}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 .toast.err{background:var(--red)}
+.classification-panel .panel-head{margin-bottom:8px}
+.classification-list{display:flex;flex-direction:column}
+.classification-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 0;border-bottom:1px solid var(--border)}
+.classification-row:last-child{border-bottom:0}
+.classification-info{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
+.classification-info strong{font-size:12.5px;overflow:hidden;text-overflow:ellipsis}
+.classification-info span{font-size:10.5px;color:var(--muted)}
+.classification-controls{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.classification-controls select{min-width:210px}
+.classification-undo{position:fixed;bottom:62px;left:50%;transform:translateX(-50%) translateY(10px);display:flex;align-items:center;gap:14px;background:var(--header);color:#fff;border-radius:10px;padding:10px 12px 10px 15px;box-shadow:0 8px 24px rgba(0,0,0,.24);font-size:12px;font-weight:600;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:75}
+.classification-undo.show{opacity:1;pointer-events:auto;transform:translateX(-50%) translateY(0)}
+.classification-undo button{border:1px solid rgba(255,255,255,.65);border-radius:7px;background:#fff;color:var(--header);font:700 11px Roboto,Arial,sans-serif;padding:6px 9px;cursor:pointer}
+.classification-undo button:disabled{opacity:.55;cursor:wait}
 @media(max-width:620px){.page-intro{display:block}.page-intro .actions{margin-top:12px}.panel{padding:13px}.chart-box{height:260px}.sf-session{overflow-x:auto}.op-row{flex-direction:column;align-items:stretch}.op-row .controls{width:100%}.op-row .controls select{min-width:0;flex:1}}
+@media(max-width:620px){.classification-row{align-items:stretch;flex-direction:column}.classification-controls{width:100%}.classification-controls select{min-width:0;flex:1}.classification-undo{width:calc(100% - 24px);justify-content:space-between}}

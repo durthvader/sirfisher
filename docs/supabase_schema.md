@@ -1,9 +1,9 @@
 # Supabase Schema - Projeto Sir Fisher App
 
 ## Visão geral
-Este documento resume o schema público do Supabase usado pelo painel Sir Fisher App. O resumo foi feito com base nas tabelas/vistas acessadas pelos arquivos HTML do projeto e nas respostas do endpoint REST público com a role anon.
-
-> Importante: não foram feitas alterações no banco de dados. A análise é apenas de leitura.
+Este documento resume o schema público do Supabase usado pelo painel Sir Fisher
+App. O conteúdo acompanha os contratos do front-end e as migrations versionadas
+no repositório.
 
 ## Tabelas e views principais
 
@@ -163,6 +163,20 @@ Este documento resume o schema público do Supabase usado pelo painel Sir Fisher
   - `ativo`
   - `atualizado_em`
 
+### app_classificacoes_recentes e RPCs de classificação
+- Tipo: view protegida e funções `SECURITY DEFINER`
+- Uso: `analise_individual.html` e `classificar_excecoes.html`
+- Propósito: listar o estado atual das classificações, corrigir categorias e
+  desfazer regras ou ajustes sem criar uma tabela de histórico.
+- A view combina registros ativos de `de_para` e `ajuste_manual`.
+- RPCs disponíveis:
+  - `classificar_excecao(text, text, text, text)`;
+  - `classificar_transacao(text, bigint, text)`;
+  - `corrigir_classificacao(text, bigint, text)`;
+  - `desfazer_classificacao(text, bigint)`.
+- Todas validam o papel autenticado; correção e desfazer atuam sobre o estado
+  atual e não preservam versões anteriores.
+
 ### painel_dre_cascata
 - Tipo: painel / view agregada
 - Uso: `dre.html`
@@ -292,7 +306,7 @@ Este documento resume o schema público do Supabase usado pelo painel Sir Fisher
 ## Tabelas / views que alimentam os painéis HTML
 - `analise_individual` → `analise_individual.html`
 - `categoria_dre` → `analise_individual.html`, `classificar_excecoes.html`
-- `ajuste_manual` → gravação via `analise_individual.html`
+- `ajuste_manual` → estado atual dos ajustes feitos em `analise_individual.html`
 - `painel_saldo_atual` → `caixa.html`, `index.html`
 - `painel_saldo_fim_mes` → `caixa.html`, `index.html`
 - `painel_fluxo_caixa` → `caixa.html`
@@ -304,7 +318,8 @@ Este documento resume o schema público do Supabase usado pelo painel Sir Fisher
 - `painel_cargas` → `caixa.html`, `dre.html`, `index.html`, `vendas.html`
 - `painel_saldo_por_conta` → `caixa.html`
 - `excecoes` → `classificar_excecoes.html`
-- `de_para` → `classificar_excecoes.html` (insert only)
+- `de_para` → estado atual das regras criadas em `classificar_excecoes.html`
+- `app_classificacoes_recentes` → correção e desfazer nas duas páginas de classificação
 - `painel_dre_cascata` → `dre.html`
 - `painel_resumo_mensal` → `index.html`, `vendas.html`
 - `painel_composicao_despesa` → `index.html`
@@ -316,7 +331,7 @@ Este documento resume o schema público do Supabase usado pelo painel Sir Fisher
 - `painel_recebimento_hora` → `vendas.html`
 
 ## Observações
-- A tabela `de_para` não é legível pela role `anon` atual: `permission denied for table de_para`.
-- Todas as demais tabelas/views listadas foram acessadas com sucesso e retornaram colunas e dados.
-- Esse documento não altera o banco, apenas descreve o schema público usado pelo app.
+- O front-end autenticado usa views `app_*` e RPCs protegidas; tabelas internas
+  não são expostas para leitura anônima.
+- Esse documento não altera o banco, apenas descreve o schema usado pelo app.
 
