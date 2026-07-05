@@ -82,16 +82,16 @@
 <script>
 const sb=SirFisherSupabase;
 const esc=SirFisherDOM.escapeHTML;
-const {brl,brl0,pct,rs}=SirFisherFormat;
+const {brl,brl0,pct,rs,monthTrend}=SirFisherFormat;
 const C={header:'#12313F',teal:'#00A6A6',amber:'#D6A84F',green:'#2E7D5B',red:'#C94C4C',muted:'#6B7280',border:'#E5E7EB',brown:'#B98A2E',grey:'#9aa6b2'};
 const MESES=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 let ROWS=[],COMP=[],SALDO={},MC={},CHARTS=[];
 let SALDO_REAL=null,ULTIMA=null,CARGAS=[];
 
 const DESC={
-  fat:'Projeção de quanto o mês vai fechar, com base no ritmo de vendas até agora.',
-  res:'Lucro do mês: receita menos todas as despesas operacionais.',
-  lb:'Receita menos o custo direto (CMV). O que sobra antes das despesas fixas.',
+  fat:'No mês em andamento, mostra a projeção de fechamento com base no ritmo de vendas. Em meses fechados, mostra o realizado.',
+  res:'No mês em andamento, mostra a tendência de fechamento: resultado acumulado projetado pela curva de vendas. Em meses fechados, mostra o realizado.',
+  lb:'No mês em andamento, mostra a tendência de fechamento da receita menos o CMV, mantendo a margem observada até o corte. Em meses fechados, mostra o realizado.',
   mc:'Receita menos os custos que variam com a venda (insumo, taxa de cartão, imposto), em % da receita.',
   tk:'Valor médio por venda no cartão (faturamento ÷ nº de vendas).',
   nv:'Quantidade de transações no cartão no mês.',
@@ -179,8 +179,10 @@ function renderMes(anoMes){
   CHARTS.forEach(c=>{try{c.destroy()}catch(e){}});CHARTS=[];
   const idx=ROWS.findIndex(r=>r.ano_mes===anoMes);const cur=ROWS[idx];const prev=idx>0?ROWS[idx-1]:null;
   if(!cur)return;const N=v=>v==null?null:Number(v);
-  const resCor=N(cur.resultado)>=0?C.green:C.red;
-  const realiz=N(cur.faturamento);
+  const trend=monthTrend(ROWS,anoMes);
+  const lucroBruto=trend.value(N(cur.receita)-N(cur.cmv));
+  const resultado=trend.value(N(cur.resultado));
+  const qtdVendas=trend.value(N(cur.qtd_vendas));
   // saldo projetado (fim do mes selecionado) + variacao vs fechamento do mes anterior
   const salP=SALDO[anoMes]||null;
   const salPprev=prev?SALDO[prev.ano_mes]:null;
@@ -191,12 +193,12 @@ function renderMes(anoMes){
   const html=`
     <div class="section-title">Resumo do mês</div>
     <div class="kpis">
-      ${kpi('Faturamento (tend.)','cash',brl0(N(cur.faturamento_proj)),deltaVal(N(cur.faturamento_proj),prev?N(prev.faturamento):null),C.header,'fat')}
-      ${kpi('Lucro bruto','margin',brl0(N(cur.receita)-N(cur.cmv)),deltaPct(N(cur.receita)-N(cur.cmv),prev?(N(prev.receita)-N(prev.cmv)):null,false),C.green,'lb')}
-      ${kpi('Lucro líquido','result',brl(N(cur.resultado)),deltaVal(N(cur.resultado),prev?N(prev.resultado):null),resCor,'res')}
+      ${kpi(trend.label('Faturamento','Faturamento (tend.)'),'cash',brl0(trend.active?trend.projected:N(cur.faturamento)),deltaVal(trend.active?trend.projected:N(cur.faturamento),prev?N(prev.faturamento):null),C.header,'fat')}
+      ${kpi(trend.label('Lucro bruto','Lucro bruto (tend.)'),'margin',brl0(lucroBruto),deltaPct(lucroBruto,prev?(N(prev.receita)-N(prev.cmv)):null,false),C.green,'lb')}
+      ${kpi(trend.label('Lucro líquido','Lucro líquido (tend.)'),'result',brl(resultado),deltaVal(resultado,prev?N(prev.resultado):null),resultado>=0?C.green:C.red,'res')}
       ${kpi('Saldo em caixa','wallet',brl(sr?Number(sr.saldo_atual):null),(sr?deltaVal(Number(sr.saldo_atual),sr.saldo_comp!=null?Number(sr.saldo_comp):null):'<div class="sub">—</div>'),C.teal,'sal')}
       ${kpi('Saldo projetado','wallet',brl(salP?salP.v:null),(salP?deltaPct(salP.v,salPprev?salPprev.v:null,false):'<div class="sub">—</div>'),C.amber,'salp')}
-      ${kpi('Nº de vendas','orders',(cur.qtd_vendas||0).toLocaleString('pt-BR'),deltaPct(N(cur.qtd_vendas),prev?N(prev.qtd_vendas):null,false),C.teal,'nv')}
+      ${kpi(trend.label('Nº de vendas','Nº de vendas (tend.)'),'orders',(qtdVendas==null?'—':Math.round(qtdVendas).toLocaleString('pt-BR')),deltaPct(qtdVendas,prev?N(prev.qtd_vendas):null,false),C.teal,'nv')}
       ${kpi('Ticket médio','ticket',rs(cur.ticket_medio),deltaPct(N(cur.ticket_medio),prev?N(prev.ticket_medio):null,false),C.amber,'tk')}
       ${kpi('Margem contrib.','margin',pct(mc),deltaPP(mc,mcPrev,false),C.header,'mc')}
       ${kpi('CMV','box',pct(N(cur.cmv_perc)),deltaPP(N(cur.cmv_perc),prev?N(prev.cmv_perc):null,true),N(cur.cmv_perc)>38?C.red:C.amber,'cmv')}

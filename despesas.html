@@ -13,6 +13,7 @@
 <script src="assets/supabase-client.js"></script>
 <script src="assets/auth.js"></script>
 <script src="assets/safe-dom.js"></script>
+<script src="assets/dashboard-utils.js"></script>
 <script src="assets/accessibility.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" integrity="sha384-bs/nf9FbdNouRbMiFcrcZfLXYPKiPaGVGplVbv7dLGECccEXDW+S3zjqSKR5ZEaD" crossorigin="anonymous"></script>
 <style>
@@ -116,11 +117,11 @@ const GCOR={
 function corGrupo(g){return GCOR[g]||'#B0A99A';}
 function nomeGrupo(g){return g==='DESPESA DIRETA DE VENDA'?'Despesa direta (CMV)':g==='MARKETING E PUBLICIDADE'?'Marketing':(g.charAt(0)+g.slice(1).toLowerCase());}
 
-let CHARTS=[],ROWS=[],ULTIMA=null,CARGAS=[];
+let CHARTS=[],ROWS=[],RESUMO=[],ULTIMA=null,CARGAS=[];
 let MESES_LISTA=[],POR_MES=new Map(),FORN_HIST=new Map();
 
 const DESC={
-  total:'Soma de todas as despesas do mês por competência (saídas reais). Não inclui cartão de crédito, transferências nem ajustes contábeis.',
+  total:'Soma das despesas por competência. No mês em andamento, o KPI mostra uma tendência proporcional ao avanço da curva de vendas; os detalhamentos permanecem realizados.',
   grupo:'Grupo DRE que mais consumiu no mês e sua fatia do total de despesas.',
   conc:'Fatia do gasto do mês concentrada nos 5 maiores fornecedores. Quanto maior, mais dependente de poucos fornecedores.',
   naocat:'Despesa do mês sem grupo/categoria definidos. É gasto sem rastreio — classifique para não virar vazamento invisível.'
@@ -205,10 +206,14 @@ function montarSeletorPeriodo(anoMesList,selecionado){
 async function main(){
   try{
     // historico completo, paginado (contorna o limite de 1000 linhas do PostgREST)
-    const dd=await fetchPaginado(()=>sb.from('app_mv_despesa_mensal').select('*')
-      .order('mes',{ascending:true}).order('grupo',{ascending:true}).order('categoria',{ascending:true}).order('fornecedor',{ascending:true}));
+    const [dd,res]=await Promise.all([
+      fetchPaginado(()=>sb.from('app_mv_despesa_mensal').select('*')
+        .order('mes',{ascending:true}).order('grupo',{ascending:true}).order('categoria',{ascending:true}).order('fornecedor',{ascending:true})),
+      q(()=>sb.from('app_painel_resumo_mensal').select('ano_mes,faturamento,faturamento_proj').order('ano_mes',{ascending:true}))
+    ]);
     if(dd.error)throw dd.error;
-    ROWS=dd.data||[];
+    if(res.error)throw res.error;
+    ROWS=dd.data||[];RESUMO=res.data||[];
     const [uc,cg]=await Promise.all([
       q(()=>sb.from('app_painel_ultima_carga').select('ultima')),
       q(()=>sb.from('app_painel_cargas').select('*'))
@@ -251,6 +256,8 @@ function renderMes(anoMes){
   const [ano,mm]=anoMes.split('-');
   const total=rows.reduce((s,r)=>s+(Number(r.valor)||0),0);
   const totalPrev=prevRows.reduce((s,r)=>s+(Number(r.valor)||0),0);
+  const trend=SirFisherFormat.monthTrend(RESUMO,anoMes);
+  const totalTrend=trend.value(total);
 
   // por grupo
   const porGrupo=[...aggBy(rows,r=>r.grupo).entries()].map(([g,v])=>({grupo:g,valor:v.valor})).sort((a,b)=>b.valor-a.valor);
@@ -270,7 +277,7 @@ function renderMes(anoMes){
     <div class="section-title">Despesas de ${MESES[+mm-1]} ${ano}</div>
     ${alertaHtml}
     <div class="kpis">
-      ${kpi('Despesa total','out',brl0(total),deltaDesp(total,prevAm?totalPrev:null),C.header,'total')}
+      ${kpi(trend.label('Despesa total','Despesa total (tend.)'),'out',brl0(totalTrend),deltaDesp(totalTrend,prevAm?totalPrev:null),C.header,'total')}
       ${kpi('Maior grupo','pie',maior?esc(nomeGrupo(maior.grupo)):'—',maior?('<div class="sub"><b>'+brl(maior.valor)+'</b> · '+pp(maior.valor/total*100)+' do total</div>'):'',corGrupo(maior?maior.grupo:''),'grupo')}
       ${kpi('Concentração top 5','conc',pp(conc),'<div class="sub">'+porForn.length+' fornecedores no mês</div>',conc>=60?C.red:conc>=45?C.amber:C.green,'conc')}
       ${kpi('Não classificado','alert',naoCat>0.5?brl0(naoCat):'R$ 0',naoCat>0.5?'<div class="sub down">precisa classificar</div>':'<div class="sub up">tudo classificado</div>',naoCat>0.5?C.red:C.green,'naocat')}
@@ -279,7 +286,7 @@ function renderMes(anoMes){
     <div class="section-title">Composição</div>
     <div class="card">
       <h3>Para onde foi o dinheiro</h3>
-      <div class="hint">Despesa do mês por grupo DRE · ${MESES[+mm-1]} ${ano}</div>
+      <div class="hint">Realizado acumulado por grupo DRE · ${MESES[+mm-1]} ${ano}</div>
       <div class="chart-wrap h-comp"><canvas id="comp"></canvas></div>
       <div id="compTbl" style="margin-top:10px"></div>
     </div>
@@ -287,14 +294,14 @@ function renderMes(anoMes){
     <div class="section-title">Fornecedores — onde o dinheiro vaza</div>
     <div class="card">
       <h3>Ranking do mês</h3>
-      <div class="hint">Top 15 fornecedores por gasto · seta compara com a média histórica de cada um</div>
+      <div class="hint">Top 15 fornecedores por gasto · no mês aberto, a comparação com a média usa a tendência</div>
       <div id="ranking"></div>
     </div>
 
     <div class="section-title">Vazamentos detectados</div>
     <div class="card">
       <h3>Gastos acima do normal</h3>
-      <div class="hint">Fornecedores cujo gasto do mês destoou da própria média, ou que apareceram grandes pela primeira vez</div>
+      <div class="hint">Fornecedores cuja tendência do mês destoou da própria média, ou que apareceram grandes pela primeira vez</div>
       <div id="vazamentos"></div>
     </div>
 
@@ -308,7 +315,7 @@ function renderMes(anoMes){
     <div class="section-title">Tendência</div>
     <div class="card">
       <h3>Evolução da despesa mensal</h3>
-      <div class="hint">Total por mês, empilhado por grupo</div>
+      <div class="hint">Total por mês, empilhado por grupo · o mês aberto usa tendência</div>
       <div class="chart-wrap h-evo"><canvas id="evo"></canvas></div>
       <div id="evoLeg" class="legenda"></div>
     </div>
@@ -323,8 +330,8 @@ function renderMes(anoMes){
   document.getElementById('main').innerHTML=html;
 
   drawComposicao(porGrupo,total);
-  drawRanking(porForn,anoMes,idx);
-  drawVazamentos(porForn,anoMes,idx);
+  drawRanking(porForn,anoMes,trend);
+  drawVazamentos(porForn,anoMes,trend);
   drawRecorrencia(rows,anoMes,idx,total);
   drawEvolucao();
   drawDetalhe(rows,total);
@@ -348,7 +355,7 @@ function histForn(fornecedor,anoMes){
   return out;
 }
 
-function drawRanking(porForn,anoMes){
+function drawRanking(porForn,anoMes,trend){
   const top=porForn.slice(0,15);
   if(!top.length){document.getElementById('ranking').innerHTML='<div class="vazio">Sem fornecedores no mês.</div>';return;}
   const max=top[0].valor;
@@ -360,8 +367,9 @@ function drawRanking(porForn,anoMes){
   top.forEach((f,i)=>{
     const hist=histForn(f.fornecedor,anoMes);
     const media=hist.length?hist.reduce((s,v)=>s+v,0)/hist.length:null;
+    const comparavel=trend.value(f.valor);
     let deltaHtml='<span style="color:var(--muted)">novo no período</span>';
-    if(media!=null){const d=(f.valor-media)/media*100;deltaHtml='<span class="'+(d>=0?'delta-up':'delta-down')+'">'+(d>=0?'▲':'▼')+' '+Math.abs(d).toFixed(0)+'%</span> vs média '+brl(media);}
+    if(media!=null){const d=(comparavel-media)/media*100;deltaHtml='<span class="'+(d>=0?'delta-up':'delta-down')+'">'+(d>=0?'▲':'▼')+' '+Math.abs(d).toFixed(0)+'%</span> '+(trend.active?'tend. ':'')+'vs média '+brl(media);}
     const gd=grupoDom.get(f.fornecedor);const gg=gd?gd.g:'';
     h+='<div class="row"><div class="pos">'+(i+1)+'</div><div class="body">'+
        '<div class="top"><span class="nome">'+esc(f.fornecedor)+'</span><span class="val">'+brl(f.valor)+'</span></div>'+
@@ -373,18 +381,19 @@ function drawRanking(porForn,anoMes){
   document.getElementById('ranking').innerHTML=h;
 }
 
-function drawVazamentos(porForn,anoMes){
+function drawVazamentos(porForn,anoMes,trend){
   const leaks=[];
   porForn.forEach(f=>{
+    const comparavel=trend.value(f.valor);
     const hist=histForn(f.fornecedor,anoMes);
     if(hist.length===0){
-      if(f.valor>=3000)leaks.push({nome:f.fornecedor,tipo:'novo',valor:f.valor,excesso:f.valor,pct:null,media:null});
+      if(comparavel>=3000)leaks.push({nome:f.fornecedor,tipo:'novo',valor:f.valor,tendencia:comparavel,excesso:comparavel,pct:null,media:null});
       return;
     }
     if(hist.length<2)return;
     const media=hist.reduce((s,v)=>s+v,0)/hist.length;
-    const excesso=f.valor-media;const pct=media>0?excesso/media*100:0;
-    if(pct>=35&&excesso>=1500)leaks.push({nome:f.fornecedor,tipo:'spike',valor:f.valor,excesso:excesso,pct:pct,media:media});
+    const excesso=comparavel-media;const pct=media>0?excesso/media*100:0;
+    if(pct>=35&&excesso>=1500)leaks.push({nome:f.fornecedor,tipo:'spike',valor:f.valor,tendencia:comparavel,excesso:excesso,pct:pct,media:media});
   });
   leaks.sort((a,b)=>b.excesso-a.excesso);
   const top=leaks.slice(0,8);
@@ -392,11 +401,11 @@ function drawVazamentos(porForn,anoMes){
   let h='';
   top.forEach(l=>{
     if(l.tipo==='novo'){
-      h+='<div class="leak novo"><div class="h"><span class="nm">'+esc(l.nome)+'</span><span class="ex">'+brl(l.valor)+'</span></div>'+
-         '<div class="d">Fornecedor <b>novo</b> no período — primeiro gasto relevante, sem histórico para comparar.</div></div>';
+      h+='<div class="leak novo"><div class="h"><span class="nm">'+esc(l.nome)+'</span><span class="ex">'+brl(l.tendencia)+'</span></div>'+
+         '<div class="d">Fornecedor <b>novo</b> no período — '+(trend.active?'tendência com '+brl(l.valor)+' realizado':'primeiro gasto relevante')+', sem histórico para comparar.</div></div>';
     }else{
       h+='<div class="leak"><div class="h"><span class="nm">'+esc(l.nome)+'</span><span class="ex">+'+brl(l.excesso)+'</span></div>'+
-         '<div class="d">Gastou <b>'+brl(l.valor)+'</b> — <b>'+l.pct.toFixed(0)+'% acima</b> da média de '+brl(l.media)+'.</div></div>';
+         '<div class="d">'+(trend.active?'Tendência de <b>'+brl(l.tendencia)+'</b> ('+brl(l.valor)+' realizado)':'Gastou <b>'+brl(l.valor)+'</b>')+' — <b>'+l.pct.toFixed(0)+'% acima</b> da média de '+brl(l.media)+'.</div></div>';
     }
   });
   document.getElementById('vazamentos').innerHTML=h;
@@ -438,7 +447,7 @@ function drawEvolucao(){
   const grupos=[...totG.entries()].sort((a,b)=>b[1].valor-a[1].valor).map(e=>e[0]);
   const datasets=grupos.map(g=>({
     label:g,
-    data:MESES_LISTA.map(am=>{const rs=(POR_MES.get(am)||[]).filter(r=>r.grupo===g).reduce((s,r)=>s+(Number(r.valor)||0),0);return rs;}),
+    data:MESES_LISTA.map(am=>{const rs=(POR_MES.get(am)||[]).filter(r=>r.grupo===g).reduce((s,r)=>s+(Number(r.valor)||0),0);return SirFisherFormat.monthTrend(RESUMO,am).value(rs);}),
     backgroundColor:corGrupo(g),stack:'d',borderWidth:0,maxBarThickness:34
   }));
   CHARTS.push(new Chart(document.getElementById('evo'),{type:'bar',

@@ -91,15 +91,15 @@
 <script>
 const sb=SirFisherSupabase;
 const esc=SirFisherDOM.escapeHTML;
-const {brl,brl0,pct,rs}=SirFisherFormat;
+const {brl,brl0,pct,rs,monthTrend}=SirFisherFormat;
 const C={header:'#12313F',teal:'#00A6A6',amber:'#D6A84F',green:'#2E7D5B',red:'#C94C4C',muted:'#6B7280',border:'#E5E7EB',brown:'#B98A2E',grey:'#9aa6b2'};
 const MESES=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const DOW_NOME=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 let MONTHS=[],RESUMO=[],CHARTS=[],ULTIMA=null,CARGAS=[];
 
 const DESC={
-  rec:'Faturamento bruto por data da venda, líquido de cancelamentos. Não representa liquidação bancária nem valor líquido após taxas.',
-  ntx:'Quantidade de pagamentos no mês nos canais com transação registrada (cartão, Pix, apps). Não inclui o dinheiro, que entra como total diário.',
+  rec:'Faturamento bruto por data da venda, líquido de cancelamentos. No mês em andamento, o KPI mostra a tendência de fechamento; o detalhamento permanece realizado.',
+  ntx:'Quantidade de pagamentos nos canais transacionais. No mês em andamento, o KPI projeta o volume pela mesma curva usada na tendência de faturamento.',
   tkt:'Valor médio por pagamento nos canais transacionais. Atenção: não é o ticket por cliente — o dinheiro entra agregado e uma mesma conta pode se dividir em mais de uma forma de pagamento.',
   lider:'Canal com maior faturamento registrado no mês e sua participação no total.'
 };
@@ -156,7 +156,7 @@ function montarSeletorPeriodo(anoMesList,selecionado){
 async function main(){
   try{
     // meses para o seletor: reaproveita a view que ja existe (mantem a pagina viva mesmo sem as views de recebimento)
-    const mRes=await sb.from('app_painel_resumo_mensal').select('ano_mes,mes,faturamento').order('mes',{ascending:true});
+    const mRes=await sb.from('app_painel_resumo_mensal').select('ano_mes,mes,faturamento,faturamento_proj').order('mes',{ascending:true});
     if(mRes.error)throw mRes.error;
     MONTHS=(mRes.data||[]).filter(x=>Number(x.faturamento)>0);
 
@@ -199,9 +199,12 @@ function renderMes(anoMes){
     const total=N(cur.recebido_total);
     const ntx=N(cur.qtd_transacoes);
     const tkt=N(cur.ticket_transacao);
+    const trend=monthTrend(MONTHS,anoMes);
+    const totalTrend=trend.value(total);
+    const ntxTrend=trend.value(ntx);
     kpisHtml=`<div class="kpis">
-      ${kpi('Faturamento no mês','cash',brl0(total),deltaVal(total,prev?N(prev.recebido_total):null),C.header,'rec')}
-      ${kpi('Nº de transações','orders',(ntx==null?'—':ntx.toLocaleString('pt-BR')),deltaPct(ntx,prev?N(prev.qtd_transacoes):null),C.teal,'ntx')}
+      ${kpi(trend.label('Faturamento no mês','Faturamento (tend.)'),'cash',brl0(totalTrend),deltaVal(totalTrend,prev?N(prev.recebido_total):null),C.header,'rec')}
+      ${kpi(trend.label('Nº de transações','Transações (tend.)'),'orders',(ntxTrend==null?'—':Math.round(ntxTrend).toLocaleString('pt-BR')),deltaPct(ntxTrend,prev?N(prev.qtd_transacoes):null),C.teal,'ntx')}
       ${kpi('Ticket por transação','ticket',rs(tkt),deltaPct(tkt,prev?N(prev.ticket_transacao):null),C.amber,'tkt')}
       ${kpi('Canal líder','star','<span id="kpiLiderVal">—</span>','<div class="sub" id="kpiLiderSub">—</div>',C.green,'lider',true)}
     </div>`;
