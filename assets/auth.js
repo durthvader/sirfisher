@@ -4,7 +4,8 @@
   const ADMIN_ONLY_PAGES = new Set([
     'usuarios.html',
     'status.html',
-    'permissoes.html'
+    'permissoes.html',
+    'parametros.html'
   ]);
   const CONFIGURABLE_PAGES = new Set([
     'index.html',
@@ -230,7 +231,8 @@
   const ADMIN_MENU_LINKS = [
     ['Status', 'status.html'],
     ['Usuários', 'usuarios.html'],
-    ['Permissões', 'permissoes.html']
+    ['Permissões', 'permissoes.html'],
+    ['Parâmetros', 'parametros.html']
   ];
 
   function installSessionBadge(sb, session, role) {

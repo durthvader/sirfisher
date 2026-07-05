@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; upgrade-insecure-requests">
+<title>Sir Fisher · Parâmetros</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="assets/dashboard-common.css" rel="stylesheet">
+<link href="assets/product-pages.css" rel="stylesheet">
+<link href="assets/accessibility.css" rel="stylesheet">
+<style>
+  .routine-card.soon{opacity:.62;cursor:default}
+  .routine-card.soon:hover{border-color:var(--border);transform:none}
+  .soon-badge{display:inline-block;margin-left:7px;font-size:9.5px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;color:#80611c;background:#fbf3df;border-radius:999px;padding:2px 7px;vertical-align:middle}
+  .routine-card h3{display:flex;align-items:center;flex-wrap:wrap;gap:2px}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.108.2" integrity="sha384-JWEyvHh+lRf0sN/WWY+QTQwX+CyWqmNg4tkc8GQzAMEtR2wGNrCJlvnu1lHD1kDm" crossorigin="anonymous"></script>
+<script src="assets/supabase-client.js"></script>
+<script src="assets/auth.js"></script>
+<script src="assets/safe-dom.js"></script>
+<script src="assets/accessibility.js"></script>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="head-row"><div class="brand"><div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M2 12s3-6 10-6 10 6 10 6-3 6-10 6S2 12 2 12z"/><circle cx="9" cy="12" r="1" fill="#fff"/></svg></div><div><h1>Sir Fisher</h1><span>Painel de Gestão</span></div></div><div class="head-meta"><div class="unidade">Parâmetros</div></div></div>
+    <nav class="tabs"><a href="./">Visão Geral</a><a href="vendas.html">Faturamento</a><a href="caixa.html">Caixa</a><a href="dre.html">DRE</a><a href="despesas.html">Despesas</a><a href="conciliacao.html">Conciliação</a><a href="planejamento.html">Planejamento</a><a href="rotinas.html" class="routines">Rotinas</a></nav>
+  </header>
+  <main id="main"><div class="loading">Carregando parâmetros…</div></main>
+</div>
+<script>
+const sb=SirFisherSupabase;
+const esc=SirFisherDOM.escapeHTML;
+
+// Cada card aponta para o editor de uma tabela de parametros. Quando o editor
+// existir, defina "pagina" e "pronto:true" que o card vira link (o .href e
+// atribuido via JS para nao acionar o link-checker do CI).
+const PARAMS=[
+  {
+    grupo:'Ajustes',
+    icone:'<line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>',
+    titulo:'Parâmetros gerais',
+    texto:'% de despesa direta, horizonte do caixa, provisão de estoque, peso de feriado e mais.',
+    tabela:'parametros', pronto:false
+  },
+  {
+    grupo:'Ajustes',
+    icone:'<rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>',
+    titulo:'Regras de recebimento',
+    texto:'Como cada forma de pagamento cai no caixa: percentual, prazo (dias) e taxa.',
+    tabela:'recebimento_regra', pronto:false
+  },
+  {
+    grupo:'Ajustes',
+    icone:'<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/>',
+    titulo:'Peso por dia da semana',
+    texto:'Peso de venda de cada dia da semana usado nas projeções.',
+    tabela:'peso_dia_semana', pronto:false
+  },
+  {
+    grupo:'Ajustes',
+    icone:'<path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/>',
+    titulo:'Grupos variáveis',
+    texto:'Quais grupos de despesa são variáveis (vs. fixos).',
+    tabela:'grupo_variavel', pronto:false
+  },
+  {
+    grupo:'Metas e saldos',
+    icone:'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/>',
+    titulo:'Metas mensais',
+    texto:'Meta de faturamento bruto por mês.',
+    tabela:'meta_mensal', pronto:false
+  },
+  {
+    grupo:'Metas e saldos',
+    icone:'<path d="M20 12V8H6a2 2 0 0 1 0-4h12v4"/><path d="M4 6v12a2 2 0 0 0 2 2h14v-4"/><circle cx="16" cy="14" r="1.5"/>',
+    titulo:'Saldo inicial',
+    texto:'Saldo semente que inicia o fluxo de caixa.',
+    tabela:'saldo_inicial', pronto:false
+  },
+  {
+    grupo:'Cadastros',
+    icone:'<path d="M3 21h18"/><path d="M5 21V10l7-5 7 5v11"/><line x1="9" y1="21" x2="9" y2="13"/><line x1="15" y1="21" x2="15" y2="13"/>',
+    titulo:'Contas bancárias',
+    texto:'Cadastro de contas (Stone, BB, Inter…) por unidade.',
+    tabela:'conta', pronto:false
+  },
+  {
+    grupo:'Cadastros',
+    icone:'<path d="M3 9 12 3l9 6"/><path d="M5 10v10h14V10"/><rect x="9" y="13" width="6" height="7"/>',
+    titulo:'Unidades',
+    texto:'Cadastro de unidades do negócio.',
+    tabela:'unidade', pronto:false
+  }
+];
+
+function card(p){
+  const pronto = p.pronto && p.pagina;
+  const badge = pronto ? '' : '<span class="soon-badge">em breve</span>';
+  const cls = pronto ? 'routine-card' : 'routine-card soon';
+  const data = pronto ? ` data-pagina="${esc(p.pagina)}"` : '';
+  return `<a class="${cls}"${data}>
+      <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${p.icone}</svg></div>
+      <h3>${esc(p.titulo)}${badge}</h3>
+      <p>${esc(p.texto)}</p>
+    </a>`;
+}
+
+(async()=>{
+  const auth=await SirFisherAuth.requireRole(sb);
+  if(!auth)return;
+  const grupos=[...new Set(PARAMS.map(p=>p.grupo))];
+  const secoes=grupos.map(g=>`
+    <div class="section-title">${esc(g)}</div>
+    <div class="routine-grid">${PARAMS.filter(p=>p.grupo===g).map(card).join('')}</div>`).join('');
+  document.getElementById('main').innerHTML=`
+    <div class="page-intro"><div><h2>Parâmetros</h2><p>Configurações que hoje só são editáveis por SQL. Cada bloco abre o editor de uma tabela. Os editores serão liberados aos poucos.</p></div></div>
+    ${secoes}`;
+  document.querySelectorAll('.routine-card[data-pagina]').forEach(a=>{a.href=a.dataset.pagina;});
+})();
+</script>
+</body>
+</html>
