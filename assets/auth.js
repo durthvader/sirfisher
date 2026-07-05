@@ -302,6 +302,7 @@
   }
 
   window.SirFisherAuth = {
-    requireRole
+    requireRole,
+    pageAllowsRole
   };
 })();
