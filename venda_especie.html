@@ -133,16 +133,27 @@ function linha(dataISO, registro){
   const recolhida=!!(registro&&registro.recolhida_em);
   const depositada=!!(registro&&registro.depositada_em);
   const status=depositada?'<span class="status ok">Depositada</span>':recolhida?'<span class="status warn">Recolhida</span>':registro?'<span class="status neutral">No quiosque</span>':'';
-  const momentos=registro?[
-    registro.cadastrado_por_nome?'Cadastrada por '+registro.cadastrado_por_nome+' em '+fmtDataStatus(registro.criado_em):'',
-    recolhida?(registro.recolhida_por_nome?'Recolhida por '+registro.recolhida_por_nome:'Recolhida')+' em '+fmtDataStatus(registro.recolhida_em):'',
-    depositada?(registro.depositada_por_nome?'Depositada por '+registro.depositada_por_nome:'Depositada')+' em '+fmtDataStatus(registro.depositada_em):''
+  const etapas=registro?[
+    {classe:'registered',rotulo:'Cadastrada',nome:registro.cadastrado_por_nome,data:registro.criado_em},
+    recolhida?{classe:'collected',rotulo:'Recolhida',nome:registro.recolhida_por_nome,data:registro.recolhida_em}:null,
+    depositada?{classe:'deposited',rotulo:'Depositada',nome:registro.depositada_por_nome,data:registro.depositada_em}:null
   ].filter(Boolean):[];
+  const historico=etapas.length?`
+    <details class="sangria-history">
+      <summary title="Ver responsáveis e datas" aria-label="Ver responsáveis e datas da sangria">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8v4l3 2M21 12a9 9 0 1 1-3-6.7M18 2v4h-4"/></svg>
+        Histórico
+      </summary>
+      <div class="history-popover">
+        <div class="history-title">Registro da sangria</div>
+        ${etapas.map(e=>`<div class="history-step ${e.classe}"><span class="history-dot"></span><div><strong>${e.rotulo}</strong><span>${esc(e.nome||'Responsável não registrado')} · ${esc(fmtDataStatus(e.data))}</span></div></div>`).join('')}
+      </div>
+    </details>`:'';
 
   el.innerHTML = `
     <div class="info">
       <div class="nome">${label}</div>
-      <div class="meta"><span>${dow}</span>${status}${momentos.map(m=>'<span>'+esc(m)+'</span>').join('')}</div>
+      <div class="meta"><span>${dow}</span>${status}${historico}</div>
     </div>
     <div class="direita">
       <input type="number" step="0.01" placeholder="0,00" value="${registro ? (Number(registro.valor)||0) : ''}">
@@ -166,6 +177,16 @@ function linha(dataISO, registro){
 
   return el;
 }
+
+document.addEventListener('toggle',e=>{
+  if(!e.target.matches('.sangria-history')||!e.target.open)return;
+  document.querySelectorAll('.sangria-history[open]').forEach(item=>{if(item!==e.target)item.removeAttribute('open');});
+},true);
+
+document.addEventListener('click',e=>{
+  if(e.target.closest('.sangria-history'))return;
+  document.querySelectorAll('.sangria-history[open]').forEach(item=>item.removeAttribute('open'));
+});
 
 async function alterarStatus(registro,acao,...botoes){
   botoes.forEach(b=>b.disabled=true);
