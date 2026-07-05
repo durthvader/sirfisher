@@ -48,6 +48,13 @@ segura por causa da deduplicação.
 - `2`: validação recusou o CSV;
 - `3`: falha operacional de dependência, banco ou refresh.
 
-Os arquivos BAT existentes continuam sendo os pontos de entrada para os quatro
-fluxos regulares. `13_importar_historico.py` permanece uma carga única e não é
-executado pelos BATs.
+Os arquivos BAT existentes continuam sendo os pontos de entrada para os cinco
+fluxos regulares (Stone extrato/vendas/recebíveis, BB e BS Cash).
+`13_importar_historico.py` permanece uma carga única e não é executado pelos
+BATs.
+
+O extrato da conta BS Cash (`05_importar_bs_cash.py`) é gravado por inteiro em
+`raw_bs_cash`, mas `fato_financeiro` só passa a considerá-lo a partir de
+2026-01-01 (mesmo corte usado para Stone/BB) — período anterior já é contado
+pela carga única do histórico. Ver a migration
+`20260725000000_importa_bs_cash.sql` para o motivo.
