@@ -8,6 +8,9 @@ header{background:var(--header);color:#fff;position:sticky;top:0;z-index:10}
 .summary-card{background:var(--card);border:1px solid var(--border);border-radius:11px;padding:14px}
 .summary-card .label{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.45px;font-weight:700}
 .summary-card .value{font-size:24px;line-height:1.15;font-weight:700;margin-top:7px}
+.summary-card .note{font-size:10.5px;color:var(--muted);margin-top:5px}
+.sangria-summary .summary-card.total{border-color:rgba(0,166,166,.45);background:#f2fbfb}
+.sangria-summary .summary-card.total .value{color:var(--teal)}
 .panel{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:15px}
 .panel-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}
 .panel h3{font-size:14px}

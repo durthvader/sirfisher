@@ -23,19 +23,25 @@
     <nav class="tabs"><a href="./">Visão Geral</a><a href="vendas.html">Faturamento</a><a href="caixa.html">Caixa</a><a href="dre.html">DRE</a><a href="despesas.html">Despesas</a><a href="conciliacao.html">Conciliação</a><a href="planejamento.html">Planejamento</a><a href="rotinas.html" class="routines">Rotinas</a></nav>
   </header>
   <main id="main">
-    <div class="page-intro"><div><h2>Sangrias em espécie</h2><p>Lance o valor informado no grupo e acompanhe as etapas até o depósito no Banco do Brasil. Os marcadores de recolhimento e depósito são apenas para controle operacional.</p></div></div>
+    <div class="page-intro"><div><h2>Sangrias em espécie</h2><p>Registre o valor informado no grupo e acompanhe onde o dinheiro está até o depósito no Banco do Brasil. Os marcadores são apenas para controle operacional.</p></div></div>
+
+    <div class="summary-grid sangria-summary">
+      <div class="summary-card total"><div class="label">Pendente de depósito</div><div class="value" id="totalPendente">—</div><div class="note">No quiosque + recolhido</div></div>
+      <div class="summary-card"><div class="label">No quiosque</div><div class="value" id="totalARecolher">—</div><div class="note">Aguardando recolhimento</div></div>
+      <div class="summary-card"><div class="label">Recolhido</div><div class="value" id="totalRecolhido">—</div><div class="note">Fora do quiosque, aguardando depósito</div></div>
+    </div>
 
     <div class="panel">
-      <div class="panel-head"><div><h3>Novo lançamento</h3></div></div>
+      <div class="panel-head"><div><h3>Registrar sangria</h3></div></div>
       <div class="actions">
         <input type="date" id="novaData" class="field">
         <input type="number" id="novoValor" step="0.01" placeholder="R$ 0,00" class="field">
-        <button id="btnNovo" class="button">Lançar</button>
+        <button id="btnNovo" class="button">Registrar</button>
       </div>
     </div>
 
     <div class="panel">
-      <div class="panel-head"><div><h3>Últimos 14 dias</h3><div class="hint">Sangrias recolhidas e ainda não depositadas continuam visíveis até a conclusão.</div></div></div>
+      <div class="panel-head"><div><h3>Sangrias em acompanhamento</h3><div class="hint">Últimos 14 dias e todas as recolhidas que ainda aguardam depósito.</div></div></div>
       <div id="lista" class="op-list"></div>
     </div>
   </main>
@@ -74,6 +80,18 @@ function fmtMomento(valor){
   return d.toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
 }
 
+function fmtMoeda(valor){
+  return Number(valor||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+}
+
+function atualizarResumo(registros){
+  const aRecolher=registros.filter(r=>!r.recolhida_em&&!r.depositada_em).reduce((s,r)=>s+(Number(r.valor)||0),0);
+  const recolhido=registros.filter(r=>r.recolhida_em&&!r.depositada_em).reduce((s,r)=>s+(Number(r.valor)||0),0);
+  document.getElementById('totalARecolher').textContent=fmtMoeda(aRecolher);
+  document.getElementById('totalRecolhido').textContent=fmtMoeda(recolhido);
+  document.getElementById('totalPendente').textContent=fmtMoeda(aRecolher+recolhido);
+}
+
 async function carregar(){
   document.getElementById('novaData').value = hojeISO();
 
@@ -100,6 +118,7 @@ async function carregar(){
 
   const porData = {};
   [...(recentes.data||[]),...(emGuarda.data||[])].forEach(l => porData[l.data] = l);
+  atualizarResumo(Object.values(porData));
   const datasExibidas=[...new Set([...dias,...Object.keys(porData)])].sort((a,b)=>b.localeCompare(a));
 
   const lista = document.getElementById('lista');
@@ -113,7 +132,7 @@ function linha(dataISO, registro){
   const { label, dow } = fmtDataLabel(dataISO);
   const recolhida=!!(registro&&registro.recolhida_em);
   const depositada=!!(registro&&registro.depositada_em);
-  const status=depositada?'<span class="status ok">Depositada</span>':recolhida?'<span class="status warn">Recolhida</span>':registro?'<span class="status neutral">Aguardando recolhimento</span>':'';
+  const status=depositada?'<span class="status ok">Depositada</span>':recolhida?'<span class="status warn">Recolhida</span>':registro?'<span class="status neutral">No quiosque</span>':'';
   const momentos=[recolhida?'Recolhida '+fmtMomento(registro.recolhida_em):'',depositada?'Depositada '+fmtMomento(registro.depositada_em):''].filter(Boolean);
 
   el.innerHTML = `
@@ -176,7 +195,7 @@ async function salvar(dataISO, valorStr, el, btn){
     toast('Não salvou: ' + error.message, true);
     return;
   }
-  toast('Lançado: R$ ' + valor.toFixed(2).replace('.', ','));
+  toast('Sangria registrada: R$ ' + valor.toFixed(2).replace('.', ','));
   carregar();
 }
 
@@ -195,7 +214,7 @@ document.getElementById('btnNovo').addEventListener('click', async () => {
   btn.disabled = false;
 
   if (error){ toast('Não salvou: ' + error.message, true); return; }
-  toast('Lançado: R$ ' + valor.toFixed(2).replace('.', ','));
+  toast('Sangria registrada: R$ ' + valor.toFixed(2).replace('.', ','));
   document.getElementById('novoValor').value = '';
   carregar();
 });
