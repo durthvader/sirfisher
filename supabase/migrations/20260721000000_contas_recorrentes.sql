@@ -5,7 +5,7 @@
 
 begin;
 
-create table public.conta_recorrente (
+create table if not exists public.conta_recorrente (
   id bigint generated always as identity primary key,
   nome text not null check (length(btrim(nome)) between 2 and 160),
   dia_vencimento smallint not null check (dia_vencimento between 1 and 31),
@@ -23,7 +23,7 @@ create table public.conta_recorrente (
   atualizado_em timestamptz not null default now()
 );
 
-create table public.conta_recorrente_pagamento (
+create table if not exists public.conta_recorrente_pagamento (
   id bigint generated always as identity primary key,
   conta_id bigint not null references public.conta_recorrente(id) on delete restrict,
   competencia date not null check (competencia = date_trunc('month', competencia)::date),
@@ -49,9 +49,9 @@ create table public.conta_recorrente_pagamento (
   )
 );
 
-create index conta_recorrente_ordem_idx
+create index if not exists conta_recorrente_ordem_idx
   on public.conta_recorrente (ativa desc, dia_vencimento, nome);
-create index conta_recorrente_pagamento_competencia_idx
+create index if not exists conta_recorrente_pagamento_competencia_idx
   on public.conta_recorrente_pagamento (competencia desc, conta_id);
 
 comment on table public.conta_recorrente is
