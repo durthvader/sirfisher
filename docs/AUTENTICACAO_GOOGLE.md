@@ -1,64 +1,63 @@
 # Autenticação Google e papéis de acesso
 
-## Objetivo
+## Visão geral
 
-O painel usa exclusivamente Google OAuth no front-end. A autenticação identifica
-o usuário; a autorização é controlada pela tabela `public.perfil_usuario`.
+O painel usa Google OAuth no front-end. A autenticação identifica o usuário e a
+autorização é controlada pelo perfil interno e pelas permissões de cada página.
+Uma conta Google sem perfil ativo vê a tela de acesso aguardando liberação e não
+recebe dados financeiros.
 
 Papéis disponíveis:
 
-- `admin`: acesso irrestrito, incluindo dashboards financeiros, rotinas
-  operacionais e administração do site (gestão de usuários em `usuarios.html`
-  e status técnico das cargas em `status.html`);
-- `gestor`: dashboards financeiros e rotinas operacionais, sem acesso à
-  administração do site;
-- `operador`: somente classificação, análise individual e venda em espécie.
+- `admin`: acesso irrestrito, inclusive às páginas administrativas
+  `usuarios.html`, `status.html` e `permissoes.html`;
+- `socio`: acesso aos painéis financeiros e às rotinas liberadas para o papel;
+- `gerente`: acesso ao painel operacional `gerente.html` e às demais páginas
+  liberadas para o papel, sem acesso automático aos dados financeiros
+  detalhados reservados a admin e sócio.
 
-Uma conta Google autenticada sem perfil ativo vê a tela de acesso aguardando
-liberação e não recebe dados financeiros.
+O acesso de `socio` e `gerente` é configurado por página em
+`public.pagina_permissao`. O admin sempre tem acesso a todas as páginas, e as
+três páginas administrativas permanecem exclusivas do admin.
 
 ## Componentes
 
-- `assets/auth.js`: login Google, guarda de rotas, logout e telas por papel;
-- `public.perfil_usuario`: vínculo entre `auth.users` e o papel interno;
-- `public.papel_usuario_atual()`: retorna o papel da sessão;
-- `public.usuario_tem_papel(text[])`: função usada pelas policies e views;
-- funções `private.ler_*`: fazem a leitura privilegiada com papel validado e
+- `assets/auth.js`: login Google, guarda de rotas, logout, página inicial por
+  papel e leitura das permissões;
+- `public.perfil_usuario`: vínculo entre `auth.users`, papel interno e situação
+  ativa do usuário;
+- `public.pagina_permissao`: páginas liberadas para `socio` e `gerente`;
+- `public.papel_usuario_atual()` e `public.usuario_tem_papel(text[])`: funções
+  usadas pelas policies, funções e views;
+- funções `private.ler_*`: leituras privilegiadas com validação de papel e
   `search_path` fixo;
-- views `public.app_*`: endpoints `security_invoker` protegidos consumidos pelo
-  front-end;
-- policies de `ajuste_manual`, `de_para` e `venda_especie`: escrita somente por
-  usuário autenticado com papel `gestor` ou `operador`.
+- views `public.app_*`: endpoints protegidos consumidos pelo front-end;
+- `public.definir_acesso_usuario(uuid, text, boolean)`: administração de papel
+  e situação do usuário;
+- `public.definir_permissao_pagina(text, text[])`: alteração das permissões de
+  página;
+- policies de `ajuste_manual`, `de_para` e `venda_especie`: escrita restrita a
+  usuários autenticados e autorizados.
 
-## Rollout seguro
-
-### Etapa A — preparar o banco
-
-Aplicar, nesta ordem, as migrations
-`20260703030000_prepara_auth_google_e_papeis.sql` e
-`20260703120000_corrige_views_auth_security_invoker.sql`. Elas criam os papéis e
-os endpoints protegidos, mas mantêm temporariamente a leitura anônima dos
-endpoints antigos dos dashboards. Assim, o site atual não é interrompido.
-
-### Etapa B — configurar Google e Supabase
+## Configuração do provedor Google
 
 1. No Google Cloud, criar um cliente OAuth do tipo aplicação Web.
-2. No cliente Google, cadastrar como URI de redirecionamento a callback exibida
-   pelo provedor Google no painel do Supabase.
+2. Cadastrar como URI de redirecionamento a callback exibida pelo provedor
+   Google no painel do Supabase.
 3. No Supabase, em Authentication > Providers > Google, informar Client ID e
    Client Secret e habilitar o provedor.
 4. Em Authentication > URL Configuration, definir a URL publicada do GitHub
-   Pages como Site URL e também como Redirect URL permitida, preservando o
-   caminho do repositório e a barra final.
-5. Não salvar Client Secret, tokens ou credenciais no repositório.
+   Pages como Site URL e Redirect URL permitida, preservando o caminho do
+   repositório e a barra final.
+5. Desabilitar métodos de login que não serão usados. O front-end oferece apenas
+   Google, mas a configuração do Supabase completa a política Google-only.
+6. Nunca salvar Client Secret, tokens ou credenciais no repositório.
 
-### Etapa C — publicar e provisionar o primeiro administrador
+## Primeiro administrador
 
-1. Publicar `assets/auth.js`, as páginas HTML e o workflow atualizado.
-2. Entrar pela primeira vez com a conta Google que será administradora. A tela
-   deve informar que o acesso aguarda liberação.
-3. No SQL Editor do Supabase, substituir o marcador pelo e-mail Google correto e
-   executar:
+O provisionamento abaixo é necessário somente quando ainda não existe um admin
+ativo. Primeiro, a conta deve entrar com Google para ser criada em `auth.users`.
+Depois, no SQL Editor do Supabase, substituir o marcador pelo e-mail correto:
 
 ```sql
 insert into public.perfil_usuario (user_id, papel, ativo)
@@ -70,47 +69,34 @@ set papel = excluded.papel,
     ativo = excluded.ativo;
 ```
 
-4. Sair, entrar novamente e validar todos os dashboards, rotinas e as páginas
-   `usuarios.html` e `status.html`.
-5. Para liberar outro usuário, usar a tela `usuarios.html` (ou repetir o
-   provisionamento acima trocando o papel) com `admin`, `gestor` ou `operador`.
-   Nunca conceder papel automaticamente apenas pelo domínio do e-mail.
+Após o provisionamento, sair e entrar novamente. Os demais usuários devem ser
+administrados por `usuarios.html`, que chama `definir_acesso_usuario()` para
+atribuir `admin`, `socio` ou `gerente`, desativar e reativar acessos. A RPC
+impede remover ou rebaixar o último administrador ativo. Nunca conceder acesso
+automaticamente apenas pelo domínio do e-mail.
 
-Depois da migration da fase 5, apenas administradores podem usar
-`usuarios.html`. A tela lista contas presentes em `auth.users`, inclusive as
-pendentes, e chama a RPC `definir_acesso_usuario()` para liberar, alterar o
-papel, desativar ou reativar. A RPC impede que o último administrador ativo
-seja removido ou rebaixado.
+As permissões de páginas para sócios e gerentes são administradas em
+`permissoes.html`. A tela não permite retirar o acesso irrestrito do admin nem
+liberar páginas administrativas para outros papéis.
 
-### Etapa D — fechar o legado anônimo
+## Segurança do banco
 
-Somente depois de existir pelo menos um gestor validado, aplicar a migration
-`20260703160000_fecha_acesso_anonimo.sql`. Ela remove de `anon` e `PUBLIC` os
-privilégios em objetos do schema `public` e endurece os privilégios padrão de
-objetos futuros. Essa migration final não deve ser aplicada antes do teste do
-primeiro gestor, pois sua aplicação antecipada pode bloquear o painel.
-
-Depois do fechamento anônimo, aplicar
-`20260703170000_restringe_authenticated_a_allowlist.sql`. Ela remove grants
-legados de `authenticated` e reabre explicitamente somente as views `app_*`, as
-três rotinas operacionais e as funções de autorização usadas pelo aplicativo.
-
-Depois do fechamento, desabilitar no Supabase os demais métodos de login que não
-serão usados. O front-end já oferece apenas Google; a configuração do provedor é
-o que torna a política Google-only completa.
+As migrations do repositório fecham o acesso anônimo, restringem
+`authenticated` a uma allowlist de objetos e expõem ao front-end somente os
+endpoints necessários. Novas mudanças de schema ou autorização devem ser feitas
+em uma nova migration, sem editar nem reaplicar manualmente migrations antigas.
 
 ## Validação mínima
 
 - sem sessão: a página inicial exibe somente “Continuar com Google”;
-- conta sem perfil: nenhuma consulta financeira é liberada;
-- `operador`: abre as três rotinas operacionais e não abre dashboards nem
-  `usuarios.html`/`status.html`; o menu de navegação não mostra links para
-  páginas sem acesso;
-- `gestor`: abre dashboards e rotinas operacionais, mas não abre
-  `usuarios.html` nem `status.html`;
-- `admin`: abre dashboards, rotinas, `usuarios.html` e `status.html` sem
-  restrição;
+- conta sem perfil ativo: nenhuma consulta financeira é liberada;
+- `gerente`: é direcionado a `gerente.html` quando a página está permitida e
+  não abre páginas administrativas;
+- `socio`: abre somente os painéis e rotinas configurados para o papel e não
+  abre páginas administrativas;
+- `admin`: abre todas as páginas, inclusive usuários, status e permissões;
+- o menu e `rotinas.html` não mostram páginas sem permissão;
 - logout: remove a sessão e retorna à tela de login;
-- console do navegador: sem erros nos fluxos acima;
-- Network: dashboards consultam somente endpoints `app_*`;
-- depois da Etapa D: chamadas com papel `anon` aos endpoints legados falham.
+- dashboards consultam somente endpoints protegidos `app_*`;
+- chamadas com papel `anon` aos endpoints financeiros falham;
+- console do navegador: sem erros nos fluxos acima.
