@@ -91,7 +91,7 @@ header{background:var(--header);color:#fff;position:sticky;top:0;z-index:10}
 .sangria-history summary{display:inline-flex;align-items:center;gap:4px;border:1px solid #d9e0e3;border-radius:999px;background:#fff;color:#52616a;padding:3px 7px;cursor:pointer;font-size:10px;font-weight:700;list-style:none;white-space:nowrap}
 .sangria-history summary::-webkit-details-marker{display:none}
 .sangria-history summary:hover,.sangria-history[open] summary{border-color:#8fb8ba;color:#0d6e6e;background:#f2fbfb}
-.sangria-history summary svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.sangria-history .history-icon{display:inline-block;width:12px;height:12px;font-size:12px;line-height:12px;text-align:center;flex:0 0 12px}
 .history-popover{position:absolute;top:calc(100% + 7px);left:0;z-index:30;width:270px;padding:12px;background:#fff;border:1px solid #d9e0e3;border-radius:10px;box-shadow:0 10px 28px rgba(15,43,58,.18);color:var(--text)}
 .history-popover:before{content:"";position:absolute;top:-5px;left:18px;width:8px;height:8px;background:#fff;border-left:1px solid #d9e0e3;border-top:1px solid #d9e0e3;transform:rotate(45deg)}
 .history-title{font-size:11px;font-weight:700;margin-bottom:9px}
