@@ -85,9 +85,12 @@ let CHARTS=[],SALDO_ATUAL=null,FIMMES=[],FLUXO=[],RC=[],RP=[],DF=[],DD=[],CONTAS
 const PISO=100000; // saldo minimo de seguranca definido pelo Rogerio
 
 const DESC={
-  shoje:'Saldo consolidado das contas no último dia com dado real (Stone + bancos).',
+  satual:'Saldo consolidado das contas no último dia com dado real (Stone + bancos).',
+  sfech:'Saldo no fechamento do mês selecionado. Em mês encerrado, é realizado; em mês futuro, é projetado.',
+  sinicial:'Saldo projetado no início do mês selecionado, trazido do fechamento do mês anterior.',
+  svar:'Diferença entre o saldo de fechamento do mês selecionado e o fechamento do mês anterior.',
   sproj:'Saldo de caixa projetado para o fim do mês selecionado, mantido o ritmo atual de entradas e saídas.',
-  arec:'Recebíveis já vendidos que ainda vão liquidar nos próximos dias — não dependem de venda futura.',
+  arec:'Recebíveis já vendidos com liquidação prevista dentro do mês selecionado — não dependem de venda futura.',
   smin:'Menor saldo projetado dentro do horizonte e a data em que ocorre: o ponto de maior aperto de caixa.',
   piso:'Saldo mínimo de segurança definido: R$ 100 mil. Mostra em quantos dias, a partir de hoje, o saldo projetado cruza esse piso pela primeira vez.'
 };
@@ -194,18 +197,42 @@ async function main(){
 function renderMes(anoMes){
   CHARTS.forEach(c=>{try{c.destroy()}catch(e){}});CHARTS=[];
 
-  // KPI saldo hoje
+  const mesRef=HOJE?HOJE.slice(0,7):anoMes;
+  const ehAtual=anoMes===mesRef;
+  const ehPassado=anoMes<mesRef;
+  const [ano,mm]=anoMes.split('-');
+  const periodo=MESES[+mm-1]+' '+ano;
+
+  // Saldo atual e fechamento do periodo selecionado
   const shoje=SALDO_ATUAL?num(SALDO_ATUAL.saldo_atual):null;
   const scomp=SALDO_ATUAL?num(SALDO_ATUAL.saldo_comp):null;
   const subHoje=(SALDO_ATUAL?deltaVal(shoje,scomp):'<div class="sub">—</div>');
-
-  // KPI saldo projetado do mes
+  const fmIdx=FIMMES.findIndex(x=>x.ano_mes===anoMes);
   const fmRow=FIMMES.find(x=>x.ano_mes===anoMes);
+  const fmPrev=fmIdx>0?FIMMES[fmIdx-1]:null;
   const sproj=fmRow?num(fmRow.saldo_fim):null;
   const subProj='<div class="sub">'+esc(fmRow&&fmRow.situacao?fmRow.situacao:'projeção')+'</div>';
 
-  // KPI a receber conhecido (futuro)
-  const arec=RC.filter(r=>HOJE&&r.dia>=HOJE).reduce((s,r)=>s+(Number(r.valor)||0),0);
+  let saldoCard,terceiroCard;
+  if(ehAtual){
+    saldoCard=kpi('Saldo atual','wallet',brl0(shoje),subHoje,C.header,'satual');
+    terceiroCard=kpi('Saldo projetado (fim do mês)','bank',brl0(sproj),subProj,C.amber,'sproj');
+  }else if(ehPassado){
+    const saldoPrev=fmPrev?num(fmPrev.saldo_fim):null;
+    const variacao=sproj!=null&&saldoPrev!=null?sproj-saldoPrev:null;
+    saldoCard=kpi('Saldo no fechamento','wallet',brl0(sproj),subProj,C.header,'sfech');
+    terceiroCard=kpi('Variação do saldo','bank',brl(variacao),'<div class="sub">fechamento vs mês anterior</div>',variacao==null?C.muted:(variacao>=0?C.green:C.red),'svar');
+  }else{
+    const saldoInicial=fmPrev?num(fmPrev.saldo_fim):null;
+    const subInicial=fmPrev?'<div class="sub">fechamento de '+MESES[new Date(fmPrev.mes).getUTCMonth()]+'</div>':'<div class="sub">—</div>';
+    saldoCard=kpi('Saldo inicial projetado','wallet',brl0(saldoInicial),subInicial,C.header,'sinicial');
+    terceiroCard=kpi('Saldo projetado (fim do mês)','bank',brl0(sproj),subProj,C.amber,'sproj');
+  }
+
+  // Recebiveis conhecidos pertencentes ao mes selecionado. Mes passado fica
+  // zerado porque nao ha valor futuro a liquidar naquele periodo encerrado.
+  const arec=ehPassado?0:RC.filter(r=>r.dia&&r.dia.slice(0,7)===anoMes&&(!ehAtual||!HOJE||r.dia>=HOJE)).reduce((s,r)=>s+(Number(r.valor)||0),0);
+  const arecSub=ehPassado?'mês encerrado':(ehAtual?'a liquidar até o fim do mês':'já vendido com vencimento no mês');
 
   // KPI menor saldo projetado no horizonte
   let minVal=Infinity,minDia=null;
@@ -223,18 +250,23 @@ function renderMes(anoMes){
   else if(pisoDia){pisoColor=pisoDias<=30?C.red:(pisoDias<=60?C.amber:C.green);pisoVal=pisoDias+' dias';pisoSub='<div class="sub">cruza em <b>'+ddmm(pisoDia)+'</b></div>';}
 
   const html=`
-    <div class="section-title">Posição de hoje</div>
+    <div class="section-title">Resumo de caixa — ${periodo}</div>
     <div class="kpis">
-      ${kpi('Saldo em caixa','wallet',brl0(shoje),subHoje,C.header,'shoje')}
-      ${kpi('A receber (já vendido)','in',brl(arec),'<div class="sub">recebíveis a liquidar</div>',C.teal,'arec')}
-      ${kpi('Saldo projetado (fim do mês)','bank',brl0(sproj),subProj,C.amber,'sproj')}
+      ${saldoCard}
+      ${kpi('A receber no mês','in',brl(arec),'<div class="sub">'+arecSub+'</div>',C.teal,'arec')}
+      ${terceiroCard}
+    </div>
+
+    <div class="section-title">Risco de caixa a partir de hoje</div>
+    <div class="kpis">
       ${kpi('Menor saldo no horizonte','low',temMin?brl(minVal):'—',temMin?('<div class="sub">em <b>'+ddmm(minDia)+'</b></div>'):'<div class="sub">—</div>',minColor,'smin')}
       ${kpi('Até o piso de segurança','alert',pisoVal,pisoSub,pisoColor,'piso')}
     </div>
 
+    <div class="section-title">Posição atual das contas</div>
     <div class="card" style="margin-top:14px">
       <h3>Onde está o dinheiro</h3>
-      <div class="hint">Saldo por conta no fechamento do último dia com dado real</div>
+      <div class="hint">Saldo por conta no fechamento do último dia com dado real · independente do mês selecionado</div>
       <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
         <div class="chart-wrap" style="height:170px;width:170px;flex-shrink:0"><canvas id="contas"></canvas></div>
         <div id="contasTbl" style="flex:1;min-width:200px"></div>
