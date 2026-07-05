@@ -109,6 +109,9 @@ function linha(tx, categorias){
     : '<span class="status bad">Despesa</span>';
 
   const temCnpj = (tx.contraparte_doc || '').includes('/');
+  const dePara = tx.origem_instituicao && tx.destino_instituicao
+    ? `De: ${esc(tx.origem_instituicao)} · Para: ${esc(tx.destino_instituicao)}`
+    : (tx.destino_instituicao ? `Para: ${esc(tx.destino_instituicao)}` : (tx.origem_instituicao ? `De: ${esc(tx.origem_instituicao)}` : ''));
 
   el.innerHTML = `
     <div class="info">
@@ -116,8 +119,11 @@ function linha(tx, categorias){
       <div class="meta">
         <span>${esc(temCnpj ? 'CNPJ ' + tx.contraparte_doc : 'pessoa física')}</span>
         <span>${esc(fmtData(tx.data_caixa))}</span>
+        ${tx.tipo ? `<span>${esc(tx.tipo)}</span>` : ''}
         ${selo}
+        ${tx.transferencia_propria ? '<span class="status info">Transferência entre contas</span>' : ''}
       </div>
+      ${dePara || tx.descricao ? `<div class="meta">${dePara ? `<span>${dePara}</span>` : ''}${tx.descricao ? `<span>${esc(tx.descricao)}</span>` : ''}</div>` : ''}
     </div>
     <div class="${classeValor}">${sinal} ${fmtMoeda(tx.valor)}</div>
     <div class="controls">

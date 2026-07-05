@@ -23,6 +23,7 @@ header{background:var(--header);color:#fff;position:sticky;top:0;z-index:10}
 .status.warn{color:#80611c;background:#fbf3df}
 .status.bad{color:#993d3d;background:#f9e7e7}
 .status.neutral{color:#52616a;background:#edf1f3}
+.status.info{color:#0d6e6e;background:#e1f4f4}
 .actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
 .field,.button{border:1px solid #cfd6da;border-radius:8px;background:#fff;color:var(--text);font:600 11px Roboto,Arial,sans-serif;padding:7px 9px}
 .button{cursor:pointer;background:var(--header);color:#fff;border-color:var(--header)}

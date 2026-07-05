@@ -108,6 +108,8 @@ function linha(exc, categorias){
     ? '<span class="status ok">Receita</span>'
     : '<span class="status bad">Despesa</span>';
 
+  const tipos = (exc.tipos || []).join(', ');
+
   el.innerHTML = `
     <div class="info">
       <div class="nome">${esc(exc.contraparte_nome || '(sem nome)')}</div>
@@ -116,6 +118,7 @@ function linha(exc, categorias){
         <span>${esc(fmtData(exc.data_min, exc.data_max))}</span>
         ${selo}
       </div>
+      ${tipos ? `<div class="meta"><span>${esc(tipos)}</span></div>` : ''}
     </div>
     <div class="${classeValor}">${sinal} ${fmtMoeda(exc.total)}<span class="qtd">${Number(exc.qtd_lancamentos)||0}x</span></div>
     <div class="controls">
