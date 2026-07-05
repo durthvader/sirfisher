@@ -271,9 +271,17 @@ no repositório.
   - `valor`
   - `recolhida_em`
   - `depositada_em`
+  - `cadastrado_por`
+  - `recolhida_por`
+  - `depositada_por`
 - Os dois timestamps controlam a custódia física da sangria e não geram
   lançamento financeiro. A RPC `alterar_status_sangria(bigint, text)` garante
   que o depósito só possa ser marcado depois do recolhimento.
+- A view protegida `app_venda_especie_controle` expõe os nomes dos responsáveis
+  sem publicar os IDs ou dados do usuário. Novos valores são gravados pela RPC
+  `salvar_sangria(date, text, numeric)` para vincular o usuário autenticado.
+- Na implantação do controle de responsáveis, os registros preexistentes foram
+  marcados como recolhidos e depositados, sem atribuição retroativa de usuário.
   - `observacao`
   - `criado_em`
 

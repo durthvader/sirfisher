@@ -26,23 +26,23 @@
     <div class="page-intro"><div><h2>Sangrias em espécie</h2><p>Registre o valor informado no grupo e acompanhe onde o dinheiro está até o depósito no Banco do Brasil. Os marcadores são apenas para controle operacional.</p></div></div>
 
     <div class="summary-grid sangria-summary">
-      <div class="summary-card total"><div class="label">Pendente de depósito</div><div class="value" id="totalPendente">—</div><div class="note">No quiosque + recolhido</div></div>
-      <div class="summary-card"><div class="label">No quiosque</div><div class="value" id="totalARecolher">—</div><div class="note">Aguardando recolhimento</div></div>
-      <div class="summary-card"><div class="label">Recolhido</div><div class="value" id="totalRecolhido">—</div><div class="note">Fora do quiosque, aguardando depósito</div></div>
-    </div>
-
-    <div class="panel">
-      <div class="panel-head"><div><h3>Registrar sangria</h3></div></div>
-      <div class="actions">
-        <input type="date" id="novaData" class="field">
-        <input type="number" id="novoValor" step="0.01" placeholder="R$ 0,00" class="field">
-        <button id="btnNovo" class="button">Registrar</button>
-      </div>
+      <div class="summary-card kiosk"><div class="label">No quiosque</div><div class="value" id="totalARecolher">—</div><div class="note">Aguardando recolhimento</div></div>
+      <div class="summary-card collected"><div class="label">Recolhido</div><div class="value" id="totalRecolhido">—</div><div class="note">Fora do quiosque, aguardando depósito</div></div>
+      <div class="summary-card pending"><div class="label">Pendente de depósito</div><div class="value" id="totalPendente">—</div><div class="note">No quiosque + recolhido</div></div>
     </div>
 
     <div class="panel">
       <div class="panel-head"><div><h3>Sangrias em acompanhamento</h3><div class="hint">Últimos 14 dias e todas as recolhidas que ainda aguardam depósito.</div></div></div>
       <div id="lista" class="op-list"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><div><h3>Registrar data anterior</h3><div class="hint">Use quando a data desejada não aparecer mais na lista acima.</div></div></div>
+      <div class="actions">
+        <input type="date" id="novaData" class="field">
+        <input type="number" id="novoValor" step="0.01" placeholder="R$ 0,00" class="field">
+        <button id="btnNovo" class="button">Registrar</button>
+      </div>
     </div>
   </main>
 </div>
@@ -73,11 +73,11 @@ function hojeISO(){
   return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
 }
 
-function fmtMomento(valor){
+function fmtDataStatus(valor){
   if(!valor)return '';
   const d=new Date(valor);
   if(Number.isNaN(d.getTime()))return '';
-  return d.toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+  return d.toLocaleDateString('pt-BR');
 }
 
 function fmtMoeda(valor){
@@ -104,12 +104,12 @@ async function carregar(){
     dias.push(d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'));
   }
 
-  const [recentes, emGuarda] = await Promise.all([
-    sb.from('venda_especie').select('*').eq('unidade','PRAIA').in('data',dias),
-    sb.from('venda_especie').select('*').eq('unidade','PRAIA')
-      .not('recolhida_em','is',null).is('depositada_em',null)
+  const [recentes, pendentes] = await Promise.all([
+    sb.from('app_venda_especie_controle').select('*').eq('unidade','PRAIA').in('data',dias),
+    sb.from('app_venda_especie_controle').select('*').eq('unidade','PRAIA')
+      .is('depositada_em',null)
   ]);
-  const error=recentes.error||emGuarda.error;
+  const error=recentes.error||pendentes.error;
 
   if (error){
     toast('Erro ao carregar: ' + error.message, true);
@@ -117,7 +117,7 @@ async function carregar(){
   }
 
   const porData = {};
-  [...(recentes.data||[]),...(emGuarda.data||[])].forEach(l => porData[l.data] = l);
+  [...(recentes.data||[]),...(pendentes.data||[])].forEach(l => porData[l.data] = l);
   atualizarResumo(Object.values(porData));
   const datasExibidas=[...new Set([...dias,...Object.keys(porData)])].sort((a,b)=>b.localeCompare(a));
 
@@ -133,7 +133,11 @@ function linha(dataISO, registro){
   const recolhida=!!(registro&&registro.recolhida_em);
   const depositada=!!(registro&&registro.depositada_em);
   const status=depositada?'<span class="status ok">Depositada</span>':recolhida?'<span class="status warn">Recolhida</span>':registro?'<span class="status neutral">No quiosque</span>':'';
-  const momentos=[recolhida?'Recolhida '+fmtMomento(registro.recolhida_em):'',depositada?'Depositada '+fmtMomento(registro.depositada_em):''].filter(Boolean);
+  const momentos=registro?[
+    registro.cadastrado_por_nome?'Cadastrada por '+registro.cadastrado_por_nome+' em '+fmtDataStatus(registro.criado_em):'',
+    recolhida?(registro.recolhida_por_nome?'Recolhida por '+registro.recolhida_por_nome:'Recolhida')+' em '+fmtDataStatus(registro.recolhida_em):'',
+    depositada?(registro.depositada_por_nome?'Depositada por '+registro.depositada_por_nome:'Depositada')+' em '+fmtDataStatus(registro.depositada_em):''
+  ].filter(Boolean):[];
 
   el.innerHTML = `
     <div class="info">
@@ -184,11 +188,11 @@ async function salvar(dataISO, valorStr, el, btn){
   }
   btn.disabled = true;
 
-  const { error } = await sb.from('venda_especie').upsert({
-    data: dataISO,
-    unidade: 'PRAIA',
-    valor: valor
-  }, { onConflict: 'data,unidade' });
+  const { error } = await sb.rpc('salvar_sangria',{
+    p_data:dataISO,
+    p_unidade:'PRAIA',
+    p_valor:valor
+  });
 
   btn.disabled = false;
   if (error){
@@ -208,9 +212,11 @@ document.getElementById('btnNovo').addEventListener('click', async () => {
 
   const btn = document.getElementById('btnNovo');
   btn.disabled = true;
-  const { error } = await sb.from('venda_especie').upsert({
-    data, unidade: 'PRAIA', valor
-  }, { onConflict: 'data,unidade' });
+  const { error } = await sb.rpc('salvar_sangria',{
+    p_data:data,
+    p_unidade:'PRAIA',
+    p_valor:valor
+  });
   btn.disabled = false;
 
   if (error){ toast('Não salvou: ' + error.message, true); return; }
