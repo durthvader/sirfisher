@@ -52,6 +52,8 @@ Este arquivo é a fonte canônica das instruções operacionais para qualquer IA
 - Não executar SQL destrutivo sem aprovação explícita do usuário.
 - Não alterar migrations antigas sem autorização explícita.
 - Preferir uma nova migration em `supabase/migrations/` quando uma mudança estrutural for necessária.
+- Antes de criar uma migration, conferir a maior versão já existente com `ls supabase/migrations/` (não apenas `git log`) e usar um número maior. Isso evita colisão de versão quando a outra IA já criou uma migration com o mesmo timestamp — o runner aplica por número e pula silenciosamente a duplicada, deixando a segunda sem efeito mesmo constando como "aplicada".
+- Escrever migrations idempotentes/re-executáveis: `create table/index if not exists`, `create or replace` em funções e views, `drop ... if exists` antes de recriar policy ou trigger, e `on conflict` em seeds. A verificação "Supabase Preview" reprocessa as migrations do zero e falha em statements não-idempotentes.
 - Antes de criar uma migration, explicar o problema, os objetos afetados, o SQL proposto e os riscos.
 - Depois da revisão do usuário, as migrations devem seguir o fluxo normal de commit e push para `main`, onde são aplicadas pela integração do GitHub com o Supabase.
 - Documentar qualquer alteração de schema, tabela, view, materialized view, function, trigger ou policy.
@@ -87,6 +89,9 @@ Claude volta → git pull origin main → continua
 ```
 
 Antes de alternar a IA responsável, garantir que a tarefa anterior esteja validada, commitada e enviada, ou explicar claramente qualquer estado pendente.
+
+- **Só uma IA por vez na mesma branch.** Trabalho em paralelo já causou colisão de número de migration e migration não-idempotente quebrando o pipeline.
+- **Canal entre as IAs (`docs/CANAL_IA.md`):** ler ao começar uma tarefa (mensagens novas ficam no fim) e deixar um recado curto ao terminar — o que mudou, pendências e avisos para a outra IA. É o "recado rápido" entre nós; não substitui este `AGENTS.md` (regras canônicas) nem os commits.
 
 ## Checklist obrigatório ao finalizar tarefa
 
