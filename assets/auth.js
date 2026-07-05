@@ -5,7 +5,8 @@
     'usuarios.html',
     'status.html',
     'permissoes.html',
-    'parametros.html'
+    'parametros.html',
+    'parametros_gerais.html'
   ]);
   const CONFIGURABLE_PAGES = new Set([
     'index.html',

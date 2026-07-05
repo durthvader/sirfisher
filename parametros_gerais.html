@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; upgrade-insecure-requests">
+<title>Sir Fisher · Parâmetros gerais</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="assets/dashboard-common.css" rel="stylesheet">
+<link href="assets/product-pages.css" rel="stylesheet">
+<link href="assets/accessibility.css" rel="stylesheet">
+<style>
+  .voltar{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;color:var(--muted);text-decoration:none;margin-bottom:6px}
+  .voltar:hover{color:var(--teal)}
+  .op-row .chave{font-family:Consolas,monospace;font-size:10.5px}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.108.2" integrity="sha384-JWEyvHh+lRf0sN/WWY+QTQwX+CyWqmNg4tkc8GQzAMEtR2wGNrCJlvnu1lHD1kDm" crossorigin="anonymous"></script>
+<script src="assets/supabase-client.js"></script>
+<script src="assets/auth.js"></script>
+<script src="assets/safe-dom.js"></script>
+<script src="assets/accessibility.js"></script>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="head-row"><div class="brand"><div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M2 12s3-6 10-6 10 6 10 6-3 6-10 6S2 12 2 12z"/><circle cx="9" cy="12" r="1" fill="#fff"/></svg></div><div><h1>Sir Fisher</h1><span>Painel de Gestão</span></div></div><div class="head-meta"><div class="unidade">Parâmetros gerais</div></div></div>
+    <nav class="tabs"><a href="./">Visão Geral</a><a href="vendas.html">Faturamento</a><a href="caixa.html">Caixa</a><a href="dre.html">DRE</a><a href="despesas.html">Despesas</a><a href="conciliacao.html">Conciliação</a><a href="planejamento.html">Planejamento</a><a href="rotinas.html" class="routines">Rotinas</a></nav>
+  </header>
+  <main id="main">
+    <div class="page-intro"><div><a href="parametros.html" class="voltar">← Parâmetros</a><h2>Parâmetros gerais</h2><p>Knobs usados nas projeções de caixa e despesa. Altere o valor e salve. Cada mudança vale a partir da próxima atualização do painel (ou rode "Atualizar painel" em Status).</p></div></div>
+    <div class="panel"><div id="lista"><div class="loading">Carregando…</div></div></div>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const sb=SirFisherSupabase;
+const esc=SirFisherDOM.escapeHTML;
+const lista=document.getElementById('lista');
+const toastEl=document.getElementById('toast');
+
+function toast(msg,isErr){
+  toastEl.textContent=msg;
+  toastEl.className='toast show'+(isErr?' err':'');
+  setTimeout(()=>toastEl.className='toast',2200);
+}
+
+function fmtNum(v){
+  const n=Number(v);
+  return Number.isFinite(n)?String(n):'';
+}
+
+async function carregar(){
+  lista.innerHTML='<div class="loading">Carregando…</div>';
+  const {data,error}=await sb.rpc('admin_listar_parametros');
+  if(error){
+    lista.innerHTML=`<div class="erro">Não consegui carregar. ${esc(error.message)}</div>`;
+    return;
+  }
+  const rows=data||[];
+  if(!rows.length){
+    lista.innerHTML='<div class="empty">Nenhum parâmetro cadastrado.</div>';
+    return;
+  }
+  const box=document.createElement('div');
+  box.className='op-list';
+  rows.forEach(r=>box.appendChild(linha(r)));
+  lista.innerHTML='';
+  lista.appendChild(box);
+}
+
+function linha(r){
+  const el=document.createElement('div');
+  el.className='op-row';
+  el.innerHTML=`
+    <div class="info">
+      <div class="nome">${esc(r.descricao||r.chave)}</div>
+      <div class="meta"><span class="chave">${esc(r.chave)}</span></div>
+    </div>
+    <div class="controls">
+      <input type="number" step="any" inputmode="decimal" aria-label="Valor de ${esc(r.chave)}">
+      <button class="button save" disabled>Salvar</button>
+    </div>`;
+
+  const input=el.querySelector('input');
+  const btn=el.querySelector('button.save');
+  let original=fmtNum(r.valor);
+  input.value=original;
+
+  input.addEventListener('input',()=>{
+    btn.disabled = input.value.trim()===''|| input.value===original;
+  });
+
+  btn.addEventListener('click',async()=>{
+    const valor=Number(input.value);
+    if(!Number.isFinite(valor)){toast('Valor inválido',true);return;}
+    btn.disabled=true;
+    el.classList.add('saving');
+    const {data,error}=await sb.rpc('admin_salvar_parametro',{p_chave:r.chave,p_valor:valor});
+    el.classList.remove('saving');
+    if(error){
+      btn.disabled=false;
+      toast('Não salvou: '+error.message,true);
+      return;
+    }
+    const novo=data&&data.valor!=null?data.valor:valor;
+    r.valor=novo;
+    original=fmtNum(novo);
+    input.value=original;
+    toast('Salvo: '+r.chave);
+  });
+
+  return el;
+}
+
+(async()=>{
+  const auth=await SirFisherAuth.requireRole(sb);
+  if(!auth)return;
+  carregar();
+})();
+</script>
+</body>
+</html>
