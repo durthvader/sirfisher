@@ -9,12 +9,9 @@
 
 begin;
 
--- 1. Constraint de papel em perfil_usuario.
+-- 1. Solta a constraint antiga (os dados ainda tem os valores antigos aqui).
 alter table public.perfil_usuario
   drop constraint perfil_usuario_papel_check;
-
-alter table public.perfil_usuario
-  add constraint perfil_usuario_papel_check check (papel in ('admin', 'socio', 'gerente'));
 
 -- 2. Dados existentes.
 update public.perfil_usuario
@@ -24,6 +21,10 @@ update public.perfil_usuario
 update public.pagina_permissao
    set papeis = array_replace(array_replace(papeis, 'gestor', 'socio'), 'operador', 'gerente')
  where papeis && array['gestor', 'operador'];
+
+-- Constraint nova, so depois que os dados ja estao no formato novo.
+alter table public.perfil_usuario
+  add constraint perfil_usuario_papel_check check (papel in ('admin', 'socio', 'gerente'));
 
 -- 3. Funcoes RPC que validam o papel.
 create or replace function public.definir_acesso_usuario(p_user_id uuid, p_papel text, p_ativo boolean default true)
