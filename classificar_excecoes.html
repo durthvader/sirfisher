@@ -55,6 +55,9 @@ function fmtData(min, max){
   return `${dia(min)} a ${completa(max)}`;
 }
 
+const ORIGEM_LABEL = {stone_extrato:'Stone', bb:'BB', historico:'Histórico'};
+function origemLabel(origem){ return ORIGEM_LABEL[origem] || origem || '—'; }
+
 function tituloCase(s){
   return (s||'').toLowerCase().split(' ').map(w => w ? w[0].toUpperCase()+w.slice(1) : w).join(' ');
 }
@@ -115,10 +118,13 @@ function linha(exc, categorias){
     : destinos ? `Para: ${esc(destinos)}`
     : origens ? `De: ${esc(origens)}` : '';
 
+  const sistemas = (exc.sistemas_origem || []).map(origemLabel).join(', ');
+
   el.innerHTML = `
     <div class="info">
       <div class="nome">${esc(exc.contraparte_nome || '(sem nome)')}</div>
       <div class="meta">
+        ${sistemas ? `<span class="status neutral">${esc(sistemas)}</span>` : ''}
         <span>${esc(exc.chave_tipo === 'cnpj' ? 'CNPJ ' + (exc.contraparte_doc||'') : 'pessoa física')}</span>
         <span>${esc(fmtData(exc.data_min, exc.data_max))}</span>
         ${selo}

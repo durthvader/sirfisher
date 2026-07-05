@@ -55,6 +55,9 @@ function fmtData(min, max){
   return `${dia(min)} a ${completa(max)}`;
 }
 
+const ORIGEM_LABEL = {stone_extrato:'Stone', bb:'BB', historico:'Histórico'};
+function origemLabel(origem){ return ORIGEM_LABEL[origem] || origem || '—'; }
+
 function tituloCase(s){
   return (s||'').toLowerCase().split(' ').map(w => w ? w[0].toUpperCase()+w.slice(1) : w).join(' ');
 }
@@ -117,6 +120,7 @@ function linha(tx, categorias){
     <div class="info">
       <div class="nome">${esc(tx.contraparte_nome || '(sem nome)')}</div>
       <div class="meta">
+        <span class="status neutral">${esc(origemLabel(tx.origem))}</span>
         <span>${esc(temCnpj ? 'CNPJ ' + tx.contraparte_doc : 'pessoa física')}</span>
         <span>${esc(fmtData(tx.data_caixa))}</span>
         ${tx.tipo ? `<span>${esc(tx.tipo)}</span>` : ''}
