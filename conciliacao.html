@@ -17,11 +17,21 @@
 <script src="assets/dashboard-utils.js"></script>
 <script src="assets/accessibility.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" integrity="sha384-bs/nf9FbdNouRbMiFcrcZfLXYPKiPaGVGplVbv7dLGECccEXDW+S3zjqSKR5ZEaD" crossorigin="anonymous"></script>
+<style>
+  .head-meta{display:flex;align-items:center;gap:10px;}
+  .explica{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-bottom:15px;}
+  .explica .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;}
+  .explica .card .qtd{font-size:20px;font-weight:700;margin-bottom:2px;}
+  .explica .card h4{font-size:12.5px;margin-bottom:5px;}
+  .explica .card p{font-size:11.5px;color:var(--muted);line-height:1.5;}
+  .explica .card.neutro{border-color:#d8dde0;}
+  .explica .card.atencao{border-color:#e7bcbc;}
+</style>
 </head>
 <body>
 <div class="app">
   <header>
-    <div class="head-row"><div class="brand"><div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M2 12s3-6 10-6 10 6 10 6-3 6-10 6S2 12 2 12z"/><circle cx="9" cy="12" r="1" fill="#fff"/></svg></div><div><h1>Sir Fisher</h1><span>Painel de Gestão</span></div></div><div class="head-meta"><div class="unidade">Conciliação</div></div></div>
+    <div class="head-row"><div class="brand"><div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M2 12s3-6 10-6 10 6 10 6-3 6-10 6S2 12 2 12z"/><circle cx="9" cy="12" r="1" fill="#fff"/></svg></div><div><h1>Sir Fisher</h1><span>Painel de Gestão</span></div></div><div class="head-meta"><span class="periodo"><select id="anoMesSel"></select></span><div class="unidade">Conciliação</div></div></div>
     <nav class="tabs"><a href="./">Visão Geral</a><a href="vendas.html">Faturamento</a><a href="caixa.html">Caixa</a><a href="dre.html">DRE</a><a href="despesas.html">Despesas</a><a href="conciliacao.html" class="active">Conciliação</a><a href="planejamento.html">Planejamento</a><a href="rotinas.html" class="routines">Rotinas</a></nav>
   </header>
   <main id="main"><div class="loading">Conciliando vendas e recebíveis…</div></main>
@@ -30,29 +40,96 @@
 const sb=SirFisherSupabase;
 const esc=SirFisherDOM.escapeHTML;
 const {brl,rs,pct}=SirFisherFormat;
+const MESES=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 let chart=null;
+let RESUMO_MENSAL=[];
+let ANO_MES_ATUAL=null;
+
 function fmtDay(value){if(!value)return'—';return new Date(`${value}T12:00:00`).toLocaleDateString('pt-BR');}
-function statusInfo(value){if(value==='ok')return['Conciliado','ok'];if(value==='cancelado/estornado')return['Cancelado/estornado','neutral'];return[value||'Divergência','bad'];}
+function nomeMes(anoMes){return MESES[+anoMes.slice(5,7)-1]+' de '+anoMes.slice(0,4);}
+function statusInfo(value){
+  if(value==='ok')return['Conciliado','ok'];
+  if(value==='cancelado/estornado')return['Cancelado/estornado','neutral'];
+  if(value==='sem recebível esperado (Pix/Voucher)')return['Pix/Voucher (esperado)','neutral'];
+  return[value||'Divergência','bad'];
+}
+
+// só as situações que exigem revisão - Pix/Voucher e ok ficam fora da tabela de detalhe
+const SITUACOES_ACIONAVEIS=['venda sem recebível','recebível sem venda','valor diverge','cancelado/estornado'];
+
+async function montarSeletor(){
+  const {data,error}=await sb.from('app_conciliacao_stone_resumo_mensal').select('*');
+  if(error)throw error;
+  RESUMO_MENSAL=data||[];
+  const meses=[...new Set(RESUMO_MENSAL.map(r=>r.ano_mes))].sort();
+  if(!meses.length)throw new Error('Sem dados de conciliação carregados.');
+  ANO_MES_ATUAL=meses[meses.length-1];
+  const sel=document.getElementById('anoMesSel');
+  sel.innerHTML=meses.slice().reverse().map(am=>`<option value="${am}">${esc(nomeMes(am))}</option>`).join('');
+  sel.value=ANO_MES_ATUAL;
+  sel.onchange=()=>{ANO_MES_ATUAL=sel.value;renderMes(ANO_MES_ATUAL);};
+}
 
 async function loadReconciliation(){
   const main=document.getElementById('main');
   main.innerHTML='<div class="loading">Conciliando vendas e recebíveis…</div>';
-  const [summaryResult,detailResult]=await Promise.all([
-    sb.from('app_conciliacao_stone_resumo').select('*'),
-    sb.from('app_conciliacao_stone').select('*').neq('situacao','ok').order('data_venda',{ascending:false}).limit(200)
-  ]);
-  if(summaryResult.error||detailResult.error){main.innerHTML='<div class="erro">Não foi possível carregar a conciliação.</div>';return;}
-  const summary=summaryResult.data||[];const details=detailResult.data||[];
-  const total=summary.reduce((sum,row)=>sum+Number(row.qtd||0),0);const ok=Number(summary.find(row=>row.situacao==='ok')?.qtd||0);const divergences=total-ok-Number(summary.find(row=>row.situacao==='cancelado/estornado')?.qtd||0);const rate=total?ok/total*100:0;
-  main.innerHTML=`<div class="page-intro"><div><h2>Conciliação Stone</h2><p>Correspondência por STONE ID entre vendas e agenda de recebíveis.</p></div><button id="reloadConciliation" class="button secondary">Atualizar</button></div>
-    <div class="summary-grid"><div class="summary-card"><div class="label">Registros analisados</div><div class="value">${total.toLocaleString('pt-BR')}</div></div><div class="summary-card"><div class="label">Conciliados</div><div class="value">${ok.toLocaleString('pt-BR')}</div></div><div class="summary-card"><div class="label">Taxa conciliada</div><div class="value">${pct(rate)}</div></div><div class="summary-card"><div class="label">Divergências</div><div class="value">${divergences.toLocaleString('pt-BR')}</div></div></div>
+  try{
+    await montarSeletor();
+    await renderMes(ANO_MES_ATUAL);
+  }catch(e){
+    main.innerHTML='<div class="erro">Não foi possível carregar a conciliação: '+esc(e.message||String(e))+'</div>';
+  }
+}
+
+async function renderMes(anoMes){
+  const main=document.getElementById('main');
+  const linhaMes=RESUMO_MENSAL.filter(r=>r.ano_mes===anoMes);
+  const qtdPor=situacao=>Number(linhaMes.find(r=>r.situacao===situacao)?.qtd||0);
+  const ok=qtdPor('ok');
+  const pixVoucher=qtdPor('sem recebível esperado (Pix/Voucher)');
+  const vendaSemReceb=qtdPor('venda sem recebível');
+  const recebSemVenda=qtdPor('recebível sem venda');
+  const valorDiverge=qtdPor('valor diverge');
+  const cancelado=qtdPor('cancelado/estornado');
+  const acionaveis=vendaSemReceb+recebSemVenda+valorDiverge+cancelado;
+  const total=ok+pixVoucher+acionaveis;
+  const rate=total?ok/total*100:0;
+
+  const inicio=anoMes+'-01';
+  const [ano,mes]=anoMes.split('-').map(Number);
+  const prox=mes===12?(ano+1)+'-01-01':ano+'-'+String(mes+1).padStart(2,'0')+'-01';
+  const {data:details,error}=await sb.from('app_conciliacao_stone').select('*')
+    .gte('mes_referencia',inicio).lt('mes_referencia',prox)
+    .in('situacao',SITUACOES_ACIONAVEIS)
+    .order('mes_referencia',{ascending:false}).limit(300);
+  if(error){main.innerHTML='<div class="erro">Não foi possível carregar os detalhes.</div>';return;}
+
+  main.innerHTML=`
+    <div class="page-intro"><div><h2>Conciliação Stone</h2><p>Correspondência por STONE ID entre vendas e agenda de recebíveis, mês a mês.</p></div><button id="reloadConciliation" class="button secondary">Atualizar</button></div>
+    <div class="summary-grid">
+      <div class="summary-card"><div class="label">Registros no mês</div><div class="value">${total.toLocaleString('pt-BR')}</div></div>
+      <div class="summary-card"><div class="label">Conciliados</div><div class="value">${ok.toLocaleString('pt-BR')}</div></div>
+      <div class="summary-card"><div class="label">Taxa conciliada</div><div class="value">${pct(rate)}</div></div>
+      <div class="summary-card"><div class="label">Precisam revisão</div><div class="value" style="color:${acionaveis>0?'var(--red)':'inherit'}">${acionaveis.toLocaleString('pt-BR')}</div></div>
+    </div>
+
+    <div class="page-intro"><div><h2>O que significa cada situação</h2><p>Nem toda venda sem correspondência é um problema — dois dos quatro casos abaixo são esperados pela forma como a Stone reporta cada meio de pagamento.</p></div></div>
+    <div class="explica">
+      <div class="card neutro"><div class="qtd">${pixVoucher.toLocaleString('pt-BR')}</div><h4>Pix/Voucher sem recebível (esperado)</h4><p>Pix na maquininha e Voucher caem na hora — não geram parcela na agenda de recebíveis. Não precisa de ação.</p></div>
+      <div class="card${vendaSemReceb>0?' atencao':''}"><div class="qtd">${vendaSemReceb.toLocaleString('pt-BR')}</div><h4>Venda sem recebível (cartão)</h4><p>Venda de cartão (crédito/débito) sem parcela correspondente na agenda. Pode ser atraso de importação ou lançamento faltando — vale revisar.</p></div>
+      <div class="card${recebSemVenda>0?' atencao':''}"><div class="qtd">${recebSemVenda.toLocaleString('pt-BR')}</div><h4>Recebível sem venda</h4><p>Parcela na agenda sem a venda original. Comum para vendas de antes do início da importação; se a venda for recente, vale checar.</p></div>
+      <div class="card neutro"><div class="qtd">${cancelado.toLocaleString('pt-BR')}</div><h4>Cancelado/estornado</h4><p>A agenda de recebíveis tem um lançamento de cancelamento para este STONE ID.</p></div>
+    </div>
+
     <div class="notice"><b>Etapa bancária:</b> ainda não há uma chave confirmada ligando cada parcela Stone ao lançamento do extrato. O painel não faz pareamento aproximado por data/valor para evitar falsos positivos; o extrato continua monitorado em Qualidade.</div>
-    <section class="panel"><div class="panel-head"><div><h3>Distribuição</h3><div class="hint">Quantidade por situação.</div></div></div><div class="chart-box"><canvas id="conciliationChart"></canvas></div></section>
-    <section class="panel"><div class="panel-head"><div><h3>Divergências recentes</h3><div class="hint">Até 200 registros não conciliados, ordenados pela data da venda.</div></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>STONE ID</th><th>Data</th><th>Situação</th><th class="right">Venda</th><th class="right">Recebível bruto</th><th class="right">Recebível líquido</th><th class="right">Diferença</th></tr></thead><tbody>${details.map(row=>{const [label,klass]=statusInfo(row.situacao);return`<tr><td class="mono">${esc(row.stone_id||'—')}</td><td>${fmtDay(row.data_venda)}</td><td><span class="status ${klass}">${esc(label)}</span></td><td class="right">${rs(row.bruto_venda)}</td><td class="right">${rs(row.bruto_receb)}</td><td class="right">${rs(row.liquido_receb)}</td><td class="right">${rs(row.diferenca_bruto)}</td></tr>`;}).join('')||'<tr><td colspan="7" class="empty">Nenhuma divergência encontrada.</td></tr>'}</tbody></table></div></section>`;
+    <section class="panel"><div class="panel-head"><div><h3>Distribuição no mês</h3><div class="hint">Quantidade por situação em ${esc(nomeMes(anoMes))}.</div></div></div><div class="chart-box"><canvas id="conciliationChart"></canvas></div></section>
+    <section class="panel"><div class="panel-head"><div><h3>Casos para revisar</h3><div class="hint">Até 300 registros que precisam de atenção neste mês (Pix/Voucher esperado não entra aqui), ordenados pela data de referência.</div></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>STONE ID</th><th>Data</th><th>Situação</th><th class="right">Venda</th><th class="right">Recebível bruto</th><th class="right">Recebível líquido</th><th class="right">Diferença</th></tr></thead><tbody>${(details||[]).map(row=>{const [label,klass]=statusInfo(row.situacao);return`<tr><td class="mono">${esc(row.stone_id||'—')}</td><td>${fmtDay(row.mes_referencia)}</td><td><span class="status ${klass}">${esc(label)}</span></td><td class="right">${rs(row.bruto_venda)}</td><td class="right">${rs(row.bruto_receb)}</td><td class="right">${rs(row.liquido_receb)}</td><td class="right">${rs(row.diferenca_bruto)}</td></tr>`;}).join('')||'<tr><td colspan="7" class="empty">Nenhum caso para revisar neste mês.</td></tr>'}</tbody></table></div></section>`;
+
   document.getElementById('reloadConciliation').addEventListener('click',loadReconciliation);
   if(chart)chart.destroy();
-  const colors={'ok':'#2E7D5B','venda sem recebível':'#C94C4C','recebível sem venda':'#D6A84F','cancelado/estornado':'#9aa6b2'};
-  chart=new Chart(document.getElementById('conciliationChart'),{type:'bar',data:{labels:summary.map(row=>row.situacao),datasets:[{data:summary.map(row=>Number(row.qtd||0)),backgroundColor:summary.map(row=>colors[row.situacao]||'#00A6A6'),borderRadius:5}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:context=>Number(context.raw).toLocaleString('pt-BR')}}},scales:{y:{beginAtZero:true,ticks:{callback:value=>Number(value).toLocaleString('pt-BR')}},x:{grid:{display:false}}}}});
+  const colors={'ok':'#2E7D5B','venda sem recebível':'#C94C4C','recebível sem venda':'#D6A84F','cancelado/estornado':'#9aa6b2','sem recebível esperado (Pix/Voucher)':'#00A6A6'};
+  const chartData=linhaMes.slice().sort((a,b)=>Number(b.qtd)-Number(a.qtd));
+  chart=new Chart(document.getElementById('conciliationChart'),{type:'bar',data:{labels:chartData.map(row=>statusInfo(row.situacao)[0]),datasets:[{data:chartData.map(row=>Number(row.qtd||0)),backgroundColor:chartData.map(row=>colors[row.situacao]||'#00A6A6'),borderRadius:5}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:context=>Number(context.raw).toLocaleString('pt-BR')}}},scales:{y:{beginAtZero:true,ticks:{callback:value=>Number(value).toLocaleString('pt-BR')}},x:{grid:{display:false}}}}});
 }
 
 (async()=>{const auth=await SirFisherAuth.requireRole(sb);if(auth)await loadReconciliation();})();
