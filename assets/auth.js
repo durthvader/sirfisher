@@ -17,7 +17,8 @@
     'rotinas.html',
     'analise_individual.html',
     'classificar_excecoes.html',
-    'venda_especie.html'
+    'venda_especie.html',
+    'gerente.html'
   ]);
   const KNOWN_PAGES = new Set([...ADMIN_ONLY_PAGES, ...CONFIGURABLE_PAGES]);
   const NEXT_KEY = 'sirfisher_auth_next';
@@ -201,25 +202,6 @@
     card.appendChild(actions);
   }
 
-  function renderOperatorHome() {
-    const card = authCard('Rotinas operacionais', 'Escolha uma rotina. Indicadores financeiros são restritos aos perfis admin e sócio.');
-    if (!card) return;
-    const actions = document.createElement('div');
-    actions.className = 'sf-auth-actions';
-    [
-      ['Classificar exceções', 'classificar_excecoes.html'],
-      ['Análise individual', 'analise_individual.html'],
-      ['Venda em espécie', 'venda_especie.html']
-    ].forEach(([label, href]) => {
-      const link = document.createElement('a');
-      link.className = 'sf-auth-link';
-      link.href = href;
-      link.textContent = label;
-      actions.appendChild(link);
-    });
-    card.appendChild(actions);
-  }
-
   function installSessionBadge(sb, session, role) {
     if (document.getElementById('sf-session')) return;
     const box = document.createElement('div');
@@ -306,6 +288,12 @@
 
     const allowed = await pageAllowsRole(sb, currentPage(), role);
     if (!allowed) {
+      // Na pagina de login, quem nao ve a visao geral vai para o painel
+      // operacional em vez de uma tela de acesso negado.
+      if (settings.loginPage && await pageAllowsRole(sb, 'gerente.html', role)) {
+        window.location.replace('gerente.html');
+        return null;
+      }
       renderDenied(role);
       return null;
     }
@@ -314,7 +302,6 @@
   }
 
   window.SirFisherAuth = {
-    requireRole,
-    renderOperatorHome
+    requireRole
   };
 })();

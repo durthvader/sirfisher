@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; upgrade-insecure-requests">
+<title>Sir Fisher · Painel do Gerente</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="assets/dashboard-common.css" rel="stylesheet">
+<link href="assets/product-pages.css" rel="stylesheet">
+<link href="assets/accessibility.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.108.2" integrity="sha384-JWEyvHh+lRf0sN/WWY+QTQwX+CyWqmNg4tkc8GQzAMEtR2wGNrCJlvnu1lHD1kDm" crossorigin="anonymous"></script>
+<script src="assets/supabase-client.js"></script>
+<script src="assets/auth.js"></script>
+<script src="assets/safe-dom.js"></script>
+<script src="assets/dashboard-utils.js"></script>
+<script src="assets/accessibility.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" integrity="sha384-bs/nf9FbdNouRbMiFcrcZfLXYPKiPaGVGplVbv7dLGECccEXDW+S3zjqSKR5ZEaD" crossorigin="anonymous"></script>
+<style>
+  .chart-wrap{position:relative;}
+  .h-day{height:230px;}.h-gasto{height:230px;}.h-hora{height:200px;}
+  .meta-track{height:14px;background:#EFECE3;border-radius:7px;overflow:hidden;margin:10px 0 4px;}
+  .meta-fill{height:100%;border-radius:7px;min-width:2px;}
+  .summary-card .hint{margin-top:4px;}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="head-row"><div class="brand"><div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M2 12s3-6 10-6 10 6 10 6-3 6-10 6S2 12 2 12z"/><circle cx="9" cy="12" r="1" fill="#fff"/></svg></div><div><h1>Sir Fisher</h1><span>Painel de Gestão</span></div></div><div class="head-meta"><div class="unidade">Painel do Gerente</div></div></div>
+    <nav class="tabs"><a href="./">Visão Geral</a><a href="vendas.html">Faturamento</a><a href="caixa.html">Caixa</a><a href="dre.html">DRE</a><a href="despesas.html">Despesas</a><a href="conciliacao.html">Conciliação</a><a href="planejamento.html">Planejamento</a><a href="rotinas.html" class="routines">Rotinas</a></nav>
+  </header>
+  <main id="main"><div class="loading">Carregando painel…</div></main>
+  <footer id="rodape" style="display:none"><span id="rodapeAtt"></span></footer>
+</div>
+<script>
+const sb=SirFisherSupabase;
+const esc=SirFisherDOM.escapeHTML;
+const {brl,brl0,pct,rs}=SirFisherFormat;
+const C={header:'#12313F',teal:'#00A6A6',amber:'#D6A84F',green:'#2E7D5B',red:'#C94C4C',muted:'#6B7280',border:'#E5E7EB'};
+const MESES=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+let CHARTS=[];
+
+function hojeISO(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function nomeMes(anoMes){return MESES[+anoMes.slice(5,7)-1]+' de '+anoMes.slice(0,4);}
+function ddmm(iso){return iso.slice(8,10)+'/'+iso.slice(5,7);}
+
+async function carregar(){
+  const main=document.getElementById('main');
+  try{
+    const r=await sb.from('app_gerente_resumo_mensal').select('*').order('ano_mes',{ascending:true});
+    if(r.error)throw r.error;
+    const rows=(r.data||[]).filter(x=>x.ano_mes);
+    if(!rows.length)throw new Error('Ainda não há dados carregados.');
+    const mesAtual=hojeISO().slice(0,7);
+    const cur=rows.find(x=>x.ano_mes===mesAtual)||rows[rows.length-1];
+    const mes=cur.ano_mes;
+
+    const[dia,gasto,hora,uc]=await Promise.all([
+      sb.from('app_gerente_meta_diaria').select('dia,venda_dia,meta_dia').eq('mes',mes+'-01').order('dia',{ascending:true}),
+      sb.from('app_gerente_gasto_grupo').select('grupo,participacao_perc').eq('ano_mes',mes),
+      sb.from('app_gerente_movimento_hora').select('hora,qtd').eq('ano_mes',mes).order('hora',{ascending:true}),
+      sb.from('app_gerente_ultima_carga').select('ultima')
+    ]);
+    render(cur,dia.data||[],gasto.data||[],hora.data||[]);
+
+    const ultima=(uc.data&&uc.data[0])?uc.data[0].ultima:null;
+    if(ultima){
+      const d=new Date(ultima);
+      document.getElementById('rodapeAtt').textContent='Atualizado em '+String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+      document.getElementById('rodape').style.display='flex';
+    }
+  }catch(e){main.innerHTML='<div class="erro">Não foi possível carregar o painel: '+esc(e.message||String(e))+'</div>';}
+}
+
+function render(cur,dias,gastos,horas){
+  const N=v=>v==null?null:Number(v);
+  const hoje=hojeISO();
+  let rowDia=dias.find(x=>x.dia===hoje&&x.venda_dia!=null);
+  let labelDia='Venda de hoje';
+  if(!rowDia){
+    const comVenda=dias.filter(x=>x.venda_dia!=null);
+    rowDia=comVenda.length?comVenda[comVenda.length-1]:null;
+    if(rowDia)labelDia='Última venda ('+ddmm(rowDia.dia)+')';
+  }
+  const vendaDia=rowDia?N(rowDia.venda_dia):null;
+  const metaDia=rowDia?N(rowDia.meta_dia):null;
+  const percDia=(vendaDia!=null&&metaDia>0)?vendaDia/metaDia*100:null;
+
+  const meta=N(cur.meta),proj=N(cur.faturamento_proj),percMeta=N(cur.perc_meta);
+  const diff=(proj!=null&&meta!=null)?proj-meta:null;
+  const acima=diff!=null&&diff>=0;
+  const corMeta=percMeta==null?C.muted:(percMeta>=100?C.green:(acima?C.teal:C.amber));
+
+  document.getElementById('main').innerHTML=`
+    <div class="page-intro"><div><h2>Painel do Gerente</h2><p>Resumo operacional de ${esc(nomeMes(cur.ano_mes))}: acompanhamento de meta, ritmo de vendas e movimento para organizar salão e cozinha.</p></div></div>
+    <div class="summary-grid">
+      <div class="summary-card"><div class="label">${esc(labelDia)}</div><div class="value">${brl0(vendaDia)}</div><div class="hint">${metaDia!=null?'Meta do dia: '+brl0(metaDia)+(percDia!=null?' · '+pct(percDia):''):'Sem meta definida para o dia'}</div></div>
+      <div class="summary-card"><div class="label">Meta do mês</div><div class="value" style="color:${corMeta}">${pct(percMeta)}</div><div class="hint">Meta: ${brl0(meta)}</div></div>
+      <div class="summary-card"><div class="label">Projeção de fechamento</div><div class="value">${brl0(proj)}</div><div class="hint" style="color:${diff==null?'inherit':(acima?C.green:C.red)}">${diff==null?'—':(acima?'▲ ':'▼ ')+brl0(Math.abs(diff))+(acima?' acima da meta':' abaixo da meta')}</div></div>
+      <div class="summary-card"><div class="label">Ticket médio</div><div class="value">${rs(cur.ticket_medio)}</div><div class="hint">${(cur.qtd_vendas||0).toLocaleString('pt-BR')} vendas no mês</div></div>
+    </div>
+
+    <section class="panel"><div class="panel-head"><div><h3>Meta do mês</h3><div class="hint">Realizado ${brl0(N(cur.faturamento))} de ${brl0(meta)} · projeção ${brl0(proj)}</div></div></div>
+      <div class="meta-track"><div class="meta-fill" style="width:${Math.min(Math.max(percMeta||0,0),100)}%;background:${corMeta}"></div></div>
+      <div class="hint">Vendas por dia contra a meta diária:</div>
+      <div class="chart-wrap h-day"><canvas id="chartDia"></canvas></div>
+    </section>
+
+    <section class="panel"><div class="panel-head"><div><h3>Onde está o gasto</h3><div class="hint">Participação de cada grupo no total de gastos do mês, em percentual. Valores e detalhes por fornecedor ficam com a administração.</div></div></div>
+      <div class="chart-wrap h-gasto"><canvas id="chartGasto"></canvas></div>
+    </section>
+
+    <section class="panel"><div class="panel-head"><div><h3>Movimento por hora</h3><div class="hint">Quantidade de vendas por horário no mês — apoio para escala do salão e da cozinha.</div></div></div>
+      <div class="chart-wrap h-hora"><canvas id="chartHora"></canvas></div>
+    </section>
+
+    <div class="page-intro"><div><h2>Rotinas do dia</h2><p>Ferramentas operacionais de uso diário.</p></div></div>
+    <div class="routine-grid">
+      <a class="routine-card" href="classificar_excecoes.html">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 11 3.83A2 2 0 0 0 9.59 3.24H4a1 1 0 0 0-1 1v5.59a2 2 0 0 0 .59 1.41l9.58 9.59a2 2 0 0 0 2.83 0l4.59-4.59a2 2 0 0 0 0-2.83Z"/><circle cx="7.5" cy="7.5" r="1.2" fill="currentColor" stroke="none"/></svg></div>
+        <h3>Classificar exceções</h3>
+        <p>Fornecedores novos no extrato que ainda não têm categoria definida.</p>
+      </a>
+      <a class="routine-card" href="analise_individual.html">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></div>
+        <h3>Análise individual</h3>
+        <p>Transações marcadas para análise separada, classificadas uma a uma.</p>
+      </a>
+      <a class="routine-card" href="venda_especie.html">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 7h20v10H2z"/><circle cx="12" cy="12" r="2.5"/></svg></div>
+        <h3>Venda em espécie</h3>
+        <p>Lançamento diário do valor de vendas recebidas em dinheiro.</p>
+      </a>
+    </div>`;
+
+  drawDia(dias);
+  drawGasto(gastos);
+  drawHora(horas);
+}
+
+Chart.defaults.font.family="'Roboto',Arial,sans-serif";Chart.defaults.color=C.muted;
+
+function drawDia(d){
+  if(!d.length){document.getElementById('chartDia').parentElement.innerHTML='<div class="hint">Sem vendas registradas no mês.</div>';return;}
+  const labels=d.map(r=>r.dia.split('-')[2]);
+  const venda=d.map(r=>r.venda_dia==null?null:Number(r.venda_dia));
+  const meta=d.map(r=>r.meta_dia==null?null:Number(r.meta_dia));
+  CHARTS.push(new Chart(document.getElementById('chartDia'),{
+    data:{labels,datasets:[
+      {type:'bar',label:'Vendido',data:venda,backgroundColor:C.header,borderRadius:3,order:2},
+      {type:'line',label:'Meta',data:meta,borderColor:C.amber,backgroundColor:C.amber,borderWidth:2,borderDash:[4,3],pointRadius:0,tension:.2,order:1}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+      plugins:{legend:{display:true,labels:{boxWidth:10,font:{size:11},usePointStyle:true}},tooltip:{callbacks:{label:c=>' '+c.dataset.label+': '+brl(c.parsed.y)}}},
+      scales:{y:{grid:{color:C.border},ticks:{callback:v=>brl(v),font:{size:10}}},x:{grid:{display:false},ticks:{font:{size:9},maxRotation:0,autoSkip:false}}}}}));
+}
+
+const pctEnd={id:'pctEnd',afterDatasetsDraw(ch){const{ctx}=ch;const ds=ch.getDatasetMeta(0);ctx.save();ctx.font='600 11px Roboto,Arial';ctx.fillStyle=C.muted;ctx.textBaseline='middle';ds.data.forEach((b,i)=>{ctx.fillText(pct(ch.data.datasets[0].data[i]),b.x+6,b.y);});ctx.restore();}};
+
+function drawGasto(g){
+  const c=g.map(r=>({g:r.grupo,v:r.participacao_perc==null?0:Number(r.participacao_perc)})).sort((a,b)=>b.v-a.v);
+  if(!c.length){document.getElementById('chartGasto').parentElement.innerHTML='<div class="hint">Sem gastos registrados no mês.</div>';return;}
+  CHARTS.push(new Chart(document.getElementById('chartGasto'),{type:'bar',
+    data:{labels:c.map(x=>x.g),datasets:[{data:c.map(x=>x.v),backgroundColor:C.teal,borderRadius:4,maxBarThickness:24}]},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,layout:{padding:{right:56}},
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+pct(c.parsed.x)+' do total de gastos'}}},
+      scales:{x:{display:false,grid:{display:false}},y:{grid:{display:false},ticks:{font:{size:11}}}}},
+    plugins:[pctEnd]}));
+}
+
+function drawHora(h){
+  const d=h.filter(r=>r.qtd!=null&&Number(r.qtd)>0);
+  if(!d.length){document.getElementById('chartHora').parentElement.innerHTML='<div class="hint">Sem movimento registrado no mês.</div>';return;}
+  CHARTS.push(new Chart(document.getElementById('chartHora'),{type:'bar',
+    data:{labels:d.map(r=>r.hora+'h'),datasets:[{data:d.map(r=>Number(r.qtd)),backgroundColor:C.header,borderRadius:3,maxBarThickness:22}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+c.parsed.y.toLocaleString('pt-BR')+' vendas'}}},
+      scales:{y:{grid:{color:C.border},ticks:{font:{size:10},precision:0}},x:{grid:{display:false},ticks:{font:{size:10}}}}}}));
+}
+
+(async()=>{
+  const auth=await SirFisherAuth.requireRole(sb);
+  if(!auth)return;
+  carregar();
+})();
+</script>
+</body>
+</html>

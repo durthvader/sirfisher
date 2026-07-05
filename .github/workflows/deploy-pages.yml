@@ -43,6 +43,7 @@ jobs:
             caixa.html \
             dre.html \
             despesas.html \
+            gerente.html \
             analise_individual.html \
             classificar_excecoes.html \
             conciliacao.html \
@@ -77,6 +78,7 @@ jobs:
             conciliacao.html \
             despesas.html \
             dre.html \
+            gerente.html \
             index.html \
             permissoes.html \
             planejamento.html \

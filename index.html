@@ -329,7 +329,7 @@ cargasBox.addEventListener('click',e=>{if(e.target===cargasBox)cargasBox.style.d
 SirFisherAuth.requireRole(sb,{loginPage:true}).then(ctx=>{
   if(!ctx)return;
   if(ctx.role==='admin'||ctx.role==='socio')main();
-  else SirFisherAuth.renderOperatorHome();
+  else window.location.replace('gerente.html');
 });
 </script>
 </body>
