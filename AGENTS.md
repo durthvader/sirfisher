@@ -34,7 +34,7 @@ Este arquivo é a fonte canônica das instruções operacionais para qualquer IA
 - Fazer push somente depois das validações aplicáveis e da revisão do conjunto de arquivos do commit.
 - Não commitar arquivos sensíveis, CSVs, relatórios brutos, `.env`, `.env.*`, arquivos locais ou backups.
 - Não usar comandos destrutivos para descartar alterações sem autorização explícita.
-- Respeitar o trabalho existente no diretório e nunca sobrescrever mudanças de outra pessoa ou IA.
+- Respeitar o trabalho existente no diretório e nunca sobrescrever mudanças de outra pessoa ou IA sem necessidade.
 
 ## Segurança e dados sensíveis
 
@@ -44,7 +44,6 @@ Este arquivo é a fonte canônica das instruções operacionais para qualquer IA
 - Respeitar integralmente o `.gitignore` e revisar `git status` antes de qualquer commit.
 - Tratar chaves Supabase `service_role`, tokens, senhas e `DATABASE_URL` como segredos.
 - Usar o acesso MCP ao Supabase apenas para leitura, análise de schema, tabelas, views e conferência de dados; não revelar configurações de conexão.
-- Se um segredo aparecer acidentalmente, interromper a tarefa, não reproduzi-lo e orientar sua revogação ou rotação.
 
 ## Supabase e banco de dados
 
@@ -65,7 +64,7 @@ Este arquivo é a fonte canônica das instruções operacionais para qualquer IA
 - Manter compatibilidade com hospedagem estática no GitHub Pages.
 - Evitar dependências desnecessárias e não introduzir etapas de build sem justificativa.
 - Preservar a navegação e os links entre todas as páginas existentes.
-- Testar visualmente no navegador quando possível, incluindo comportamento responsivo e mobile.
+- Testar visual para comportamento responsivo e mobile.
 - Manter o padrão visual, os componentes, as cores e os comportamentos já usados no projeto.
 - Antes de modificar HTML, CSS ou JavaScript, informar quais arquivos serão alterados.
 - Verificar erros de console e fluxos principais após mudanças relevantes.
