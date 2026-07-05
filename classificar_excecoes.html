@@ -109,6 +109,11 @@ function linha(exc, categorias){
     : '<span class="status bad">Despesa</span>';
 
   const tipos = (exc.tipos || []).join(', ');
+  const origens = (exc.origens_instituicao || []).join(', ');
+  const destinos = (exc.destinos_instituicao || []).join(', ');
+  const dePara = origens && destinos ? `De: ${esc(origens)} · Para: ${esc(destinos)}`
+    : destinos ? `Para: ${esc(destinos)}`
+    : origens ? `De: ${esc(origens)}` : '';
 
   el.innerHTML = `
     <div class="info">
@@ -117,8 +122,9 @@ function linha(exc, categorias){
         <span>${esc(exc.chave_tipo === 'cnpj' ? 'CNPJ ' + (exc.contraparte_doc||'') : 'pessoa física')}</span>
         <span>${esc(fmtData(exc.data_min, exc.data_max))}</span>
         ${selo}
+        ${exc.tem_transferencia_propria ? '<span class="status info">Transferência entre contas</span>' : ''}
       </div>
-      ${tipos ? `<div class="meta"><span>${esc(tipos)}</span></div>` : ''}
+      ${tipos || dePara ? `<div class="meta">${tipos ? `<span>${esc(tipos)}</span>` : ''}${dePara ? `<span>${dePara}</span>` : ''}</div>` : ''}
     </div>
     <div class="${classeValor}">${sinal} ${fmtMoeda(exc.total)}<span class="qtd">${Number(exc.qtd_lancamentos)||0}x</span></div>
     <div class="controls">
