@@ -187,7 +187,7 @@
   }
 
   function renderDenied(role) {
-    const card = authCard('Acesso não permitido', role === 'operador'
+    const card = authCard('Acesso não permitido', role === 'gerente'
       ? 'Seu perfil pode usar as rotinas operacionais, mas não visualizar os dashboards financeiros.'
       : 'Seu perfil não possui acesso a esta página.');
     if (!card) return;
@@ -202,7 +202,7 @@
   }
 
   function renderOperatorHome() {
-    const card = authCard('Rotinas operacionais', 'Escolha uma rotina. Indicadores financeiros são restritos aos perfis admin e gestor.');
+    const card = authCard('Rotinas operacionais', 'Escolha uma rotina. Indicadores financeiros são restritos aos perfis admin e sócio.');
     if (!card) return;
     const actions = document.createElement('div');
     actions.className = 'sf-auth-actions';

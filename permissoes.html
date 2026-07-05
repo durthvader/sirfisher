@@ -48,10 +48,10 @@ function render(){
   const main=document.getElementById('main');
   main.innerHTML=`
     <div class="page-intro"><div><h2>Permissões por página</h2><p>Escolha quais páginas cada papel pode acessar. O admin sempre tem acesso irrestrito a tudo, independente desta tela. Páginas de administração do site (Usuários, Status, Permissões) não aparecem aqui — ficam sempre exclusivas do admin.</p></div></div>
-    <section class="panel"><div class="table-wrap"><table class="data-table"><thead><tr><th>Página</th><th>Admin</th><th>Gestor</th><th>Operador</th><th>Ação</th></tr></thead><tbody>${ORDEM.map(pagina=>{
+    <section class="panel"><div class="table-wrap"><table class="data-table"><thead><tr><th>Página</th><th>Admin</th><th>Sócio</th><th>Gerente</th><th>Ação</th></tr></thead><tbody>${ORDEM.map(pagina=>{
       const row=ROWS.find(r=>r.pagina===pagina)||{pagina,papeis:[]};
       const papeis=row.papeis||[];
-      return `<tr data-pagina="${esc(pagina)}"><td><b>${esc(LABELS[pagina])}</b></td><td><input type="checkbox" checked disabled aria-label="Admin sempre tem acesso"></td><td><input type="checkbox" class="gestor" ${papeis.includes('gestor')?'checked':''} aria-label="Gestor acessa ${esc(LABELS[pagina])}"></td><td><input type="checkbox" class="operador" ${papeis.includes('operador')?'checked':''} aria-label="Operador acessa ${esc(LABELS[pagina])}"></td><td><button class="button save">Salvar</button></td></tr>`;
+      return `<tr data-pagina="${esc(pagina)}"><td><b>${esc(LABELS[pagina])}</b></td><td><input type="checkbox" checked disabled aria-label="Admin sempre tem acesso"></td><td><input type="checkbox" class="socio" ${papeis.includes('socio')?'checked':''} aria-label="Sócio acessa ${esc(LABELS[pagina])}"></td><td><input type="checkbox" class="gerente" ${papeis.includes('gerente')?'checked':''} aria-label="Gerente acessa ${esc(LABELS[pagina])}"></td><td><button class="button save">Salvar</button></td></tr>`;
     }).join('')}</tbody></table></div></section>`;
   main.querySelectorAll('tr[data-pagina]').forEach(row=>{
     const pagina=row.dataset.pagina;
@@ -62,8 +62,8 @@ function render(){
 async function salvar(pagina,row,button){
   button.disabled=true;
   const papeis=[];
-  if(row.querySelector('.gestor').checked)papeis.push('gestor');
-  if(row.querySelector('.operador').checked)papeis.push('operador');
+  if(row.querySelector('.socio').checked)papeis.push('socio');
+  if(row.querySelector('.gerente').checked)papeis.push('gerente');
   const {error}=await sb.rpc('definir_permissao_pagina',{p_pagina:pagina,p_papeis:papeis});
   if(error){
     console.error('Falha ao alterar permissão:',error);
