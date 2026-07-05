@@ -260,6 +260,19 @@ no repositório.
   - `peso_total`
   - `projecao_fechamento`
 
+### listar_calendario_financeiro(date)
+- Tipo: RPC mensal `SECURITY DEFINER`, protegida pela permissão de `calendario.html`.
+- Uso: `calendario.html`.
+- Propósito: consolidar, por dia, meta e faturamento acumulados, vendas por
+  forma, recebimentos, despesas recorrentes/não recorrentes e saldo de caixa.
+- O realizado reutiliza as fontes dos painéis existentes. Depois do corte das
+  cargas, a RPC usa as projeções de venda, recebimento, despesa e saldo já
+  adotadas em `caixa.html`.
+- O total de despesas realizadas vem de `fato_financeiro`. A parcela recorrente
+  usa pagamentos de `conta_recorrente_pagamento` limitada ao total financeiro
+  do dia; o restante é apresentado como não recorrente. Diferenças ficam
+  expostas em `despesa_recorrente_nao_conciliada`, sem alterar a origem.
+
 ### venda_especie
 - Tipo: tabela de vendas por espécie
 - Uso: `venda_especie.html`
@@ -357,6 +370,7 @@ no repositório.
 - `painel_composicao_despesa` → `index.html`
 - `painel_margem_contribuicao` → `index.html`
 - `painel_diario` → `index.html`, `vendas.html`
+- `listar_calendario_financeiro(date)` → `calendario.html`
 - `venda_especie` → `venda_especie.html`
 - `conta_recorrente` / `conta_recorrente_pagamento` → `contas_recorrentes.html`
 - `app_contas_recorrentes_pagamentos` / `app_contas_recorrentes_totais` → histórico e gráfico de `contas_recorrentes.html`

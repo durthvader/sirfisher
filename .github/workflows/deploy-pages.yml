@@ -41,6 +41,7 @@ jobs:
             index.html \
             vendas.html \
             caixa.html \
+            calendario.html \
             dre.html \
             despesas.html \
             gerente.html \
@@ -80,6 +81,7 @@ jobs:
             assets/safe-dom.js \
             assets/supabase-client.js \
             caixa.html \
+            calendario.html \
             classificar_excecoes.html \
             conciliacao.html \
             contas_recorrentes.html \

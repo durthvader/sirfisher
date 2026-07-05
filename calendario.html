@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; upgrade-insecure-requests">
+<title>Sir Fisher · Calendário</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="assets/dashboard-common.css" rel="stylesheet">
+<link href="assets/product-pages.css" rel="stylesheet">
+<link href="assets/accessibility.css" rel="stylesheet">
+<style>
+  .calendar-intro{align-items:center;margin-bottom:11px}.calendar-intro h2{font-size:19px}.calendar-intro p{max-width:760px}
+  .month-control{display:flex;align-items:center;gap:5px;flex-shrink:0}.month-control .field{height:31px;padding:5px 7px;font-size:11px}.month-step{width:30px;height:30px;padding:0;display:grid;place-items:center}
+  .calendar-legend{display:flex;align-items:center;gap:13px;flex-wrap:wrap;margin:0 0 8px;color:var(--muted);font-size:9.5px}.calendar-legend span{display:inline-flex;align-items:center;gap:5px}.legend-swatch{width:10px;height:10px;border:1px solid #d9e0d4;border-radius:2px}.legend-swatch.real{background:#edf8e8}.legend-swatch.partial{background:#fff8df}.legend-swatch.forecast{background:#fff}
+  .calendar-panel{padding:0;overflow:hidden}.calendar-scroll{width:100%;overflow:auto;max-height:calc(100vh - 225px);min-height:320px;overscroll-behavior:contain}
+  .calendar-table{width:100%;min-width:1120px;border-collapse:separate;border-spacing:0;font-size:10.5px;font-variant-numeric:tabular-nums}
+  .calendar-table th{position:sticky;top:0;z-index:6;background:#12313f;color:#fff;padding:7px 7px;border-right:1px solid rgba(255,255,255,.13);font-size:8.5px;line-height:1.15;text-transform:uppercase;letter-spacing:.25px;text-align:right;white-space:nowrap}
+  .calendar-table th:first-child,.calendar-table th:nth-child(2){text-align:left}.calendar-table td{height:29px;padding:4px 7px;border-right:1px solid rgba(18,49,63,.07);border-bottom:1px solid rgba(18,49,63,.08);text-align:right;white-space:nowrap;background:#fff}
+  .calendar-table tr.row-real td{background:#edf8e8}.calendar-table tr.row-partial td{background:#fff8df}.calendar-table tr.row-projetado td{background:#fff;color:#586b73}
+  .calendar-table tr:hover td{box-shadow:inset 0 0 0 999px rgba(0,166,166,.045)}.calendar-table tr.today td{border-top:1px solid #00a6a6;border-bottom-color:#00a6a6}
+  .calendar-table th:first-child,.calendar-table td:first-child{position:sticky;left:0;z-index:4;min-width:76px;text-align:left;font-weight:700}.calendar-table th:nth-child(2),.calendar-table td:nth-child(2){position:sticky;left:76px;z-index:4;min-width:48px;text-align:left}.calendar-table th:first-child,.calendar-table th:nth-child(2){z-index:8}
+  .calendar-table .meta-col{color:#765b13}.calendar-table th.meta-col{background:#80611c;color:#fff}.calendar-table .sales-col{font-weight:700;color:#0b5963}.calendar-table th.sales-col{background:#0d6e78;color:#fff}.calendar-table .cash-col{font-weight:700}.calendar-table .negative{color:#ad3e3e}
+  .cell-detail{display:inline-flex;align-items:center;justify-content:flex-end;gap:3px;width:100%}.detail-trigger{width:16px;height:16px;border:0;border-radius:50%;padding:0;background:rgba(18,49,63,.10);color:#34515d;font:700 9px/16px Roboto,Arial,sans-serif;cursor:pointer;flex:0 0 16px}.detail-trigger:hover,.detail-trigger:focus-visible{background:#12313f;color:#fff}.detail-trigger:focus-visible{outline:2px solid #00a6a6;outline-offset:1px}
+  .detail-popover{position:fixed;z-index:150;width:245px;background:#12313f;color:#fff;border:1px solid rgba(255,255,255,.16);border-radius:10px;padding:11px 12px;box-shadow:0 12px 36px rgba(0,0,0,.28);display:none}.detail-popover.show{display:block}.detail-popover h3{font-size:11.5px;margin:0 0 7px}.detail-line{display:flex;justify-content:space-between;gap:15px;padding:4px 0;border-top:1px solid rgba(255,255,255,.09);font-size:10.5px}.detail-line span{color:#b9cbd1}.detail-line strong{font-variant-numeric:tabular-nums}.detail-note{font-size:9px;line-height:1.4;color:#b9cbd1;margin-top:7px}.detail-warning{color:#ffd38a;margin-top:6px;font-size:9px;line-height:1.35}
+  .calendar-empty{padding:38px;text-align:center;color:var(--muted);font-size:12px}
+  @media(max-width:760px){.calendar-intro{display:flex;gap:8px}.calendar-intro p{display:none}.calendar-intro h2{font-size:17px}.calendar-scroll{max-height:calc(100vh - 190px)}.calendar-panel{margin-left:-5px;margin-right:-5px;border-radius:8px}.detail-popover{left:10px!important;right:10px!important;top:auto!important;bottom:10px;width:auto}.calendar-table{font-size:10px}.calendar-table td{padding:4px 6px}}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.108.2" integrity="sha384-JWEyvHh+lRf0sN/WWY+QTQwX+CyWqmNg4tkc8GQzAMEtR2wGNrCJlvnu1lHD1kDm" crossorigin="anonymous"></script>
+<script src="assets/supabase-client.js"></script>
+<script src="assets/auth.js"></script>
+<script src="assets/accessibility.js"></script>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="head-row"><div class="brand"><div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M2 12s3-6 10-6 10 6 10 6-3 6-10 6S2 12 2 12z"/><circle cx="9" cy="12" r="1" fill="#fff"/></svg></div><div><h1>Sir Fisher</h1><span>Painel de Gestão</span></div></div><div class="head-meta"><div class="unidade">Calendário</div></div></div>
+    <nav class="tabs"><a href="./">Visão Geral</a><a href="vendas.html">Faturamento</a><a href="caixa.html">Caixa</a><a href="dre.html">DRE</a><a href="despesas.html">Despesas</a><a href="conciliacao.html">Conciliação</a><a href="planejamento.html">Planejamento</a><a href="calendario.html" class="active">Calendário</a><a href="rotinas.html" class="routines">Rotinas</a></nav>
+  </header>
+  <main id="main"><div class="loading">Carregando calendário…</div></main>
+</div>
+<div id="detailPopover" class="detail-popover" role="dialog" aria-live="polite"></div>
+<script>
+const sb=SirFisherSupabase;
+const DIAS=['','seg','ter','qua','qui','sex','sáb','dom'];
+const MOEDA=new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'});
+const NUMERO=new Intl.NumberFormat('pt-BR',{maximumFractionDigits:0});
+let ROWS=[];
+let AUTH=null;
+
+function mesAtual(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;}
+function mesISO(){return `${document.getElementById('mesSel')?.value||mesAtual()}-01`;}
+function dataBR(iso){const [a,m,d]=iso.split('-');return `${d}/${m}/${a.slice(2)}`;}
+function dinheiro(v){return v==null?'—':MOEDA.format(Number(v)||0);}
+function compacto(v){if(v==null)return'—';const n=Number(v)||0;return Math.abs(n)<.005?'–':NUMERO.format(n);}
+function classeValor(v){return Number(v)<0?'negative':'';}
+function valorSimples(v,extra=''){return `<span class="${classeValor(v)} ${extra}">${compacto(v)}</span>`;}
+function valorDetalhado(v,i,tipo,extra=''){return `<span class="cell-detail ${extra}"><span class="${classeValor(v)}">${compacto(v)}</span><button type="button" class="detail-trigger" data-row="${i}" data-detail="${tipo}" title="Ver detalhamento" aria-label="Ver detalhamento">i</button></span>`;}
+
+function render(){
+  const hoje=new Date();const hojeISO=`${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}-${String(hoje.getDate()).padStart(2,'0')}`;
+  document.getElementById('main').innerHTML=`
+    <div class="page-intro calendar-intro"><div><h2>Calendário financeiro</h2><p>Visão diária compacta: realizado em verde, transição de carga em amarelo e projeções futuras em branco. Valores da tabela sem centavos; toque no <b>i</b> para abrir os detalhes.</p></div><div class="month-control"><button class="button secondary month-step" id="mesAnterior" aria-label="Mês anterior">‹</button><input class="field" type="month" id="mesSel" value="${mesISO().slice(0,7)}" aria-label="Mês do calendário"><button class="button secondary month-step" id="mesSeguinte" aria-label="Mês seguinte">›</button></div></div>
+    <div class="calendar-legend"><span><i class="legend-swatch real"></i>Realizado</span><span><i class="legend-swatch partial"></i>Cortes diferentes</span><span><i class="legend-swatch forecast"></i>Projeção</span></div>
+    <section class="panel calendar-panel"><div class="calendar-scroll"><table class="calendar-table"><thead><tr><th>Data</th><th>Dia</th><th class="meta-col" title="Meta acumulada até o dia">Meta acum.</th><th class="sales-col" title="Faturamento realizado/projetado acumulado">Fat. acum.</th><th class="meta-col">Meta dia</th><th class="sales-col">Fat. dia</th><th title="Crédito, débito, Pix e projeções">Recebimentos</th><th title="Recorrentes e não recorrentes">Despesas</th><th title="Saldo acumulado do fluxo de caixa">Saldo caixa</th></tr></thead><tbody>${ROWS.map((r,i)=>`<tr class="row-${r.modo}${r.dia===hojeISO?' today':''}"><td>${dataBR(r.dia)}</td><td>${DIAS[Number(r.dia_semana)]||'—'}</td><td class="meta-col">${valorSimples(r.meta_acumulada)}</td><td class="sales-col">${valorSimples(r.faturamento_acumulado)}</td><td class="meta-col">${valorSimples(r.meta_dia)}</td><td class="sales-col">${valorDetalhado(r.faturamento_dia,i,'vendas')}</td><td>${valorDetalhado(r.recebimento_total,i,'recebimentos')}</td><td>${valorDetalhado(r.despesa_total,i,'despesas')}</td><td class="cash-col">${valorSimples(r.saldo_caixa)}</td></tr>`).join('')||'<tr><td colspan="9" class="calendar-empty">Sem dados para este mês.</td></tr>'}</tbody></table></div></section>`;
+  document.getElementById('mesSel').addEventListener('change',carregar);
+  document.getElementById('mesAnterior').addEventListener('click',()=>moverMes(-1));
+  document.getElementById('mesSeguinte').addEventListener('click',()=>moverMes(1));
+  document.querySelectorAll('.detail-trigger').forEach(b=>b.addEventListener('click',abrirDetalhe));
+}
+
+function moverMes(delta){const input=document.getElementById('mesSel');const [a,m]=input.value.split('-').map(Number);const d=new Date(a,m-1+delta,1);input.value=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;carregar();}
+function linha(rotulo,valor){return `<div class="detail-line"><span>${rotulo}</span><strong>${dinheiro(valor)}</strong></div>`;}
+
+function abrirDetalhe(event){
+  event.stopPropagation();const button=event.currentTarget;const r=ROWS[Number(button.dataset.row)];const tipo=button.dataset.detail;const pop=document.getElementById('detailPopover');let html='';
+  if(tipo==='vendas')html=`<h3>Faturamento · ${dataBR(r.dia)}</h3>${linha('Crédito',r.venda_credito)}${linha('Débito',r.venda_debito)}${linha('Pix',r.venda_pix)}${linha('Extras / voucher',r.venda_extras)}${linha('Dinheiro',r.venda_dinheiro)}${linha('Total do dia',r.faturamento_dia)}<div class="detail-note">${r.modo==='projetado'?'O total é projeção; a divisão por forma só aparece nos dias realizados.':'Total líquido de cancelamentos, acrescido das vendas em espécie.'}</div>`;
+  if(tipo==='recebimentos')html=`<h3>Recebimentos · ${dataBR(r.dia)}</h3>${linha('Crédito',r.recebimento_credito)}${linha('Débito',r.recebimento_debito)}${linha('Pix realizado',r.recebimento_pix)}${linha('Projeção adicional',r.recebimento_projetado)}${linha('Total',r.recebimento_total)}<div class="detail-note">Crédito e débito seguem o vencimento líquido dos recebíveis. Pix realizado vem do extrato Stone.</div>`;
+  if(tipo==='despesas')html=`<h3>Despesas · ${dataBR(r.dia)}</h3>${linha('Recorrentes',r.despesa_recorrente)}${linha('Não recorrentes',r.despesa_nao_recorrente)}${linha('Total',r.despesa_total)}<div class="detail-note">${r.modo==='projetado'?'Recorrente usa a projeção fixa; não recorrente usa a projeção direta.':'O total vem do financeiro. A parcela recorrente é limitada ao total do dia para evitar dupla contagem.'}</div>${Number(r.despesa_recorrente_nao_conciliada)>0?`<div class="detail-warning">Há ${dinheiro(r.despesa_recorrente_nao_conciliada)} registrado como recorrente sem correspondência no total financeiro deste dia.</div>`:''}`;
+  pop.innerHTML=html;pop.classList.add('show');
+  const rect=button.getBoundingClientRect(),w=245;pop.style.left=`${Math.max(8,Math.min(window.innerWidth-w-8,rect.right-w))}px`;pop.style.top=`${Math.min(window.innerHeight-pop.offsetHeight-8,rect.bottom+7)}px`;
+}
+
+function fecharDetalhe(){document.getElementById('detailPopover').classList.remove('show');}
+document.addEventListener('click',event=>{if(!event.target.closest('#detailPopover'))fecharDetalhe();});
+document.addEventListener('keydown',event=>{if(event.key==='Escape')fecharDetalhe();});
+
+async function carregar(){
+  const main=document.getElementById('main');const mes=document.getElementById('mesSel')?.value||mesAtual();main.innerHTML='<div class="loading">Carregando calendário…</div>';
+  const {data,error}=await sb.rpc('listar_calendario_financeiro',{p_mes:`${mes}-01`});
+  if(error){console.error('Falha ao carregar calendário:',error);main.innerHTML='<div class="erro">Não foi possível carregar o calendário financeiro.</div>';return;}
+  ROWS=data||[];render();document.getElementById('mesSel').value=mes;
+}
+
+(async()=>{AUTH=await SirFisherAuth.requireRole(sb);if(AUTH)await carregar();})();
+</script>
+</body>
+</html>

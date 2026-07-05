@@ -17,6 +17,7 @@
     'despesas.html',
     'conciliacao.html',
     'planejamento.html',
+    'calendario.html',
     'rotinas.html',
     'analise_individual.html',
     'classificar_excecoes.html',
@@ -339,6 +340,14 @@
   async function pruneNav(sb, role) {
     const nav = document.querySelector('nav.tabs');
     if (!nav) return;
+    if (!nav.querySelector('a[href="calendario.html"]')) {
+      const calendar = document.createElement('a');
+      calendar.href = 'calendario.html';
+      calendar.textContent = 'Calendário';
+      if (currentPage() === 'calendario.html') calendar.classList.add('active');
+      const routines = nav.querySelector('a[href="rotinas.html"]');
+      nav.insertBefore(calendar, routines || null);
+    }
     const links = Array.from(nav.querySelectorAll('a[href]'));
     for (const a of links) {
       const href = a.getAttribute('href');
