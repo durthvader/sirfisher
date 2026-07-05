@@ -44,19 +44,32 @@ const LABELS={
   'venda_especie.html':'Venda em espécie',
   'contas_recorrentes.html':'Contas recorrentes'
 };
-const ORDEM=Object.keys(LABELS);
-const GERENTE_BLOQUEADO=new Set(['contas_recorrentes.html']);
+const GRUPOS=[
+  {
+    titulo:'Painéis',
+    descricao:'Visões de acompanhamento e gestão.',
+    paginas:['index.html','vendas.html','caixa.html','dre.html','despesas.html','conciliacao.html','planejamento.html','gerente.html']
+  },
+  {
+    titulo:'Rotinas',
+    descricao:'Ferramentas operacionais e controles do dia a dia.',
+    paginas:['rotinas.html','classificar_excecoes.html','analise_individual.html','venda_especie.html','contas_recorrentes.html']
+  }
+];
+
+function tabelaPermissoes(paginas){
+  return `<div class="table-wrap"><table class="data-table"><thead><tr><th>Página</th><th>Admin</th><th>Sócio</th><th>Gerente</th><th>Ação</th></tr></thead><tbody>${paginas.map(pagina=>{
+    const row=ROWS.find(r=>r.pagina===pagina)||{pagina,papeis:[]};
+    const papeis=row.papeis||[];
+    return `<tr data-pagina="${esc(pagina)}"><td><b>${esc(LABELS[pagina])}</b></td><td><input type="checkbox" checked disabled aria-label="Admin sempre tem acesso"></td><td><input type="checkbox" class="socio" ${papeis.includes('socio')?'checked':''} aria-label="Sócio acessa ${esc(LABELS[pagina])}"></td><td><input type="checkbox" class="gerente" ${papeis.includes('gerente')?'checked':''} aria-label="Gerente acessa ${esc(LABELS[pagina])}"></td><td><button class="button save">Salvar</button></td></tr>`;
+  }).join('')}</tbody></table></div>`;
+}
 
 function render(){
   const main=document.getElementById('main');
   main.innerHTML=`
     <div class="page-intro"><div><h2>Permissões por página</h2><p>Escolha quais páginas cada papel pode acessar. O admin sempre tem acesso irrestrito a tudo, independente desta tela. Páginas de administração do site (Usuários, Status, Permissões) não aparecem aqui — ficam sempre exclusivas do admin.</p></div></div>
-    <section class="panel"><div class="table-wrap"><table class="data-table"><thead><tr><th>Página</th><th>Admin</th><th>Sócio</th><th>Gerente</th><th>Ação</th></tr></thead><tbody>${ORDEM.map(pagina=>{
-      const row=ROWS.find(r=>r.pagina===pagina)||{pagina,papeis:[]};
-      const papeis=row.papeis||[];
-      const bloqueada=GERENTE_BLOQUEADO.has(pagina);
-      return `<tr data-pagina="${esc(pagina)}"><td><b>${esc(LABELS[pagina])}</b></td><td><input type="checkbox" checked disabled aria-label="Admin sempre tem acesso"></td><td><input type="checkbox" class="socio" ${papeis.includes('socio')?'checked':''} aria-label="Sócio acessa ${esc(LABELS[pagina])}"></td><td><input type="checkbox" class="gerente" ${!bloqueada&&papeis.includes('gerente')?'checked':''} ${bloqueada?'disabled':''} aria-label="${bloqueada?'Página financeira restrita a admin e sócio':'Gerente acessa '+esc(LABELS[pagina])}"></td><td><button class="button save">Salvar</button></td></tr>`;
-    }).join('')}</tbody></table></div></section>`;
+    ${GRUPOS.map(grupo=>`<section class="panel"><div class="panel-head"><div><h3>${esc(grupo.titulo)}</h3><p class="hint">${esc(grupo.descricao)}</p></div></div>${tabelaPermissoes(grupo.paginas)}</section>`).join('')}`;
   main.querySelectorAll('tr[data-pagina]').forEach(row=>{
     const pagina=row.dataset.pagina;
     row.querySelector('.save').addEventListener('click',event=>salvar(pagina,row,event.currentTarget));
