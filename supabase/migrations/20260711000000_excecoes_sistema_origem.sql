@@ -45,13 +45,13 @@ select
   min(data_caixa) as data_min,
   max(data_caixa) as data_max,
   array_agg(distinct tipo order by tipo) filter (where tipo is not null) as tipos,
-  array_agg(distinct origem order by origem) as sistemas_origem,
   array_agg(distinct origem_instituicao order by origem_instituicao) filter (where origem_instituicao is not null) as origens_instituicao,
   array_agg(distinct destino_instituicao order by destino_instituicao) filter (where destino_instituicao is not null) as destinos_instituicao,
   bool_or(
     exists (select 1 from public.conta c where origem_instituicao ilike '%' || c.banco || '%')
     and exists (select 1 from public.conta c where destino_instituicao ilike '%' || c.banco || '%')
-  ) as tem_transferencia_propria
+  ) as tem_transferencia_propria,
+  array_agg(distinct origem order by origem) as sistemas_origem
 from detalhe
 group by contraparte_nome, contraparte_doc,
   case when (contraparte_doc like '%/%' and contraparte_doc not like '%*%') then 'cnpj' else 'nome' end,
@@ -61,8 +61,9 @@ order by sum(valor);
 create or replace view public.app_excecoes
 with (security_barrier = true, security_invoker = false) as
 select contraparte_nome, contraparte_doc, chave_tipo, chave_valor, qtd_lancamentos, total,
-       natureza, data_min, data_max, tipos, sistemas_origem,
-       origens_instituicao, destinos_instituicao, tem_transferencia_propria
+       natureza, data_min, data_max, tipos,
+       origens_instituicao, destinos_instituicao, tem_transferencia_propria,
+       sistemas_origem
 from public.excecoes s
 where public.usuario_tem_papel(array['admin', 'socio', 'gerente']);
 
