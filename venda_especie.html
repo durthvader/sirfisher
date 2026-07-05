@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; upgrade-insecure-requests">
-<title>Sir Fisher · Venda em Espécie</title>
+<title>Sir Fisher · Sangrias em Espécie</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
 <link href="assets/dashboard-common.css" rel="stylesheet">
@@ -19,11 +19,11 @@
 <body>
 <div class="app">
   <header>
-    <div class="head-row"><div class="brand"><div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M2 12s3-6 10-6 10 6 10 6-3 6-10 6S2 12 2 12z"/><circle cx="9" cy="12" r="1" fill="#fff"/></svg></div><div><h1>Sir Fisher</h1><span>Painel de Gestão</span></div></div><div class="head-meta"><div class="unidade">Venda em espécie</div></div></div>
+    <div class="head-row"><div class="brand"><div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M2 12s3-6 10-6 10 6 10 6-3 6-10 6S2 12 2 12z"/><circle cx="9" cy="12" r="1" fill="#fff"/></svg></div><div><h1>Sir Fisher</h1><span>Painel de Gestão</span></div></div><div class="head-meta"><div class="unidade">Sangrias em espécie</div></div></div>
     <nav class="tabs"><a href="./">Visão Geral</a><a href="vendas.html">Faturamento</a><a href="caixa.html">Caixa</a><a href="dre.html">DRE</a><a href="despesas.html">Despesas</a><a href="conciliacao.html">Conciliação</a><a href="planejamento.html">Planejamento</a><a href="rotinas.html" class="routines">Rotinas</a></nav>
   </header>
   <main id="main">
-    <div class="page-intro"><div><h2>Venda em espécie</h2><p>Lance o valor da sangria em dinheiro espécie de cada dia (você confere no grupo do zap). Isso entra na venda total do dia e fica separado do caixa bancário até ser depositado.</p></div></div>
+    <div class="page-intro"><div><h2>Sangrias em espécie</h2><p>Lance o valor informado no grupo e acompanhe as etapas até o depósito no Banco do Brasil. Os marcadores de recolhimento e depósito são apenas para controle operacional.</p></div></div>
 
     <div class="panel">
       <div class="panel-head"><div><h3>Novo lançamento</h3></div></div>
@@ -35,7 +35,7 @@
     </div>
 
     <div class="panel">
-      <div class="panel-head"><div><h3>Últimos 14 dias</h3></div></div>
+      <div class="panel-head"><div><h3>Últimos 14 dias</h3><div class="hint">Sangrias recolhidas e ainda não depositadas continuam visíveis até a conclusão.</div></div></div>
       <div id="lista" class="op-list"></div>
     </div>
   </main>
@@ -67,6 +67,13 @@ function hojeISO(){
   return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
 }
 
+function fmtMomento(valor){
+  if(!valor)return '';
+  const d=new Date(valor);
+  if(Number.isNaN(d.getTime()))return '';
+  return d.toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+}
+
 async function carregar(){
   document.getElementById('novaData').value = hojeISO();
 
@@ -79,11 +86,12 @@ async function carregar(){
     dias.push(d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'));
   }
 
-  const { data: lancados, error } = await sb
-    .from('venda_especie')
-    .select('*')
-    .eq('unidade', 'PRAIA')
-    .in('data', dias);
+  const [recentes, emGuarda] = await Promise.all([
+    sb.from('venda_especie').select('*').eq('unidade','PRAIA').in('data',dias),
+    sb.from('venda_especie').select('*').eq('unidade','PRAIA')
+      .not('recolhida_em','is',null).is('depositada_em',null)
+  ]);
+  const error=recentes.error||emGuarda.error;
 
   if (error){
     toast('Erro ao carregar: ' + error.message, true);
@@ -91,36 +99,62 @@ async function carregar(){
   }
 
   const porData = {};
-  (lancados || []).forEach(l => porData[l.data] = l);
+  [...(recentes.data||[]),...(emGuarda.data||[])].forEach(l => porData[l.data] = l);
+  const datasExibidas=[...new Set([...dias,...Object.keys(porData)])].sort((a,b)=>b.localeCompare(a));
 
   const lista = document.getElementById('lista');
   lista.innerHTML = '';
-  dias.forEach(d => lista.appendChild(linha(d, porData[d] || null)));
+  datasExibidas.forEach(d => lista.appendChild(linha(d, porData[d] || null)));
 }
 
 function linha(dataISO, registro){
   const el = document.createElement('div');
   el.className = 'op-row';
   const { label, dow } = fmtDataLabel(dataISO);
+  const recolhida=!!(registro&&registro.recolhida_em);
+  const depositada=!!(registro&&registro.depositada_em);
+  const status=depositada?'<span class="status ok">Depositada</span>':recolhida?'<span class="status warn">Recolhida</span>':registro?'<span class="status neutral">Aguardando recolhimento</span>':'';
+  const momentos=[recolhida?'Recolhida '+fmtMomento(registro.recolhida_em):'',depositada?'Depositada '+fmtMomento(registro.depositada_em):''].filter(Boolean);
 
   el.innerHTML = `
     <div class="info">
       <div class="nome">${label}</div>
-      <div class="meta"><span>${dow}</span>${registro ? '<span class="status ok">Lançado</span>' : ''}</div>
+      <div class="meta"><span>${dow}</span>${status}${momentos.map(m=>'<span>'+esc(m)+'</span>').join('')}</div>
     </div>
     <div class="direita">
       <input type="number" step="0.01" placeholder="0,00" value="${registro ? (Number(registro.valor)||0) : ''}">
       <button class="button save">${registro ? 'Atualizar' : 'Salvar'}</button>
+      <button class="button marker collected${recolhida?' active':''}" ${registro&&(!depositada)?'':'disabled'}>${recolhida?'✓ ':''}Recolhida</button>
+      <button class="button marker deposited${depositada?' active':''}" ${registro&&recolhida?'':'disabled'}>${depositada?'✓ ':''}Depositada</button>
     </div>
   `;
 
   const input = el.querySelector('input');
   const btn = el.querySelector('button.save');
+  const btnRecolhida=el.querySelector('button.collected');
+  const btnDepositada=el.querySelector('button.deposited');
 
   btn.addEventListener('click', () => salvar(dataISO, input.value, el, btn));
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter') salvar(dataISO, input.value, el, btn); });
+  if(registro){
+    btnRecolhida.addEventListener('click',()=>alterarStatus(registro,recolhida?'desfazer_recolhimento':'recolher',btnRecolhida,btnDepositada));
+    btnDepositada.addEventListener('click',()=>alterarStatus(registro,depositada?'desfazer_deposito':'depositar',btnRecolhida,btnDepositada));
+  }
 
   return el;
+}
+
+async function alterarStatus(registro,acao,...botoes){
+  botoes.forEach(b=>b.disabled=true);
+  const {error}=await sb.rpc('alterar_status_sangria',{p_id:registro.id,p_acao:acao});
+  if(error){
+    toast('Não atualizou: '+error.message,true);
+    carregar();
+    return;
+  }
+  const mensagens={recolher:'Sangria marcada como recolhida.',desfazer_recolhimento:'Recolhimento desfeito.',depositar:'Sangria marcada como depositada.',desfazer_deposito:'Depósito desfeito.'};
+  toast(mensagens[acao]);
+  carregar();
 }
 
 async function salvar(dataISO, valorStr, el, btn){
@@ -142,10 +176,8 @@ async function salvar(dataISO, valorStr, el, btn){
     toast('Não salvou: ' + error.message, true);
     return;
   }
-  btn.textContent = 'Atualizar';
-  const selo = el.querySelector('.status');
-  if (!selo) el.querySelector('.meta').insertAdjacentHTML('beforeend', '<span class="status ok">Lançado</span>');
   toast('Lançado: R$ ' + valor.toFixed(2).replace('.', ','));
+  carregar();
 }
 
 document.getElementById('btnNovo').addEventListener('click', async () => {

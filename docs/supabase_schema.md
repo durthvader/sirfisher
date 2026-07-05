@@ -269,6 +269,11 @@ no repositório.
   - `data`
   - `unidade`
   - `valor`
+  - `recolhida_em`
+  - `depositada_em`
+- Os dois timestamps controlam a custódia física da sangria e não geram
+  lançamento financeiro. A RPC `alterar_status_sangria(bigint, text)` garante
+  que o depósito só possa ser marcado depois do recolhimento.
   - `observacao`
   - `criado_em`
 
