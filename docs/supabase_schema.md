@@ -285,6 +285,25 @@ no repositório.
   - `observacao`
   - `criado_em`
 
+### conta_recorrente / conta_recorrente_pagamento
+- Tipo: cadastro operacional e histórico mensal de contas recorrentes.
+- Uso: `contas_recorrentes.html`.
+- O cadastro guarda nome, dia de vencimento, categoria, unidade, tipo e estado
+  ativo/inativo. A opção `incluir_totais` preserva o total operacional sem
+  cartão BTG e pró-labore/lucro. O pagamento guarda a competência separada da
+  data efetiva em que a conta foi paga.
+- `sem_movimento` substitui os antigos marcadores simbólicos de R$ 0,01 sem
+  contaminar médias ou totais financeiros.
+- A RPC `listar_contas_recorrentes(date)` calcula a média dos três últimos
+  pagamentos reais anteriores à competência escolhida.
+- Escritas usam as RPCs `salvar_conta_recorrente`,
+  `salvar_pagamento_recorrente` e `excluir_pagamento_recorrente`.
+- O histórico da planilha antiga pode ser enviado uma única vez pela RPC admin
+  `importar_contas_recorrentes_legado(jsonb, jsonb)`. A importação é idempotente
+  e não sobrescreve pagamentos posteriormente corrigidos de forma manual.
+- As views protegidas `app_contas_recorrentes_pagamentos` e
+  `app_contas_recorrentes_totais` alimentam histórico e gráfico mensal.
+
 ### painel_recebimento_resumo
 - Tipo: painel / view agregada
 - Uso: `vendas.html`
@@ -339,6 +358,8 @@ no repositório.
 - `painel_margem_contribuicao` → `index.html`
 - `painel_diario` → `index.html`, `vendas.html`
 - `venda_especie` → `venda_especie.html`
+- `conta_recorrente` / `conta_recorrente_pagamento` → `contas_recorrentes.html`
+- `app_contas_recorrentes_pagamentos` / `app_contas_recorrentes_totais` → histórico e gráfico de `contas_recorrentes.html`
 - `painel_recebimento_resumo` → `vendas.html`
 - `painel_recebimento_canal` → `vendas.html`
 - `painel_recebimento_hora` → `vendas.html`

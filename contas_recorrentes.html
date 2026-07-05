@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://cdn.sheetjs.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; upgrade-insecure-requests">
+<title>Sir Fisher · Contas recorrentes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="assets/dashboard-common.css" rel="stylesheet">
+<link href="assets/product-pages.css?v=20260705-3" rel="stylesheet">
+<link href="assets/accessibility.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.108.2" integrity="sha384-JWEyvHh+lRf0sN/WWY+QTQwX+CyWqmNg4tkc8GQzAMEtR2wGNrCJlvnu1lHD1kDm" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" integrity="sha384-bs/nf9FbdNouRbMiFcrcZfLXYPKiPaGVGplVbv7dLGECccEXDW+S3zjqSKR5ZEaD" crossorigin="anonymous"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js" integrity="sha384-EnyY0/GSHQGSxSgMwaIPzSESbqoOLSexfnSMN2AP+39Ckmn92stwABZynq1JyzdT" crossorigin="anonymous"></script>
+<script src="assets/supabase-client.js"></script>
+<script src="assets/auth.js"></script>
+<script src="assets/safe-dom.js"></script>
+<script src="assets/accessibility.js"></script>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="head-row"><div class="brand"><div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M2 12s3-6 10-6 10 6 10 6-3 6-10 6S2 12 2 12z"/><circle cx="9" cy="12" r="1" fill="#fff"/></svg></div><div><h1>Sir Fisher</h1><span>Painel de Gestão</span></div></div><div class="head-meta"><div class="unidade">Contas recorrentes</div></div></div>
+    <nav class="tabs"><a href="./">Visão Geral</a><a href="vendas.html">Faturamento</a><a href="caixa.html">Caixa</a><a href="dre.html">DRE</a><a href="despesas.html">Despesas</a><a href="conciliacao.html">Conciliação</a><a href="planejamento.html">Planejamento</a><a href="rotinas.html" class="routines">Rotinas</a></nav>
+  </header>
+  <main id="main"><div class="loading">Carregando contas…</div></main>
+</div>
+<div class="toast" id="toast"></div>
+<datalist id="contasBancarias"></datalist>
+
+<script>
+const sb=SirFisherSupabase;
+const esc=SirFisherDOM.escapeHTML;
+const CATEGORIAS={
+  pessoal:'Pessoal e sócios',ocupacao:'Ocupação e utilidades',servicos:'Serviços e sistemas',
+  operacao:'Operação',tributos:'Tributos',financeiro:'Financeiro',outros:'Outros'
+};
+const MESES=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+let AUTH=null,ROWS=[],PAYMENTS=[],TOTALS=[],chart=null;
+let competencia=mesAtual(),filtroStatus='ativas',busca='';
+
+function mesAtual(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;}
+function competenciaISO(){return competencia+'-01';}
+function hojeISO(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
+function brl(v){return Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});}
+function dataBR(v){if(!v)return '—';const [y,m,d]=String(v).slice(0,10).split('-');return `${d}/${m}/${y}`;}
+function mesLabel(v){const [y,m]=String(v).slice(0,7).split('-').map(Number);return `${MESES[m-1]} ${y}`;}
+function toast(msg,erro=false){const el=document.getElementById('toast');el.textContent=msg;el.className='toast show'+(erro?' err':'');setTimeout(()=>el.classList.remove('show'),2600);}
+function vencimentoISO(row){const [y,m]=competencia.split('-').map(Number);const ultimo=new Date(y,m,0).getDate();return `${y}-${String(m).padStart(2,'0')}-${String(Math.min(Number(row.dia_vencimento),ultimo)).padStart(2,'0')}`;}
+function estado(row){
+  if(row.situacao==='pago')return{classe:'paid',rotulo:'Pago'};
+  if(row.situacao==='sem_movimento')return{classe:'ignored',rotulo:'Sem cobrança'};
+  if(!row.ativa)return{classe:'ignored',rotulo:'Inativa'};
+  const venc=vencimentoISO(row),hoje=hojeISO();
+  if(venc<hoje)return{classe:'overdue',rotulo:'Vencida'};
+  const dias=Math.ceil((new Date(venc+'T12:00:00')-new Date(hoje+'T12:00:00'))/86400000);
+  return dias<=5?{classe:'soon',rotulo:dias===0?'Vence hoje':`Vence em ${dias}d`}:{classe:'open',rotulo:'Pendente'};
+}
+function optionCategorias(valor){return Object.entries(CATEGORIAS).map(([k,v])=>`<option value="${k}"${k===valor?' selected':''}>${v}</option>`).join('');}
+
+function resumo(){
+  const base=ROWS.filter(r=>r.ativa&&r.tipo==='despesa'&&r.incluir_totais);
+  const pagos=base.filter(r=>r.situacao==='pago').reduce((s,r)=>s+Number(r.valor||0),0);
+  const pendentes=base.filter(r=>!r.situacao).reduce((s,r)=>s+Number(r.media_3||0),0);
+  const vencidas=base.filter(r=>!r.situacao&&estado(r).classe==='overdue');
+  const vencidoValor=vencidas.reduce((s,r)=>s+Number(r.media_3||0),0);
+  return{pagos,pendentes,previsto:pagos+pendentes,vencidas:vencidas.length,vencidoValor};
+}
+
+function render(){
+  const main=document.getElementById('main');
+  const sum=resumo();
+  const filtradas=ROWS.filter(r=>(filtroStatus==='todas'||(filtroStatus==='ativas'?r.ativa:!r.ativa))&&(!busca||r.nome.toLowerCase().includes(busca)));
+  main.innerHTML=`
+    <div class="page-intro recurring-intro"><div><h2>Contas recorrentes</h2><p>Acompanhe pelo mês de vencimento. A data do pagamento pode ser anterior ou posterior à competência.</p></div><div class="actions"><input id="mesRef" class="field" type="month" value="${competencia}"><button id="recarregar" class="button secondary">Atualizar</button></div></div>
+    <div class="summary-grid recurring-summary">
+      <div class="summary-card paid"><div class="label">Pago no mês</div><div class="value">${brl(sum.pagos)}</div><div class="note">Valores efetivamente registrados</div></div>
+      <div class="summary-card pending"><div class="label">Pendente previsto</div><div class="value">${brl(sum.pendentes)}</div><div class="note">Média dos 3 últimos pagamentos</div></div>
+      <div class="summary-card overdue"><div class="label">Vencidas</div><div class="value">${sum.vencidas}</div><div class="note">Previsão de ${brl(sum.vencidoValor)}</div></div>
+      <div class="summary-card forecast"><div class="label">Total previsto</div><div class="value">${brl(sum.previsto)}</div><div class="note">Pago + pendente previsto</div></div>
+    </div>
+    <section class="panel recurring-chart-panel"><div class="panel-head"><div><h3>Evolução mensal</h3><div class="hint">Total pago em despesas recorrentes por mês de vencimento.</div></div></div><div class="chart-box recurring-chart"><canvas id="recurringChart"></canvas></div></section>
+    <section class="panel"><div class="panel-head recurring-list-head"><div><h3>${mesLabel(competencia)}</h3><div class="hint">${filtradas.length} conta${filtradas.length===1?'':'s'} exibida${filtradas.length===1?'':'s'}.</div></div><div class="actions"><input id="buscaConta" class="field filter" type="search" placeholder="Buscar conta" value="${esc(busca)}"><select id="filtroStatus" class="field"><option value="ativas"${filtroStatus==='ativas'?' selected':''}>Somente ativas</option><option value="todas"${filtroStatus==='todas'?' selected':''}>Todas</option><option value="inativas"${filtroStatus==='inativas'?' selected':''}>Somente inativas</option></select></div></div>
+      <div class="recurring-legend">${Object.entries(CATEGORIAS).map(([k,v])=>`<span><i class="category-dot ${k}"></i>${v}</span>`).join('')}</div>
+      <div id="listaContas" class="recurring-list">${filtradas.map(linhaConta).join('')||'<div class="empty">Nenhuma conta encontrada neste filtro.</div>'}</div>
+    </section>
+    <details class="panel recurring-create"><summary>Adicionar nova conta</summary><form id="novaConta" class="recurring-form"><input name="nome" class="field wide" required maxlength="160" placeholder="Nome da conta"><input name="dia" class="field small" type="number" min="1" max="31" required placeholder="Dia"><select name="categoria" class="field">${optionCategorias('outros')}</select><select name="tipo" class="field"><option value="despesa">Despesa</option><option value="rotina">Rotina sem valor</option></select><input name="unidade" class="field" value="PRAIA" required maxlength="40"><button class="button" type="submit">Cadastrar</button></form></details>
+    ${AUTH&&AUTH.role==='admin'?`<details class="panel legacy-import"><summary>Importar histórico da planilha antiga</summary><div class="hint">A importação é local, idempotente e não substitui pagamentos corrigidos pelo painel.</div><div class="actions"><input id="arquivoLegado" class="field" type="file" accept=".xlsx,.xls"><button id="importarLegado" class="button secondary">Ler e importar</button></div></details>`:''}`;
+  bind();renderChart();atualizarDatalist();
+}
+
+function linhaConta(row){
+  const e=estado(row),hist=PAYMENTS.filter(p=>Number(p.conta_id)===Number(row.conta_id)).slice(0,6);
+  const pago=row.situacao==='pago',sem=row.situacao==='sem_movimento';
+  return `<article class="recurring-row state-${e.classe}" data-id="${row.conta_id}">
+    <div class="recurring-main">
+      <div class="recurring-name"><i class="category-bar ${row.categoria}"></i><div><strong>${esc(row.nome)}</strong><span>Vence dia ${row.dia_vencimento} · ${esc(CATEGORIAS[row.categoria]||'Outros')}${row.tipo==='rotina'?' · rotina sem valor':''}${row.tipo==='despesa'&&!row.incluir_totais?' · fora dos totais':''}${!row.ativa?' · inativa':''}</span></div></div>
+      <div class="recurring-average"><span>Média 3 meses</span><strong>${row.tipo==='rotina'||row.media_3==null?'—':brl(row.media_3)}</strong></div>
+      <span class="recurring-status ${e.classe}">${e.rotulo}</span>
+    </div>
+    <div class="recurring-controls">
+      ${row.tipo==='despesa'?`<input class="field pay-value" type="number" min="0" step="0.01" placeholder="Valor pago" value="${pago?Number(row.valor):''}"><input class="field pay-bank" list="contasBancarias" placeholder="Conta bancária" value="${pago?esc(row.conta_bancaria||''):''}"><input class="field pay-date" type="date" value="${pago&&row.data_pagamento?row.data_pagamento:hojeISO()}"><button class="button pay-save">${pago?'Atualizar':'Salvar'}</button><button class="button secondary no-charge">${sem?'✓ Sem cobrança':'Sem cobrança'}</button>`:`<button class="button secondary no-charge">${sem?'✓ Concluída':'Marcar concluída'}</button>`}
+      ${row.pagamento_id?'<button class="button danger pay-clear">Limpar</button>':''}
+    </div>
+    <div class="recurring-extras">
+      <details class="account-history"><summary>Histórico</summary><div class="account-history-list">${hist.map(h=>`<div><strong>${mesLabel(h.competencia)}</strong><span>${h.situacao==='sem_movimento'?'Sem cobrança':brl(h.valor)}${h.conta_bancaria?' · '+esc(h.conta_bancaria):''}${h.data_pagamento?' · '+dataBR(h.data_pagamento):''}</span></div>`).join('')||'<span class="muted">Sem histórico.</span>'}</div></details>
+      <details class="account-edit"><summary>Editar conta</summary><form class="edit-account recurring-form"><input name="nome" class="field wide" value="${esc(row.nome)}" required maxlength="160"><input name="dia" class="field small" type="number" min="1" max="31" value="${row.dia_vencimento}" required><select name="categoria" class="field">${optionCategorias(row.categoria)}</select><select name="tipo" class="field"><option value="despesa"${row.tipo==='despesa'?' selected':''}>Despesa</option><option value="rotina"${row.tipo==='rotina'?' selected':''}>Rotina sem valor</option></select><input name="unidade" class="field" value="${esc(row.unidade)}" required><label class="active-check"><input name="ativa" type="checkbox"${row.ativa?' checked':''}> Ativa</label><label class="active-check"><input name="incluir" type="checkbox"${row.incluir_totais?' checked':''}> Incluir nos totais</label><button class="button" type="submit">Salvar conta</button></form></details>
+      ${row.atualizado_em?`<span class="last-update">Última atualização: ${dataBR(row.atualizado_em)}${row.atualizado_por_nome?' por '+esc(row.atualizado_por_nome):''}</span>`:''}
+    </div>
+  </article>`;
+}
+
+function bind(){
+  document.getElementById('mesRef').addEventListener('change',e=>{competencia=e.target.value||mesAtual();load();});
+  document.getElementById('recarregar').addEventListener('click',load);
+  document.getElementById('filtroStatus').addEventListener('change',e=>{filtroStatus=e.target.value;render();});
+  document.getElementById('buscaConta').addEventListener('input',e=>{busca=e.target.value.trim().toLowerCase();renderLista();});
+  document.getElementById('novaConta').addEventListener('submit',salvarNovaConta);
+  document.querySelectorAll('.recurring-row').forEach(row=>{
+    const id=Number(row.dataset.id),data=ROWS.find(r=>Number(r.conta_id)===id);
+    row.querySelector('.pay-save')?.addEventListener('click',()=>salvarPagamento(row,data));
+    row.querySelector('.no-charge')?.addEventListener('click',()=>salvarSemMovimento(data));
+    row.querySelector('.pay-clear')?.addEventListener('click',()=>limparPagamento(data));
+    row.querySelector('.edit-account').addEventListener('submit',e=>salvarEdicaoConta(e,data));
+  });
+  document.getElementById('importarLegado')?.addEventListener('click',importarLegado);
+}
+function renderLista(){
+  const list=document.getElementById('listaContas');
+  const filtradas=ROWS.filter(r=>(filtroStatus==='todas'||(filtroStatus==='ativas'?r.ativa:!r.ativa))&&(!busca||r.nome.toLowerCase().includes(busca)));
+  list.innerHTML=filtradas.map(linhaConta).join('')||'<div class="empty">Nenhuma conta encontrada neste filtro.</div>';
+  list.querySelectorAll('.recurring-row').forEach(row=>{const data=ROWS.find(r=>Number(r.conta_id)===Number(row.dataset.id));row.querySelector('.pay-save')?.addEventListener('click',()=>salvarPagamento(row,data));row.querySelector('.no-charge')?.addEventListener('click',()=>salvarSemMovimento(data));row.querySelector('.pay-clear')?.addEventListener('click',()=>limparPagamento(data));row.querySelector('.edit-account').addEventListener('submit',e=>salvarEdicaoConta(e,data));});
+}
+
+async function salvarPagamento(el,row){
+  const valor=Number(el.querySelector('.pay-value').value),banco=el.querySelector('.pay-bank').value.trim(),data=el.querySelector('.pay-date').value;
+  if(!(valor>0)||!banco||!data){toast('Informe valor, conta bancária e data.',true);return;}
+  setBusy(el,true);const{error}=await sb.rpc('salvar_pagamento_recorrente',{p_conta_id:row.conta_id,p_competencia:competenciaISO(),p_valor:valor,p_conta_bancaria:banco,p_data_pagamento:data,p_sem_movimento:false,p_observacao:null});
+  if(error){toast('Não salvou: '+error.message,true);setBusy(el,false);return;}toast('Pagamento salvo.');load();
+}
+async function salvarSemMovimento(row){const{error}=await sb.rpc('salvar_pagamento_recorrente',{p_conta_id:row.conta_id,p_competencia:competenciaISO(),p_valor:null,p_conta_bancaria:null,p_data_pagamento:null,p_sem_movimento:true,p_observacao:null});if(error){toast('Não atualizou: '+error.message,true);return;}toast(row.tipo==='rotina'?'Rotina concluída.':'Mês marcado sem cobrança.');load();}
+async function limparPagamento(row){if(!confirm(`Limpar o registro de ${row.nome} em ${mesLabel(competencia)}?`))return;const{error}=await sb.rpc('excluir_pagamento_recorrente',{p_conta_id:row.conta_id,p_competencia:competenciaISO()});if(error){toast('Não limpou: '+error.message,true);return;}toast('Registro removido.');load();}
+function setBusy(el,busy){el.querySelectorAll('button,input').forEach(x=>x.disabled=busy);}
+
+async function salvarNovaConta(event){event.preventDefault();const f=new FormData(event.currentTarget);const tipo=f.get('tipo');const{error}=await sb.rpc('salvar_conta_recorrente',{p_id:null,p_nome:f.get('nome'),p_dia_vencimento:Number(f.get('dia')),p_categoria:f.get('categoria'),p_tipo:tipo,p_unidade:f.get('unidade'),p_ativa:true,p_incluir_totais:tipo==='despesa'});if(error){toast('Não cadastrou: '+error.message,true);return;}toast('Conta cadastrada.');event.currentTarget.reset();load();}
+async function salvarEdicaoConta(event,row){event.preventDefault();const f=new FormData(event.currentTarget);const{error}=await sb.rpc('salvar_conta_recorrente',{p_id:row.conta_id,p_nome:f.get('nome'),p_dia_vencimento:Number(f.get('dia')),p_categoria:f.get('categoria'),p_tipo:f.get('tipo'),p_unidade:f.get('unidade'),p_ativa:f.get('ativa')==='on',p_incluir_totais:f.get('incluir')==='on'});if(error){toast('Não atualizou: '+error.message,true);return;}toast('Conta atualizada.');load();}
+
+function renderChart(){
+  const canvas=document.getElementById('recurringChart');if(!canvas)return;if(chart)chart.destroy();
+  const dados=TOTALS.slice(-18);chart=new Chart(canvas,{type:'bar',data:{labels:dados.map(r=>mesLabel(r.competencia)),datasets:[{label:'Total pago',data:dados.map(r=>Number(r.total_pago||0)),backgroundColor:'#00a6a6',borderRadius:4,maxBarThickness:34}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>brl(c.raw)}}},scales:{y:{beginAtZero:true,ticks:{callback:v=>brl(v)}},x:{grid:{display:false}}}}});
+}
+function atualizarDatalist(){const bancos=[...new Set(PAYMENTS.map(p=>p.conta_bancaria).filter(Boolean))].sort();document.getElementById('contasBancarias').innerHTML=bancos.map(v=>`<option value="${esc(v)}">`).join('');}
+
+async function load(){
+  document.getElementById('main').innerHTML='<div class="loading">Carregando contas…</div>';
+  const inicio=new Date();inicio.setMonth(inicio.getMonth()-48);const corte=`${inicio.getFullYear()}-${String(inicio.getMonth()+1).padStart(2,'0')}-01`;
+  const [contas,pagamentos,totais]=await Promise.all([
+    sb.rpc('listar_contas_recorrentes',{p_competencia:competenciaISO()}),
+    sb.from('app_contas_recorrentes_pagamentos').select('*').gte('competencia',corte).order('competencia',{ascending:false}),
+    sb.from('app_contas_recorrentes_totais').select('*').gte('competencia',corte).order('competencia',{ascending:true})
+  ]);
+  const error=contas.error||pagamentos.error||totais.error;if(error){document.getElementById('main').innerHTML='<div class="erro">Não foi possível carregar as contas recorrentes.</div>';toast(error.message,true);return;}
+  ROWS=contas.data||[];PAYMENTS=pagamentos.data||[];TOTALS=totais.data||[];render();
+}
+
+const LEGACY_MONTHS=[
+  ['2026-06-01',5,6,7],['2026-05-01',8,9,10],['2026-04-01',11,12,13],['2026-03-01',14,15,16],['2026-02-01',17,18,19],['2026-01-01',20,21,22],['2025-12-01',23,24,25],['2025-11-01',26,27,28],['2025-10-01',29,30,31],
+  ['2025-09-01',32,34,33],['2025-08-01',35,37,36],['2025-07-01',38,40,39],['2025-06-01',41,43,42],['2025-05-01',44,46,45],['2025-04-01',47,49,48],['2025-03-01',50,52,51],['2025-02-01',53,55,54],['2025-01-01',56,58,57],['2024-12-01',59,61,60],['2024-11-01',62,64,63],['2024-10-01',65,67,66],['2024-09-01',68,70,69],['2024-08-01',71,73,72],['2024-07-01',74,76,75],['2024-06-01',77,79,78],['2024-05-01',80,82,81],['2024-04-01',83,85,84],['2024-03-01',86,88,87],
+  ['2024-02-01',89,null,90],['2024-01-01',91,null,92],['2023-12-01',93,null,94],['2023-11-01',95,null,96],['2023-10-01',97,null,98],['2023-09-01',99,null,100],['2023-08-01',101,null,102],['2023-07-01',103,null,104],['2023-06-01',105,null,106],['2023-05-01',107,null,108],['2023-04-01',109,null,110],['2023-03-01',111,null,112],['2023-02-01',113,null,114],['2023-01-01',115,null,116],['2022-12-01',117,null,118]
+];
+function categoriaLegada(nome){const n=nome.toLowerCase();if(/imposto|fgts|inss|irrf|\bdas\b/.test(n))return'tributos';if(/sal[aá]rio|bonifica|hemile|pr[oó] labore|lucro|refei[cç][aã]o|passagens|dentista/.test(n))return'pessoal';if(/aluguel|enel|cagece|g[aá]s|lixo/.test(n))return'ocupacao';if(/sistema|internet|ireserve|contador|advogado|abrasel|clube|tef/.test(n))return'servicos';if(/cart[aã]o|transferencia|transferência|bs cash/.test(n))return'financeiro';if(/marketing|bobina/.test(n))return'operacao';return'outros';}
+function unidadeLegada(nome){const n=nome.toLowerCase();if(n.includes('imprensa')||n.includes('impr'))return'IMPRENSA';if(n.includes(' pub'))return'PUB';return'PRAIA';}
+function contaLegada(v){if(v==null)return null;const s=String(v).trim();if(!s||s==='-'||/^n\/?a$/i.test(s))return null;if(/^bb$/i.test(s))return'Banco do Brasil';if(/^praia$/i.test(s))return'Praia';if(/^pub$/i.test(s))return'PUB';if(/^imprensa$/i.test(s))return'Imprensa';return s;}
+function dataLegada(v,comp){if(v==null||v==='-'||v==='')return null;if(v instanceof Date&&!isNaN(v))return v.toISOString().slice(0,10);if(typeof v==='number'){const d=new Date(Date.UTC(1899,11,30)+Math.round(v)*86400000);return d.toISOString().slice(0,10);}const s=String(v).trim().toLowerCase();let m=s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/);if(m)return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;m=s.match(/^(\d{1,2})[\/-]([a-zç]{3})$/i);if(m){const mapa={jan:1,fev:2,mar:3,abr:4,mai:5,jun:6,jul:7,ago:8,set:9,out:10,nov:11,dez:12};const pm=mapa[m[2].slice(0,3)];if(!pm)return null;let y=Number(comp.slice(0,4)),cm=Number(comp.slice(5,7));if(pm<cm-6)y++;if(pm>cm+6)y--;return `${y}-${String(pm).padStart(2,'0')}-${m[1].padStart(2,'0')}`;}return null;}
+function extrairLegado(buffer){
+  const wb=XLSX.read(buffer,{type:'array',cellDates:true});const ws=wb.Sheets.Contas||wb.Sheets[wb.SheetNames[0]];if(!ws)throw new Error('Aba Contas não encontrada.');const linhas=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:null});const contas=[],pagamentos=[];
+  for(let r=1;r<=66;r++){const row=linhas[r]||[],nome=String(row[3]||'').trim(),dia=Number(row[4]);if(!nome||!(dia>=1&&dia<=31))continue;const chave=`contas-xlsx-linha-${r+1}`,tipo=/^(faturamento contador|pedir bobinas)$/i.test(nome)?'rotina':'despesa',incluir_totais=tipo==='despesa'&&!/^(cart[aã]o btg|pro labore e lucro)$/i.test(nome);contas.push({chave,nome,dia_vencimento:dia,categoria:categoriaLegada(nome),tipo,unidade:unidadeLegada(nome),ativa:String(row[2]||'').trim().toLowerCase()==='ativo',incluir_totais});
+    LEGACY_MONTHS.forEach(([comp,valorCol,bancoCol,dataCol])=>{const valor=Number(row[valorCol]);if(!(valor>0))return;const sem_movimento=tipo==='rotina'||Math.abs(valor-0.01)<0.0001;pagamentos.push({chave,competencia:comp,valor:sem_movimento?null:Math.round(valor*100)/100,sem_movimento,conta_bancaria:sem_movimento?null:contaLegada(bancoCol==null?null:row[bancoCol]),data_pagamento:sem_movimento?null:dataLegada(row[dataCol],comp)});});
+  }
+  if(!contas.length||!pagamentos.length)throw new Error('Estrutura da planilha não reconhecida.');return{contas,pagamentos};
+}
+async function importarLegado(){const input=document.getElementById('arquivoLegado'),file=input.files[0];if(!file){toast('Escolha o arquivo Contas.xlsx.',true);return;}const btn=document.getElementById('importarLegado');btn.disabled=true;try{const dados=extrairLegado(await file.arrayBuffer());if(!confirm(`Importar ${dados.contas.length} contas e ${dados.pagamentos.length} registros mensais?`)){btn.disabled=false;return;}const{data,error}=await sb.rpc('importar_contas_recorrentes_legado',{p_contas:dados.contas,p_pagamentos:dados.pagamentos});if(error)throw error;const r=data&&data[0];toast(`Importação concluída: ${r?.contas_processadas||dados.contas.length} contas.`);load();}catch(error){toast('Importação não concluída: '+error.message,true);btn.disabled=false;}}
+
+(async()=>{AUTH=await SirFisherAuth.requireRole(sb);if(AUTH)await load();})();
+</script>
+</body>
+</html>

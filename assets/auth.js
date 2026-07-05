@@ -20,6 +20,7 @@
     'analise_individual.html',
     'classificar_excecoes.html',
     'venda_especie.html',
+    'contas_recorrentes.html',
     'gerente.html'
   ]);
   const KNOWN_PAGES = new Set([...ADMIN_ONLY_PAGES, ...CONFIGURABLE_PAGES]);

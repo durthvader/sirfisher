@@ -47,6 +47,7 @@ jobs:
             analise_individual.html \
             classificar_excecoes.html \
             conciliacao.html \
+            contas_recorrentes.html \
             parametros.html \
             parametros_gerais.html \
             permissoes.html \
@@ -80,6 +81,7 @@ jobs:
             caixa.html \
             classificar_excecoes.html \
             conciliacao.html \
+            contas_recorrentes.html \
             despesas.html \
             dre.html \
             gerente.html \
