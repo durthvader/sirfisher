@@ -41,7 +41,9 @@ async function loadStatus(){
     <div class="summary-grid"><div class="summary-card"><div class="label">Fontes monitoradas</div><div class="value">${rows.length}</div></div><div class="summary-card"><div class="label">Em dia</div><div class="value">${ok}</div></div><div class="summary-card"><div class="label">Atenção</div><div class="value">${warn}</div></div><div class="summary-card"><div class="label">Atrasadas/sem carga</div><div class="value">${bad}</div></div></div>
     <div class="notice">Critério operacional: até 2 dias sem nova importação = em dia; de 3 a 5 dias = atenção; acima de 5 dias = atrasada. Recebíveis podem ter período futuro porque representam agenda.</div>
     <section class="panel"><div class="panel-head"><div><h3>Fontes</h3><div class="hint">A contagem representa linhas disponíveis na origem bruta.</div></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Fonte</th><th>Estado</th><th class="right">Linhas</th><th>Cobertura</th><th>Última importação</th><th>Log de carga</th><th class="right">Atraso</th></tr></thead><tbody>${rows.map(row=>{const [label,klass]=statusInfo(row.situacao);return`<tr><td><b>${esc(row.fonte)}</b></td><td><span class="status ${klass}">${label}</span></td><td class="right">${Number(row.linhas||0).toLocaleString('pt-BR')}</td><td>${fmtDay(row.periodo_inicio)} a ${fmtDay(row.periodo_fim)}</td><td>${fmtDate(row.ultima_importacao)}</td><td>${fmtDate(row.ultima_carga)}</td><td class="right">${row.atraso_dias==null?'—':`${row.atraso_dias} dia(s)`}</td></tr>`;}).join('')||'<tr><td colspan="7" class="empty">Nenhuma fonte encontrada.</td></tr>'}</tbody></table></div></section>
-    <section class="panel"><div class="panel-head"><div><h3>Manutenção do painel</h3><div class="hint">Recalcula os snapshots de Despesas e Caixa. Rode depois de classificar exceções ou transações para os números refletirem na hora — senão eles só atualizam na próxima importação.</div></div></div><div class="actions"><button id="refreshPainel" class="button">Atualizar painel agora</button><span id="refreshMsg" class="hint"></span></div></section>`;
+    <section class="panel"><div class="panel-head"><div><h3>Manutenção do painel</h3><div class="hint">Recalcula os snapshots de Despesas e Caixa. Rode depois de classificar exceções ou transações para os números refletirem na hora — senão eles só atualizam na próxima importação.</div></div></div><div class="actions"><button id="refreshPainel" class="button">Atualizar painel agora</button><span id="refreshMsg" class="hint"></span></div>
+    <div class="actions"><button id="syncHistorico" class="button secondary">Sincronizar histórico com DE-Para</button><span id="syncHistoricoMsg" class="hint"></span></div>
+    <div class="hint">Aplica ao histórico legado (2023–2025) as classificações já cadastradas no DE-Para, só nas linhas ainda sem categoria. Rode depois de classificar um fornecedor novo em Exceções, se ele também aparecer no histórico.</div></section>`;
   document.getElementById('reloadStatus').addEventListener('click',loadStatus);
   const refreshBtn=document.getElementById('refreshPainel');
   const refreshMsg=document.getElementById('refreshMsg');
@@ -53,6 +55,16 @@ async function loadStatus(){
     if(error){refreshMsg.style.color='var(--red)';refreshMsg.textContent='Não foi possível atualizar: '+error.message;return;}
     const quando=new Date(data||Date.now()).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
     refreshMsg.style.color='var(--green)';refreshMsg.textContent='✓ Painel atualizado às '+quando+'. Despesas e Caixa já refletem as classificações.';
+  });
+  const syncBtn=document.getElementById('syncHistorico');
+  const syncMsg=document.getElementById('syncHistoricoMsg');
+  syncBtn.addEventListener('click',async()=>{
+    syncBtn.disabled=true;const original=syncBtn.textContent;syncBtn.textContent='Sincronizando…';
+    syncMsg.style.color='';syncMsg.textContent='Aplicando o DE-Para às linhas do histórico ainda sem categoria…';
+    const {data,error}=await sb.rpc('sincronizar_historico_de_para');
+    syncBtn.disabled=false;syncBtn.textContent=original;
+    if(error){syncMsg.style.color='var(--red)';syncMsg.textContent='Não foi possível sincronizar: '+error.message;return;}
+    syncMsg.style.color='var(--green)';syncMsg.textContent='✓ '+(data||0)+' linha(s) do histórico classificada(s). Rode "Atualizar painel agora" em seguida.';
   });
 }
 
