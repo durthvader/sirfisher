@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
 <link href="assets/dashboard-common.css" rel="stylesheet">
-<link href="assets/product-pages.css?v=20260705-3" rel="stylesheet">
+<link href="assets/product-pages.css?v=20260706-1" rel="stylesheet">
 <link href="assets/accessibility.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.108.2" integrity="sha384-JWEyvHh+lRf0sN/WWY+QTQwX+CyWqmNg4tkc8GQzAMEtR2wGNrCJlvnu1lHD1kDm" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" integrity="sha384-bs/nf9FbdNouRbMiFcrcZfLXYPKiPaGVGplVbv7dLGECccEXDW+S3zjqSKR5ZEaD" crossorigin="anonymous"></script>
@@ -83,7 +83,7 @@ function render(){
     <section class="panel recurring-chart-panel"><div class="panel-head"><div><h3>Evolução mensal</h3><div class="hint">Total pago em despesas recorrentes por mês de vencimento.</div></div></div><div class="chart-box recurring-chart"><canvas id="recurringChart"></canvas></div></section>
     <section class="panel"><div class="panel-head recurring-list-head"><div><h3>${mesLabel(competencia)}</h3><div class="hint">${filtradas.length} conta${filtradas.length===1?'':'s'} exibida${filtradas.length===1?'':'s'}.</div></div><div class="actions"><input id="buscaConta" class="field filter" type="search" placeholder="Buscar conta" value="${esc(busca)}"><select id="filtroStatus" class="field"><option value="ativas"${filtroStatus==='ativas'?' selected':''}>Somente ativas</option><option value="todas"${filtroStatus==='todas'?' selected':''}>Todas</option><option value="inativas"${filtroStatus==='inativas'?' selected':''}>Somente inativas</option></select></div></div>
       <div class="recurring-legend">${Object.entries(CATEGORIAS).map(([k,v])=>`<span><i class="category-dot ${k}"></i>${v}</span>`).join('')}</div>
-      <div id="listaContas" class="recurring-list">${filtradas.map(linhaConta).join('')||'<div class="empty">Nenhuma conta encontrada neste filtro.</div>'}</div>
+      <div id="listaContas">${listaHTML(filtradas)}</div>
     </section>
     <details class="panel recurring-create"><summary>Adicionar nova conta</summary><form id="novaConta" class="recurring-form"><input name="nome" class="field wide" required maxlength="160" placeholder="Nome da conta"><input name="dia" class="field small" type="number" min="1" max="31" required placeholder="Dia"><select name="categoria" class="field">${optionCategorias('outros')}</select><select name="tipo" class="field"><option value="despesa">Despesa</option><option value="rotina">Rotina sem valor</option></select><input name="unidade" class="field" value="PRAIA" required maxlength="40"><button class="button" type="submit">Cadastrar</button></form></details>
     ${AUTH&&AUTH.role==='admin'?`<details class="panel legacy-import"><summary>Importar histórico da planilha antiga</summary><div class="hint">A importação é local, idempotente e não substitui pagamentos corrigidos pelo painel.</div><div class="actions"><input id="arquivoLegado" class="field" type="file" accept=".xlsx,.xls"><button id="importarLegado" class="button secondary">Ler e importar</button></div></details>`:''}`;
@@ -93,22 +93,33 @@ function render(){
 function linhaConta(row){
   const e=estado(row),hist=PAYMENTS.filter(p=>Number(p.conta_id)===Number(row.conta_id)).slice(0,6);
   const pago=row.situacao==='pago',sem=row.situacao==='sem_movimento';
-  return `<article class="recurring-row state-${e.classe}" data-id="${row.conta_id}">
-    <div class="recurring-main">
-      <div class="recurring-name"><i class="category-bar ${row.categoria}"></i><div><strong>${esc(row.nome)}</strong><span>Vence dia ${row.dia_vencimento} · ${esc(CATEGORIAS[row.categoria]||'Outros')}${row.tipo==='rotina'?' · rotina sem valor':''}${row.tipo==='despesa'&&!row.incluir_totais?' · fora dos totais':''}${!row.ativa?' · inativa':''}</span></div></div>
-      <div class="recurring-average"><span>Média 3 meses</span><strong>${row.tipo==='rotina'||row.media_3==null?'—':brl(row.media_3)}</strong></div>
+  const valorTxt=pago?brl(Number(row.valor)):(row.tipo==='rotina'||row.media_3==null?'—':brl(row.media_3));
+  const extra=[!row.ativa?'inativa':'',row.tipo==='rotina'?'rotina':'',row.tipo==='despesa'&&!row.incluir_totais?'fora dos totais':''].filter(Boolean).join(' · ');
+  return `<details class="recurring-row state-${e.classe}" data-id="${row.conta_id}">
+    <summary class="recurring-main">
+      <i class="category-bar ${row.categoria}" title="${esc(CATEGORIAS[row.categoria]||'Outros')}"></i>
+      <span class="recurring-name"><strong>${esc(row.nome)}</strong><span>dia ${row.dia_vencimento}${extra?' · '+extra:''}</span></span>
+      <span class="recurring-average"><span>${pago?'Pago':'Média 3m'}</span><strong>${valorTxt}</strong></span>
       <span class="recurring-status ${e.classe}">${e.rotulo}</span>
+    </summary>
+    <div class="recurring-detail">
+      <div class="recurring-controls">
+        ${row.tipo==='despesa'?`<input class="field pay-value" type="number" min="0" step="0.01" placeholder="Valor pago" value="${pago?Number(row.valor):''}"><input class="field pay-bank" list="contasBancarias" placeholder="Conta bancária" value="${pago?esc(row.conta_bancaria||''):''}"><input class="field pay-date" type="date" value="${pago&&row.data_pagamento?row.data_pagamento:hojeISO()}"><button class="button pay-save">${pago?'Atualizar':'Salvar'}</button><button class="button secondary no-charge">${sem?'✓ Sem cobrança':'Sem cobrança'}</button>`:`<button class="button secondary no-charge">${sem?'✓ Concluída':'Marcar concluída'}</button>`}
+        ${row.pagamento_id?'<button class="button danger pay-clear">Limpar</button>':''}
+      </div>
+      <div class="recurring-extras">
+        <details class="account-history"><summary>Histórico</summary><div class="account-history-list">${hist.map(h=>`<div><strong>${mesLabel(h.competencia)}</strong><span>${h.situacao==='sem_movimento'?'Sem cobrança':brl(h.valor)}${h.conta_bancaria?' · '+esc(h.conta_bancaria):''}${h.data_pagamento?' · '+dataBR(h.data_pagamento):''}</span></div>`).join('')||'<span class="muted">Sem histórico.</span>'}</div></details>
+        <details class="account-edit"><summary>Editar conta</summary><form class="edit-account recurring-form"><input name="nome" class="field wide" value="${esc(row.nome)}" required maxlength="160"><input name="dia" class="field small" type="number" min="1" max="31" value="${row.dia_vencimento}" required><select name="categoria" class="field">${optionCategorias(row.categoria)}</select><select name="tipo" class="field"><option value="despesa"${row.tipo==='despesa'?' selected':''}>Despesa</option><option value="rotina"${row.tipo==='rotina'?' selected':''}>Rotina sem valor</option></select><input name="unidade" class="field" value="${esc(row.unidade)}" required><label class="active-check"><input name="ativa" type="checkbox"${row.ativa?' checked':''}> Ativa</label><label class="active-check"><input name="incluir" type="checkbox"${row.incluir_totais?' checked':''}> Incluir nos totais</label><button class="button" type="submit">Salvar conta</button></form></details>
+        ${row.atualizado_em?`<span class="last-update">Última atualização: ${dataBR(row.atualizado_em)}${row.atualizado_por_nome?' por '+esc(row.atualizado_por_nome):''}</span>`:''}
+      </div>
     </div>
-    <div class="recurring-controls">
-      ${row.tipo==='despesa'?`<input class="field pay-value" type="number" min="0" step="0.01" placeholder="Valor pago" value="${pago?Number(row.valor):''}"><input class="field pay-bank" list="contasBancarias" placeholder="Conta bancária" value="${pago?esc(row.conta_bancaria||''):''}"><input class="field pay-date" type="date" value="${pago&&row.data_pagamento?row.data_pagamento:hojeISO()}"><button class="button pay-save">${pago?'Atualizar':'Salvar'}</button><button class="button secondary no-charge">${sem?'✓ Sem cobrança':'Sem cobrança'}</button>`:`<button class="button secondary no-charge">${sem?'✓ Concluída':'Marcar concluída'}</button>`}
-      ${row.pagamento_id?'<button class="button danger pay-clear">Limpar</button>':''}
-    </div>
-    <div class="recurring-extras">
-      <details class="account-history"><summary>Histórico</summary><div class="account-history-list">${hist.map(h=>`<div><strong>${mesLabel(h.competencia)}</strong><span>${h.situacao==='sem_movimento'?'Sem cobrança':brl(h.valor)}${h.conta_bancaria?' · '+esc(h.conta_bancaria):''}${h.data_pagamento?' · '+dataBR(h.data_pagamento):''}</span></div>`).join('')||'<span class="muted">Sem histórico.</span>'}</div></details>
-      <details class="account-edit"><summary>Editar conta</summary><form class="edit-account recurring-form"><input name="nome" class="field wide" value="${esc(row.nome)}" required maxlength="160"><input name="dia" class="field small" type="number" min="1" max="31" value="${row.dia_vencimento}" required><select name="categoria" class="field">${optionCategorias(row.categoria)}</select><select name="tipo" class="field"><option value="despesa"${row.tipo==='despesa'?' selected':''}>Despesa</option><option value="rotina"${row.tipo==='rotina'?' selected':''}>Rotina sem valor</option></select><input name="unidade" class="field" value="${esc(row.unidade)}" required><label class="active-check"><input name="ativa" type="checkbox"${row.ativa?' checked':''}> Ativa</label><label class="active-check"><input name="incluir" type="checkbox"${row.incluir_totais?' checked':''}> Incluir nos totais</label><button class="button" type="submit">Salvar conta</button></form></details>
-      ${row.atualizado_em?`<span class="last-update">Última atualização: ${dataBR(row.atualizado_em)}${row.atualizado_por_nome?' por '+esc(row.atualizado_por_nome):''}</span>`:''}
-    </div>
-  </article>`;
+  </details>`;
+}
+function listaHTML(filtradas){
+  if(!filtradas.length)return '<div class="empty">Nenhuma conta encontrada neste filtro.</div>';
+  const abertas=filtradas.filter(r=>r.situacao!=='pago'),pagas=filtradas.filter(r=>r.situacao==='pago');
+  const grupo=(titulo,lista)=>lista.length?`<div class="recurring-group"><div class="recurring-group-head">${titulo}<span>${lista.length}</span></div><div class="recurring-list">${lista.map(linhaConta).join('')}</div></div>`:'';
+  return grupo('Em aberto',abertas)+grupo('Pagas',pagas);
 }
 
 function bind(){
@@ -129,7 +140,7 @@ function bind(){
 function renderLista(){
   const list=document.getElementById('listaContas');
   const filtradas=ROWS.filter(r=>(filtroStatus==='todas'||(filtroStatus==='ativas'?r.ativa:!r.ativa))&&(!busca||r.nome.toLowerCase().includes(busca)));
-  list.innerHTML=filtradas.map(linhaConta).join('')||'<div class="empty">Nenhuma conta encontrada neste filtro.</div>';
+  list.innerHTML=listaHTML(filtradas);
   list.querySelectorAll('.recurring-row').forEach(row=>{const data=ROWS.find(r=>Number(r.conta_id)===Number(row.dataset.id));row.querySelector('.pay-save')?.addEventListener('click',()=>salvarPagamento(row,data));row.querySelector('.no-charge')?.addEventListener('click',()=>salvarSemMovimento(data));row.querySelector('.pay-clear')?.addEventListener('click',()=>limparPagamento(data));row.querySelector('.edit-account').addEventListener('submit',e=>salvarEdicaoConta(e,data));});
 }
 
