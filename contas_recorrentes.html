@@ -50,7 +50,7 @@ function toast(msg,erro=false){const el=document.getElementById('toast');el.text
 function vencimentoISO(row){const [y,m]=competencia.split('-').map(Number);const ultimo=new Date(y,m,0).getDate();return `${y}-${String(m).padStart(2,'0')}-${String(Math.min(Number(row.dia_vencimento),ultimo)).padStart(2,'0')}`;}
 function estado(row){
   if(row.situacao==='pago')return{classe:'paid',rotulo:'Pago'};
-  if(row.situacao==='sem_movimento')return{classe:'ignored',rotulo:'Sem cobrança'};
+  if(row.situacao==='sem_movimento')return row.tipo==='rotina'?{classe:'paid',rotulo:'Concluída'}:{classe:'ignored',rotulo:'Sem cobrança'};
   if(!row.ativa)return{classe:'ignored',rotulo:'Inativa'};
   const venc=vencimentoISO(row),hoje=hojeISO();
   if(venc<hoje)return{classe:'overdue',rotulo:'Vencida'};
@@ -117,7 +117,8 @@ function linhaConta(row){
 }
 function listaHTML(filtradas){
   if(!filtradas.length)return '<div class="empty">Nenhuma conta encontrada neste filtro.</div>';
-  const abertas=filtradas.filter(r=>r.situacao!=='pago'),pagas=filtradas.filter(r=>r.situacao==='pago');
+  const concluida=r=>r.situacao==='pago'||(r.tipo==='rotina'&&r.situacao==='sem_movimento');
+  const abertas=filtradas.filter(r=>!concluida(r)),pagas=filtradas.filter(concluida);
   const grupo=(titulo,lista)=>lista.length?`<div class="recurring-group"><div class="recurring-group-head">${titulo}<span>${lista.length}</span></div><div class="recurring-list">${lista.map(linhaConta).join('')}</div></div>`:'';
   return grupo('Em aberto',abertas)+grupo('Pagas',pagas);
 }
