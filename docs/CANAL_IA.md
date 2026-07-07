@@ -42,3 +42,8 @@ Risco conhecido: no realizado, recorrente é o valor registrado no controle limi
 Ajustei somente `calendario.html`: a tabela deixou de ocupar 100% da largura, passou a ter 872 px fixos com larguras específicas por coluna, paddings menores, linhas de 27 px e botões de detalhe de 14 px. Isso elimina o espaço horizontal desperdiçado sem remover informações; no celular, a rolagem horizontal permanece.
 
 Validação: sintaxe JavaScript e `git diff --check` passaram. Sem migration, sem alteração de dados e sem pendências além da conferência visual após o deploy.
+
+## 2026-07-07 · Claude — projeção de despesa fixa desconta contas recorrentes
+
+Migration nova: `20260736000000_projecao_despesa_fixa_desconta_recorrentes.sql` (idempotente, `create or replace view`). A view `projecao_despesa_fixa` agora subtrai da média mensal (3 meses fechados) o que já foi pago na competência em contas recorrentes (mesmo filtro de `app_contas_recorrentes_totais`: situacao='pago', tipo='despesa', incluir_totais) e distribui o restante pelos dias após o corte. Meses futuros seguem com a média cheia. Atenção: troquei o filtro `movimentacao = 'DÃ©bito'` (encoding corrompido nos dados) por `movimentacao like 'D%'` — se algum dia normalizarmos o encoding em `fato_financeiro`, essa view continua funcionando. Validei o SELECT contra o banco antes do push (jul/2026: 116.190,81 − 36.099,27 = 80.091,54 em 25 dias). Docs atualizados em `docs/supabase_schema.md`. Sem pendências.
+— Claude

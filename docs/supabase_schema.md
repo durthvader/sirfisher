@@ -98,7 +98,7 @@ no repositório.
 ### projecao_despesa_fixa
 - Tipo: painel / view agregada
 - Uso: `caixa.html`
-- Propósito: mostra projeção de despesas fixas por dia.
+- Propósito: mostra projeção de despesas fixas por dia. Calcula a média mensal dos 3 meses fechados anteriores (débitos dos grupos DRE PESSOAL, INFRAESTRUTURA, MARKETING E PUBLICIDADE e IMPOSTOS em `fato_financeiro`), subtrai o que já foi pago na competência em contas recorrentes (`conta_recorrente_pagamento` com `situacao='pago'`, contas `tipo='despesa'` e `incluir_totais`) e distribui o restante (nunca negativo) pelos dias do mês após o corte de caixa. Meses futuros sem pagamento lançado projetam a média cheia. Redefinida em `20260736000000_projecao_despesa_fixa_desconta_recorrentes.sql`.
 - Colunas importantes:
   - `dia`
   - `valor`
