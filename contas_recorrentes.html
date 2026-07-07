@@ -145,8 +145,10 @@ function renderLista(){
   list.querySelectorAll('.recurring-row').forEach(row=>{const data=ROWS.find(r=>Number(r.conta_id)===Number(row.dataset.id));row.querySelector('.pay-save')?.addEventListener('click',()=>salvarPagamento(row,data));row.querySelector('.no-charge')?.addEventListener('click',()=>salvarSemMovimento(data));row.querySelector('.pay-clear')?.addEventListener('click',()=>limparPagamento(data));row.querySelector('.edit-account').addEventListener('submit',e=>salvarEdicaoConta(e,data));});
 }
 
+const ALIASES_BANCO={bs:'BS Cash',pria:'Praia'};
 function canonBanco(v){
   const s=(v||'').trim();if(!s)return s;
+  const alias=ALIASES_BANCO[s.toLowerCase()];if(alias)return alias;
   const existente=[...new Set(PAYMENTS.map(p=>p.conta_bancaria).filter(Boolean))].find(b=>b.toLowerCase()===s.toLowerCase());
   if(existente)return existente;
   return s.length<=3?s.toUpperCase():s.replace(/\S+/g,w=>w[0].toUpperCase()+w.slice(1).toLowerCase());
@@ -170,7 +172,7 @@ function renderChart(){
 }
 function atualizarDatalist(){
   const mapa=new Map();
-  PAYMENTS.forEach(p=>{const v=(p.conta_bancaria||'').trim();if(!v)return;const chave=v.toLowerCase();if(!mapa.has(chave))mapa.set(chave,v);});
+  PAYMENTS.forEach(p=>{const raw=(p.conta_bancaria||'').trim();if(!raw)return;const v=ALIASES_BANCO[raw.toLowerCase()]||raw;const chave=v.toLowerCase();if(!mapa.has(chave))mapa.set(chave,v);});
   const bancos=[...mapa.values()].sort((a,b)=>a.localeCompare(b,'pt-BR'));
   document.getElementById('contasBancarias').innerHTML=bancos.map(v=>`<option value="${esc(v)}">`).join('');
 }
