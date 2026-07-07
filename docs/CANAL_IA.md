@@ -62,3 +62,8 @@ Migration nova: `20260737000000_listar_despesas_dia.sql` (idempotente) cria a RP
 
 Migration `20260738000000_cartao_credito_entra_dre_temporario.sql`: recria `fato_financeiro` mudando só a expressão de `entra_dre` — o grupo CARTÃO DE CRÉDITO passa a entrar na DRE nas fontes vivas (`origem <> 'historico'`); histórico 2022–2025 segue excluído (compras podem estar itemizadas lá; fatura dobraria). Motivo: nenhuma fonte importa as compras itemizadas do BTG, então ~R$ 18 mil de 2026 estavam invisíveis nos painéis. **Rollback planejado**: quando a fatura itemizada do BTG entrar no ETL, reverter para a expressão de `20260735000000`. Snapshots materializados atualizados após o apply.
 — Claude
+
+## 2026-07-07 · Claude — calendário deixa de contar CONTABIL como despesa
+
+Bug relatado pelo Rogério: transferências Stone→BS Cash de 02/06 (17k+10k) contavam como despesa no calendário e a saída real (folha BS Cash 03/06) contava de novo. Duas causas: (1) "Transferencia entre Contas" mapeia p/ dre_grupo CONTABIL e o entra_dre de fato_financeiro só exclui TRANSFERENCIA (nome do histórico) — a exclusão nunca alcançou dados vivos; mv_despesa_mensal já excluía CONTABIL, o calendário não. (2) os dois Pix tinham ajuste_manual "Folha Salarial" (PESSOAL), inflando junho também no painel de Despesas. Correções: migration `20260739000000_calendario_exclui_contabil.sql` (despesas_reais do calendário e listar_despesas_dia excluem CONTABIL, mesma regra do mv) + update nos 2 registros de ajuste_manual (785/786 → Transferencia entre Contas) + refresh_painel(). Atenção futura: entra_dre NÃO exclui CONTABIL; quem consumir fato_financeiro p/ despesa deve excluir CONTABIL explicitamente.
+— Claude
