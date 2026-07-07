@@ -17,5 +17,18 @@
       "$defaults",
       "Non-force `git push` (e.g. `git push origin main`) in this repository (sirfisher-app), done right after implementing a change the user asked for earlier in the same session, does not need a separate per-push confirmation. Force pushes, history rewrites (reset --hard, amend on shared history), and pushes for work the user did not ask for still require explicit confirmation as usual."
     ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/check_mcp.sh 2>/dev/null || true",
+            "statusMessage": "Checando conexão dos MCP servers..."
+          }
+        ]
+      }
+    ]
   }
 }
