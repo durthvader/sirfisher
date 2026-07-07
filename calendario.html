@@ -24,6 +24,7 @@
   .calendar-table .meta-col{color:#765b13}.calendar-table th.meta-col{background:#80611c;color:#fff}.calendar-table .sales-col{font-weight:700;color:#0b5963}.calendar-table th.sales-col{background:#0d6e78;color:#fff}.calendar-table .cash-col{font-weight:700}.calendar-table .negative{color:#ad3e3e}
   .cell-detail{display:inline-flex;align-items:center;justify-content:flex-end;gap:2px;width:100%}.detail-trigger{width:14px;height:14px;border:0;border-radius:50%;padding:0;background:rgba(18,49,63,.10);color:#34515d;font:700 8px/14px Roboto,Arial,sans-serif;cursor:pointer;flex:0 0 14px}.detail-trigger:hover,.detail-trigger:focus-visible{background:#12313f;color:#fff}.detail-trigger:focus-visible{outline:2px solid #00a6a6;outline-offset:1px}
   .detail-popover{position:fixed;z-index:150;width:245px;background:#12313f;color:#fff;border:1px solid rgba(255,255,255,.16);border-radius:10px;padding:11px 12px;box-shadow:0 12px 36px rgba(0,0,0,.28);display:none}.detail-popover.show{display:block}.detail-popover h3{font-size:11.5px;margin:0 0 7px}.detail-line{display:flex;justify-content:space-between;gap:15px;padding:4px 0;border-top:1px solid rgba(255,255,255,.09);font-size:10.5px}.detail-line span{color:#b9cbd1}.detail-line strong{font-variant-numeric:tabular-nums}.detail-note{font-size:9px;line-height:1.4;color:#b9cbd1;margin-top:7px}.detail-warning{color:#ffd38a;margin-top:6px;font-size:9px;line-height:1.35}
+  .detail-list{max-height:240px;overflow:auto;overscroll-behavior:contain}.detail-list .detail-line span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.detail-total{border-top:1px solid rgba(255,255,255,.28)}
   .calendar-empty{padding:38px;text-align:center;color:var(--muted);font-size:12px}
   .calendar-table tfoot td{position:sticky;bottom:0;z-index:5;background:#f4f7f3;font-weight:700;border-top:2px solid #12313f;border-bottom:0}
   .calendar-table tfoot td:first-child,.calendar-table tfoot td:nth-child(2){z-index:7;background:#f4f7f3}
@@ -50,6 +51,9 @@ const MOEDA=new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'});
 const NUMERO=new Intl.NumberFormat('pt-BR',{maximumFractionDigits:0});
 let ROWS=[];
 let AUTH=null;
+let DESPESAS_DIA={};
+let hoverTimer=null;
+const HOVER_FINO=window.matchMedia('(hover: hover) and (pointer: fine)').matches;
 
 function mesAtual(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;}
 function mesISO(){return `${document.getElementById('mesSel')?.value||mesAtual()}-01`;}
@@ -72,21 +76,61 @@ function render(){
   document.getElementById('mesAnterior').addEventListener('click',()=>moverMes(-1));
   document.getElementById('mesSeguinte').addEventListener('click',()=>moverMes(1));
   document.querySelectorAll('.detail-trigger').forEach(b=>b.addEventListener('click',abrirDetalhe));
+  if(HOVER_FINO)document.querySelectorAll('.detail-trigger[data-detail="despesas"]').forEach(b=>{
+    const cell=b.closest('.cell-detail');
+    cell.addEventListener('mouseenter',()=>{clearTimeout(hoverTimer);mostrarDetalhe(b);});
+    cell.addEventListener('mouseleave',agendarFecharDetalhe);
+  });
 }
+
+function agendarFecharDetalhe(){clearTimeout(hoverTimer);hoverTimer=setTimeout(fecharDetalhe,300);}
 
 function moverMes(delta){const input=document.getElementById('mesSel');const [a,m]=input.value.split('-').map(Number);const d=new Date(a,m-1+delta,1);input.value=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;carregar();}
 function linha(rotulo,valor){return `<div class="detail-line"><span>${rotulo}</span><strong>${dinheiro(valor)}</strong></div>`;}
 
-function abrirDetalhe(event){
-  event.stopPropagation();const button=event.currentTarget;const r=ROWS[Number(button.dataset.row)];const tipo=button.dataset.detail;const pop=document.getElementById('detailPopover');let html='';
+function abrirDetalhe(event){event.stopPropagation();mostrarDetalhe(event.currentTarget);}
+
+function listaDespesas(itens,total){
+  if(!itens.length)return '<div class="detail-note">Nenhuma despesa registrada neste dia.</div>';
+  return `<div class="detail-list">${itens.map(d=>linha(d.descricao,d.valor)).join('')}</div><div class="detail-total">${linha('Total',total)}</div>`;
+}
+
+async function mostrarDetalhe(button){
+  const r=ROWS[Number(button.dataset.row)];const tipo=button.dataset.detail;const pop=document.getElementById('detailPopover');let html='';
+  pop.dataset.dia=r.dia;pop.dataset.tipo=tipo;
   if(tipo==='vendas')html=`<h3>Faturamento · ${dataBR(r.dia)}</h3>${linha('Crédito',r.venda_credito)}${linha('Débito',r.venda_debito)}${linha('Pix',r.venda_pix)}${linha('Extras / voucher',r.venda_extras)}${linha('Dinheiro',r.venda_dinheiro)}${linha('Total do dia',r.faturamento_dia)}<div class="detail-note">${r.modo==='projetado'?'O total é projeção; a divisão por forma só aparece nos dias realizados.':'Total líquido de cancelamentos, acrescido das vendas em espécie.'}</div>`;
   if(tipo==='recebimentos')html=`<h3>Recebimentos · ${dataBR(r.dia)}</h3>${linha('Crédito',r.recebimento_credito)}${linha('Débito',r.recebimento_debito)}${linha('Pix realizado',r.recebimento_pix)}${linha('Projeção adicional',r.recebimento_projetado)}${linha('Total',r.recebimento_total)}<div class="detail-note">Crédito e débito seguem o vencimento líquido dos recebíveis. Pix realizado vem do extrato Stone.</div>`;
-  if(tipo==='despesas')html=`<h3>Despesas · ${dataBR(r.dia)}</h3>${linha('Recorrentes',r.despesa_recorrente)}${linha('Não recorrentes',r.despesa_nao_recorrente)}${linha('Total',r.despesa_total)}<div class="detail-note">${r.modo==='projetado'?'Recorrente usa a projeção fixa; não recorrente usa a projeção direta.':'O total vem do financeiro. A parcela recorrente é limitada ao total do dia para evitar dupla contagem.'}</div>${Number(r.despesa_recorrente_nao_conciliada)>0?`<div class="detail-warning">Há ${dinheiro(r.despesa_recorrente_nao_conciliada)} registrado como recorrente sem correspondência no total financeiro deste dia.</div>`:''}`;
-  pop.innerHTML=html;pop.classList.add('show');
+  if(tipo==='despesas'){
+    if(r.modo==='projetado'){
+      html=`<h3>Despesas · ${dataBR(r.dia)}</h3>${linha('Recorrentes',r.despesa_recorrente)}${linha('Não recorrentes',r.despesa_nao_recorrente)}${linha('Total',r.despesa_total)}<div class="detail-note">Recorrente usa a projeção fixa; não recorrente usa a projeção direta.</div>`;
+    }else{
+      const aviso=Number(r.despesa_recorrente_nao_conciliada)>0?`<div class="detail-warning">Há ${dinheiro(r.despesa_recorrente_nao_conciliada)} registrado como recorrente sem correspondência no total financeiro deste dia.</div>`:'';
+      if(DESPESAS_DIA[r.dia]===undefined){
+        pop.innerHTML=`<h3>Despesas · ${dataBR(r.dia)}</h3><div class="detail-note">Carregando despesas…</div>`;posicionarPopover(pop,button);
+        const {data,error}=await sb.rpc('listar_despesas_dia',{p_dia:r.dia});
+        if(error){console.error('Falha ao listar despesas do dia:',error);DESPESAS_DIA[r.dia]=null;}
+        else DESPESAS_DIA[r.dia]=data||[];
+        if(pop.dataset.dia!==r.dia||pop.dataset.tipo!=='despesas'||!pop.classList.contains('show'))return;
+      }
+      const itens=DESPESAS_DIA[r.dia];
+      const corpo=itens?listaDespesas(itens,r.despesa_total):`${linha('Recorrentes',r.despesa_recorrente)}${linha('Não recorrentes',r.despesa_nao_recorrente)}${linha('Total',r.despesa_total)}<div class="detail-note">Não foi possível carregar a lista de despesas.</div>`;
+      html=`<h3>Despesas · ${dataBR(r.dia)}</h3>${corpo}${aviso}`;
+    }
+  }
+  pop.innerHTML=html;posicionarPopover(pop,button);
+}
+
+function posicionarPopover(pop,button){
+  pop.classList.add('show');
   const rect=button.getBoundingClientRect(),w=245;pop.style.left=`${Math.max(8,Math.min(window.innerWidth-w-8,rect.right-w))}px`;pop.style.top=`${Math.min(window.innerHeight-pop.offsetHeight-8,rect.bottom+7)}px`;
 }
 
 function fecharDetalhe(){document.getElementById('detailPopover').classList.remove('show');}
+if(HOVER_FINO){
+  const pop=document.getElementById('detailPopover');
+  pop.addEventListener('mouseenter',()=>clearTimeout(hoverTimer));
+  pop.addEventListener('mouseleave',agendarFecharDetalhe);
+}
 document.addEventListener('click',event=>{if(!event.target.closest('#detailPopover'))fecharDetalhe();});
 document.addEventListener('keydown',event=>{if(event.key==='Escape')fecharDetalhe();});
 
@@ -94,7 +138,7 @@ async function carregar(){
   const main=document.getElementById('main');const mes=document.getElementById('mesSel')?.value||mesAtual();main.innerHTML='<div class="loading">Carregando calendário…</div>';
   const {data,error}=await sb.rpc('listar_calendario_financeiro',{p_mes:`${mes}-01`});
   if(error){console.error('Falha ao carregar calendário:',error);main.innerHTML='<div class="erro">Não foi possível carregar o calendário financeiro.</div>';return;}
-  ROWS=data||[];render();document.getElementById('mesSel').value=mes;
+  ROWS=data||[];DESPESAS_DIA={};render();document.getElementById('mesSel').value=mes;
 }
 
 (async()=>{AUTH=await SirFisherAuth.requireRole(sb);if(AUTH)await carregar();})();

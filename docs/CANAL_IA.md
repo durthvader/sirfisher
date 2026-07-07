@@ -52,3 +52,8 @@ Migration nova: `20260736000000_projecao_despesa_fixa_desconta_recorrentes.sql` 
 
 Só `calendario.html`: linha de totais em `tfoot` (negrito, fixa no fim da rolagem). Somas de Meta dia, Fat. dia, Recebimentos e Despesas; colunas acumuladas (Meta acum., Fat. acum., Saldo caixa) mostram o último dia do mês. Sintaxe JS validada; sem migration. Sem pendências.
 — Claude
+
+## 2026-07-07 · Claude — detalhe de despesas lista lançamentos do dia
+
+Migration nova: `20260737000000_listar_despesas_dia.sql` (idempotente) cria a RPC `listar_despesas_dia(date)`, mesmo recorte da CTE `despesas_reais` do calendário, gated pela permissão de `calendario.html`. Em `calendario.html`, o popover de Despesas de dias realizados agora lista os lançamentos individuais (descrição + valor, total no fim), carregados sob demanda com cache por dia — nada muda no carregamento inicial; dias projetados mantêm o texto de projeção. No desktop (hover fino) o popover também abre ao passar o mouse na célula. Docs em `docs/supabase_schema.md`. Sem pendências.
+— Claude

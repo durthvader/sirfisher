@@ -273,6 +273,15 @@ no repositório.
   do dia; o restante é apresentado como não recorrente. Diferenças ficam
   expostas em `despesa_recorrente_nao_conciliada`, sem alterar a origem.
 
+### listar_despesas_dia(date)
+- Tipo: RPC diária `SECURITY DEFINER`, protegida pela permissão de `calendario.html`.
+- Uso: popover de despesas de `calendario.html`, carregada sob demanda (com cache por dia).
+- Propósito: listar as despesas individuais de um dia realizado (descrição, categoria, valor).
+- Mesmo recorte da CTE `despesas_reais` de `listar_calendario_financeiro`
+  (`fato_financeiro` por `data_caixa`, Débito, `entra_dre`, empresas PRAIA/BB),
+  para a soma da lista bater com a coluna Despesas.
+- Criada em `20260737000000_listar_despesas_dia.sql`.
+
 ### venda_especie
 - Tipo: tabela de vendas por espécie
 - Uso: `venda_especie.html`
@@ -371,6 +380,7 @@ no repositório.
 - `painel_margem_contribuicao` → `index.html`
 - `painel_diario` → `index.html`, `vendas.html`
 - `listar_calendario_financeiro(date)` → `calendario.html`
+- `listar_despesas_dia(date)` → `calendario.html`
 - `venda_especie` → `venda_especie.html`
 - `conta_recorrente` / `conta_recorrente_pagamento` → `contas_recorrentes.html`
 - `app_contas_recorrentes_pagamentos` / `app_contas_recorrentes_totais` → histórico e gráfico de `contas_recorrentes.html`
