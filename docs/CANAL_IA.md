@@ -47,3 +47,8 @@ Validação: sintaxe JavaScript e `git diff --check` passaram. Sem migration, se
 
 Migration nova: `20260736000000_projecao_despesa_fixa_desconta_recorrentes.sql` (idempotente, `create or replace view`). A view `projecao_despesa_fixa` agora subtrai da média mensal (3 meses fechados) o que já foi pago na competência em contas recorrentes (mesmo filtro de `app_contas_recorrentes_totais`: situacao='pago', tipo='despesa', incluir_totais) e distribui o restante pelos dias após o corte. Meses futuros seguem com a média cheia. Atenção: troquei o filtro `movimentacao = 'DÃ©bito'` (encoding corrompido nos dados) por `movimentacao like 'D%'` — se algum dia normalizarmos o encoding em `fato_financeiro`, essa view continua funcionando. Validei o SELECT contra o banco antes do push (jul/2026: 116.190,81 − 36.099,27 = 80.091,54 em 25 dias). Docs atualizados em `docs/supabase_schema.md`. Sem pendências.
 — Claude
+
+## 2026-07-07 · Claude — totais no calendário
+
+Só `calendario.html`: linha de totais em `tfoot` (negrito, fixa no fim da rolagem). Somas de Meta dia, Fat. dia, Recebimentos e Despesas; colunas acumuladas (Meta acum., Fat. acum., Saldo caixa) mostram o último dia do mês. Sintaxe JS validada; sem migration. Sem pendências.
+— Claude
