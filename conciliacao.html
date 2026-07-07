@@ -93,7 +93,8 @@ async function renderMes(anoMes){
   const cancelado=qtdPor('cancelado/estornado');
   const acionaveis=vendaSemReceb+recebSemVenda+valorDiverge+cancelado;
   const total=ok+pixVoucher+acionaveis;
-  const rate=total?ok/total*100:0;
+  const totalConciliavel=ok+acionaveis;
+  const rate=totalConciliavel?ok/totalConciliavel*100:0;
 
   const inicio=anoMes+'-01';
   const [ano,mes]=anoMes.split('-').map(Number);
@@ -108,7 +109,8 @@ async function renderMes(anoMes){
     <div class="page-intro"><div><h2>Conciliação Stone</h2><p>Correspondência por STONE ID entre vendas e agenda de recebíveis, mês a mês.</p></div><button id="reloadConciliation" class="button secondary">Atualizar</button></div>
     <div class="summary-grid">
       <div class="summary-card"><div class="label">Registros no mês</div><div class="value">${total.toLocaleString('pt-BR')}</div></div>
-      <div class="summary-card"><div class="label">Conciliados</div><div class="value">${ok.toLocaleString('pt-BR')}</div></div>
+      <div class="summary-card"><div class="label">Pix/Voucher</div><div class="value">${pixVoucher.toLocaleString('pt-BR')}</div></div>
+      <div class="summary-card"><div class="label">Cartão conciliado</div><div class="value">${ok.toLocaleString('pt-BR')}</div></div>
       <div class="summary-card"><div class="label">Taxa conciliada</div><div class="value">${pct(rate)}</div></div>
       <div class="summary-card"><div class="label">Precisam revisão</div><div class="value" style="color:${acionaveis>0?'var(--red)':'inherit'}">${acionaveis.toLocaleString('pt-BR')}</div></div>
     </div>
