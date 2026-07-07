@@ -57,3 +57,8 @@ Só `calendario.html`: linha de totais em `tfoot` (negrito, fixa no fim da rolag
 
 Migration nova: `20260737000000_listar_despesas_dia.sql` (idempotente) cria a RPC `listar_despesas_dia(date)`, mesmo recorte da CTE `despesas_reais` do calendário, gated pela permissão de `calendario.html`. Em `calendario.html`, o popover de Despesas de dias realizados agora lista os lançamentos individuais (descrição + valor, total no fim), carregados sob demanda com cache por dia — nada muda no carregamento inicial; dias projetados mantêm o texto de projeção. No desktop (hover fino) o popover também abre ao passar o mouse na célula. Docs em `docs/supabase_schema.md`. Sem pendências.
 — Claude
+
+## 2026-07-07 · Claude — TEMPORÁRIO: fatura de cartão entra na DRE
+
+Migration `20260738000000_cartao_credito_entra_dre_temporario.sql`: recria `fato_financeiro` mudando só a expressão de `entra_dre` — o grupo CARTÃO DE CRÉDITO passa a entrar na DRE nas fontes vivas (`origem <> 'historico'`); histórico 2022–2025 segue excluído (compras podem estar itemizadas lá; fatura dobraria). Motivo: nenhuma fonte importa as compras itemizadas do BTG, então ~R$ 18 mil de 2026 estavam invisíveis nos painéis. **Rollback planejado**: quando a fatura itemizada do BTG entrar no ETL, reverter para a expressão de `20260735000000`. Snapshots materializados atualizados após o apply.
+— Claude
