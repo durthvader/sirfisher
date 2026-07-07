@@ -145,8 +145,14 @@ function renderLista(){
   list.querySelectorAll('.recurring-row').forEach(row=>{const data=ROWS.find(r=>Number(r.conta_id)===Number(row.dataset.id));row.querySelector('.pay-save')?.addEventListener('click',()=>salvarPagamento(row,data));row.querySelector('.no-charge')?.addEventListener('click',()=>salvarSemMovimento(data));row.querySelector('.pay-clear')?.addEventListener('click',()=>limparPagamento(data));row.querySelector('.edit-account').addEventListener('submit',e=>salvarEdicaoConta(e,data));});
 }
 
+function canonBanco(v){
+  const s=(v||'').trim();if(!s)return s;
+  const existente=[...new Set(PAYMENTS.map(p=>p.conta_bancaria).filter(Boolean))].find(b=>b.toLowerCase()===s.toLowerCase());
+  if(existente)return existente;
+  return s.length<=3?s.toUpperCase():s.replace(/\S+/g,w=>w[0].toUpperCase()+w.slice(1).toLowerCase());
+}
 async function salvarPagamento(el,row){
-  const valor=Number(el.querySelector('.pay-value').value),banco=el.querySelector('.pay-bank').value.trim(),data=el.querySelector('.pay-date').value;
+  const valor=Number(el.querySelector('.pay-value').value),banco=canonBanco(el.querySelector('.pay-bank').value),data=el.querySelector('.pay-date').value;
   if(!(valor>0)||!banco||!data){toast('Informe valor, conta bancária e data.',true);return;}
   setBusy(el,true);const{error}=await sb.rpc('salvar_pagamento_recorrente',{p_conta_id:row.conta_id,p_competencia:competenciaISO(),p_valor:valor,p_conta_bancaria:banco,p_data_pagamento:data,p_sem_movimento:false,p_observacao:null});
   if(error){toast('Não salvou: '+error.message,true);setBusy(el,false);return;}toast('Pagamento salvo.');load();
@@ -162,7 +168,12 @@ function renderChart(){
   const canvas=document.getElementById('recurringChart');if(!canvas)return;if(chart)chart.destroy();
   const dados=TOTALS.slice(-18);chart=new Chart(canvas,{type:'bar',data:{labels:dados.map(r=>mesLabel(r.competencia)),datasets:[{label:'Total pago',data:dados.map(r=>Number(r.total_pago||0)),backgroundColor:'#00a6a6',borderRadius:4,maxBarThickness:34}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>brl(c.raw)}}},scales:{y:{beginAtZero:true,ticks:{callback:v=>brl(v)}},x:{grid:{display:false}}}}});
 }
-function atualizarDatalist(){const bancos=[...new Set(PAYMENTS.map(p=>p.conta_bancaria).filter(Boolean))].sort();document.getElementById('contasBancarias').innerHTML=bancos.map(v=>`<option value="${esc(v)}">`).join('');}
+function atualizarDatalist(){
+  const mapa=new Map();
+  PAYMENTS.forEach(p=>{const v=(p.conta_bancaria||'').trim();if(!v)return;const chave=v.toLowerCase();if(!mapa.has(chave))mapa.set(chave,v);});
+  const bancos=[...mapa.values()].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  document.getElementById('contasBancarias').innerHTML=bancos.map(v=>`<option value="${esc(v)}">`).join('');
+}
 
 async function load(){
   document.getElementById('main').innerHTML='<div class="loading">Carregando contas…</div>';
