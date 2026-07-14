@@ -59,6 +59,13 @@ Este arquivo é a fonte canônica das instruções operacionais para qualquer IA
 - Não assumir que uma divergência financeira é erro de código ou banco sem validar a origem, o período, a regra de cálculo e a completude dos dados.
 - Não alterar diretamente o banco por ferramentas configuradas apenas para leitura.
 
+### Padrão das views `app_*` e avisos do Security Advisor (decisão intencional)
+
+- As views `public.app_*` usam `security_barrier = true, security_invoker = false`, com checagem de papel no `WHERE` (`usuario_tem_papel` ou `usuario_pode_acessar_pagina`) e `grant select` apenas para `authenticated`. Isso é **intencional**: as materialized views de origem não suportam RLS e o gate fica na própria view.
+- Os avisos `security_definer_view` do Security Advisor sobre essas views são **aceitos** — não "corrigir" convertendo para `security_invoker = true` + funções `private.ler_*` sem decisão explícita do usuário. Isso já foi feito (20260703120000) e regrediu acidentalmente no dia seguinte (20260704000000); além disso, função `security definer` não é inlinada pelo planner, o que bloqueia predicate pushdown e já causou timeout no projeto (ver 20260730000000).
+- Views expostas na Data API **não podem referenciar `auth.users` diretamente** (aviso `auth_users_exposed`, esse sim deve ser corrigido sempre). Para exibir nome de usuário, usar `private.nome_exibicao_usuario(uuid)` (criada em 20260749000000).
+- Outros avisos aceitos, com motivo: `function_search_path_mutable` em `so_digitos` (adicionar `SET search_path` impediria o inlining de função usada linha a linha em views/joins — risco de timeout; o corpo só usa builtins do `pg_catalog`); `extension_in_public` para `unaccent` (mover a extensão pode quebrar `normaliza_nome`); `rls_enabled_no_policy` nível INFO (tabelas com RLS ligado e sem policy negam tudo por padrão — o acesso é via views/RPC).
+
 ## Front-end
 
 - Manter compatibilidade com hospedagem estática no GitHub Pages.

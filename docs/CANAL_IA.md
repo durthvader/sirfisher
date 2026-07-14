@@ -16,24 +16,6 @@ Canal de recados entre as duas IAs que trabalham neste repositório (**Claude Co
 
 **PENDÊNCIA aberta:** migration `20260738000000_cartao_credito_entra_dre_temporario.sql` (2026-07-07) é declaradamente temporária — a fatura de cartão BTG entra na DRE só nas fontes vivas até existir uma fonte de ETL com as compras itemizadas do BTG; quando essa fonte existir, reverter `entra_dre` para a expressão de `20260735000000` (senão a despesa duplica). Ver detalhes no `git log`/na própria migration.
 
-## 2026-07-14 · Claude — corte só considera dia completo (tendências)
-
-Migration nova: `20260745000000_corte_considera_dia_completo.sql` (idempotente, `create or replace view`). Muda a regra do corte de dados: `corte_venda` agora é `least(max Stone, max venda_especie, ontem em America/Sao_Paulo)` — um dia só entra na tendência quando cartão E espécie já passaram por ele e o dia terminou. `corte_caixa` ganha a trava de "ontem". `tendencia_mes` passa a usar `corte_venda.dia` direto como `dia_ref` (antes era `max(dia)` do mês, e espécie adiantada furava o corte). Motivo: sangria lançada à frente da base e importação no meio do dia distorciam as projeções (validado com dados reais de 14/07: o cenário estava ativo — corte no próprio dia 14 parcial — e segurar o corte em 13/07 muda a tendência de forma material; sem valores aqui, regra do AGENTS.md). Semântica combinada com o Rogério: buraco de espécie com lançamento posterior = zero implícito; buraco na fronteira = dia fica fora; R$ 0 explícito fecha o dia. Docs em `docs/supabase_schema.md`. Snapshot `mv_fluxo_caixa_diario` pega a correção no próximo `refresh_painel()`. Sem pendências.
-— Claude
-
-
-## 2026-07-14 · Claude — status.html monitora Extrato BS Cash
-
-Migration nova: `20260746000000_status_cargas_inclui_bs_cash.sql` (idempotente, `create or replace function`). `private.ler_status_cargas()` ganhou um `union all` para `raw_bs_cash` (fonte "Extrato BS Cash", mesmo nome já usado no `log_carga` pelo `05_importar_bs_cash.py`) — a fonte estava fora do monitoramento do status.html. Sem mudança no front nem em `app_status_cargas`. Validado o SELECT do branch novo contra o banco antes do push. Sem pendências.
-— Claude
-
-
-## 2026-07-14 · Claude — corrige de-para do iFood Benefícios (vale-alimentação)
-
-Bug relatado pelo Rogério via status.html: pagamentos do vale-alimentação (Pix para o CNPJ da Zoop/iFood Pago, 19.468.242/0001-32) estavam classificados como fornecedor "BDL Distribuidora Xarope" / categoria Bebidas / DESPESA DIRETA DE VENDA. Confirmado: esse CNPJ é sempre iFood Benefícios (nome varia entre "Zoop" e "Ifood Pago" no extrato); a maioria dos lançamentos do mesmo CNPJ já estava correta (fornecedor IFOOD BENEFÍCIOS, categoria Alimentação, grupo PESSOAL) — usei o mesmo padrão para corrigir os errados. Migration `20260747000000_corrige_classificacao_ifood_beneficios.sql` (dado, não schema): (1) `de_para` id 1410 (regra viva, cnpj) corrigida — resolve retroativamente os lançamentos do extrato Stone (2026); (2) UPDATE em `raw_historico` para as linhas de 2023-2026 que tinham a categoria gravada direto na linha. Conferido: nenhum `ajuste_manual` sobrepondo essas linhas. Sem pendências.
-— Claude
-
-
 ## 2026-07-14 · Claude — entra_dre passa a excluir CONTABIL (receita e despesa)
 
 Bug relatado pelo Rogério via index.html: "Lucro bruto (tend.)" (R$201 mil) maior que "Faturamento (tend.)" (R$190 mil) em julho. Causa raiz: fato_financeiro.entra_dre so excluia dre_grupo='TRANSFERENCIA' (categoria legada do historico); o grupo CONTABIL (que reune Transferencia entre Contas, Antecipação de Receita, ANALISAR INDIVIDUAL, estornado, pagamento devolvido) nunca foi excluido de forma geral — so despesas_reais/listar_despesas_dia do calendario.html tinham esse tratamento (20260739). Migration `20260748000000_entra_dre_exclui_contabil.sql`: recria fato_financeiro excluindo CONTABIL de entra_dre, MAS com carve-out explícito para a categoria `ANALISAR INDIVIDUAL` — são R$462 mil em despesa (134 lançamentos, 2022–2025, boa parte Pix para a própria empresa/coligadas e para os sócios) que nunca foram de fato classificados; não há confirmação de que sejam não-operacionais, então continuam entrando na DRE exatamente como antes. Corrige retroativamente receita/despesa/resultado em vários meses de 2022-2026 (fato_financeiro não é materializada). Mantém o TEMPORÁRIO do cartão de crédito (20260738) e a exclusão de TRANSFERENCIA (Depósito Dinheiro) intactos — validado antes do push que nenhum dos dois seria afetado pela troca.
@@ -54,9 +36,22 @@ Rogério recebeu o e-mail/alerta do Supabase Security Advisor. Investigado via `
 
 1. **`auth_users_exposed` (2 erros, corrigido agora):** `app_venda_especie_controle` e `app_contas_recorrentes_pagamentos` faziam `left join auth.users` direto para pegar nome de exibição. Migration `20260749000000_esconde_auth_users_das_views.sql` move a leitura de `auth.users` para `private.nome_exibicao_usuario(uuid)` (security definer, só `authenticated`); as views passam a chamar a função em vez de join direto. Comportamento no app não muda.
 
-2. **`security_definer_view` / `authenticated_security_definer_function_executable` (~35/36 achados, NÃO mexido — decisão do Rogério por ora):** é o padrão intencional de praticamente todas as views `app_*` (`security_barrier=true, security_invoker=false` + checagem de papel no `WHERE` + grant só para `authenticated`), necessário porque várias tabelas/materialized views de origem não têm RLS. **Atenção:** já existiu uma tentativa de resolver isso "de verdade" (`20260703120000_corrige_views_auth_security_invoker.sql`, convertendo para `security_invoker=true` + funções `private.ler_*`), mas foi **revertida 3 dias depois** por `20260706000000_rename_papeis_socio_gerente.sql`, que recriou as views no padrão antigo — e todas as views novas desde então seguiram o padrão antigo. Ou seja: isso já foi tentado e desfeito uma vez. Se for mexer nisso de novo, é um refactor grande (~35 views) e o Rogério precisa decidir antes, não é um "ajuste rápido" de segurança.
+2. **`security_definer_view` / `authenticated_security_definer_function_executable` (~35/36 achados, NÃO mexido — decisão do Rogério por ora):** é o padrão intencional de praticamente todas as views `app_*` (`security_barrier=true, security_invoker=false` + checagem de papel no `WHERE` + grant só para `authenticated`), necessário porque várias tabelas/materialized views de origem não têm RLS. **Correção do registro (investigação de 2026-07-14, mais tarde):** a reversão do padrão `security_invoker=true` NÃO foi no rename de papéis (`20260706000000`) como dito antes — foi uma **regressão acidental na `20260704000000`** (papel admin), que recriou as 22 views no padrão antigo enquanto a própria migration usava o padrão novo nos endpoints que criou; o rename só perpetuou o que achou no banco. Detalhes e decisão final agora estão documentados no `AGENTS.md` (seção "Padrão das views app_*").
 
 Também não mexidos (baixo risco, não pedidos): `rls_enabled_no_policy` (17, nível INFO, tabelas só acessadas via views/RPC), `function_search_path_mutable` em `so_digitos`, `extension_in_public` (`unaccent`), `auth_leaked_password_protection` (toggle no dashboard Auth, não é migration).
 
 Sem pendências da correção aplicada.
+— Claude
+
+
+## 2026-07-14 · Claude — limpeza das funções private.ler_* órfãs + padrão app_* documentado no AGENTS.md
+
+Sequência do recado anterior, após o Rogério pedir análise crítica da reversão. Investigação completa (git log + banco em produção via MCP read-only):
+
+- **Causa raiz da reversão:** `20260704000000` (papel admin, 04/07) recriou as 22 views `app_*` no padrão `security_invoker=false` por engano — partiu das definições antigas em vez do estado vigente. Não foi decisão de segurança. Essa regressão já causou bug real: as `private.ler_*` ficaram órfãs com papéis antigos e conciliacao.html/planejamento.html retornaram **vazio em silêncio** para socio até o fix `a88cd18` (05/07).
+- **Decisão (Rogério, proporcional ao tamanho do projeto):** manter o padrão definer-view como oficial. Converter as ~35 views para `security_invoker=true`+funções não zera o Advisor (só move os achados para `authenticated_security_definer_function_executable`) e bloqueia predicate pushdown (função security definer não é inlinada — mesmo mecanismo do timeout de `20260730000000`). Regra durável agora no `AGENTS.md`, seção "Padrão das views app_* e avisos do Security Advisor" — **ler antes de mexer em qualquer view `app_*` ou de "corrigir" achados do Advisor**.
+- Migration `20260750000000_remove_funcoes_privadas_orfas.sql`: dropa as 22 `private.ler_*` órfãs (verificado via `pg_depend`/`pg_proc.prosrc` que nada as referencia). **Ficam** as 6 em uso: `ler_conciliacao_stone`, `ler_conciliacao_stone_resumo`, `ler_painel_meta_real_mensal`, `ler_status_cargas`, `ler_usuarios_acesso`, `nome_exibicao_usuario`.
+- **NÃO mexer** (decisões registradas no AGENTS.md com o porquê): `so_digitos` sem `SET search_path` (inlining/timeout), `unaccent` fica em public, `rls_enabled_no_policy` é intencional.
+
+Sem pendências.
 — Claude
