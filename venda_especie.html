@@ -100,8 +100,9 @@ function atualizarResponsaveisRecolhido(recolhidos){
   const el=document.getElementById('responsaveisRecolhido');
   const porNome={};
   recolhidos.forEach(r=>{
-    const nome=r.recolhida_por_nome||'Não identificado';
-    porNome[nome]=(porNome[nome]||0)+(Number(r.valor)||0);
+    const valor=Number(r.valor)||0;
+    if(valor<=0||!r.recolhida_por_nome)return;
+    porNome[r.recolhida_por_nome]=(porNome[r.recolhida_por_nome]||0)+valor;
   });
   const nomes=Object.keys(porNome);
   if(!nomes.length){
@@ -109,7 +110,7 @@ function atualizarResponsaveisRecolhido(recolhidos){
     return;
   }
   const partes=nomes.sort((a,b)=>porNome[b]-porNome[a]).map(nome=>`<strong>${esc(nome)}</strong> ${esc(fmtMoeda(porNome[nome]))}`);
-  el.innerHTML='Com quem está a sangria recolhida: '+partes.join(' · ');
+  el.innerHTML='Recolhido, pendente de depósito: '+partes.join(' · ');
 }
 
 async function carregar(){
