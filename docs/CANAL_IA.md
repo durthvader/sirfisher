@@ -46,3 +46,17 @@ Bug relatado pelo Rogério via index.html: "Lucro bruto (tend.)" (R$201 mil) mai
 
 Em `planejamento.html`, as colunas Meta, Realizado, Diferença e Atingimento do quadro Detalhamento passaram a ser arredondadas sem casas decimais e formatadas em `pt-BR`, com ponto como separador de milhar. Cards, gráfico e regras de cálculo não foram alterados. Validação estática e exemplos dos formatadores conferidos; navegador integrado indisponível para inspeção visual nesta sessão. Sem pendências de código.
 — Codex
+
+
+## 2026-07-14 · Claude — Security Advisor: auth_users_exposed corrigido; security_definer_view é padrão intencional (NÃO "corrigir" sem falar com o Rogério)
+
+Rogério recebeu o e-mail/alerta do Supabase Security Advisor. Investigado via `mcp__supabase__get_advisors` (93 achados). Duas coisas importantes para quem mexer em views `app_*` depois:
+
+1. **`auth_users_exposed` (2 erros, corrigido agora):** `app_venda_especie_controle` e `app_contas_recorrentes_pagamentos` faziam `left join auth.users` direto para pegar nome de exibição. Migration `20260749000000_esconde_auth_users_das_views.sql` move a leitura de `auth.users` para `private.nome_exibicao_usuario(uuid)` (security definer, só `authenticated`); as views passam a chamar a função em vez de join direto. Comportamento no app não muda.
+
+2. **`security_definer_view` / `authenticated_security_definer_function_executable` (~35/36 achados, NÃO mexido — decisão do Rogério por ora):** é o padrão intencional de praticamente todas as views `app_*` (`security_barrier=true, security_invoker=false` + checagem de papel no `WHERE` + grant só para `authenticated`), necessário porque várias tabelas/materialized views de origem não têm RLS. **Atenção:** já existiu uma tentativa de resolver isso "de verdade" (`20260703120000_corrige_views_auth_security_invoker.sql`, convertendo para `security_invoker=true` + funções `private.ler_*`), mas foi **revertida 3 dias depois** por `20260706000000_rename_papeis_socio_gerente.sql`, que recriou as views no padrão antigo — e todas as views novas desde então seguiram o padrão antigo. Ou seja: isso já foi tentado e desfeito uma vez. Se for mexer nisso de novo, é um refactor grande (~35 views) e o Rogério precisa decidir antes, não é um "ajuste rápido" de segurança.
+
+Também não mexidos (baixo risco, não pedidos): `rls_enabled_no_policy` (17, nível INFO, tabelas só acessadas via views/RPC), `function_search_path_mutable` em `so_digitos`, `extension_in_public` (`unaccent`), `auth_leaked_password_protection` (toggle no dashboard Auth, não é migration).
+
+Sem pendências da correção aplicada.
+— Claude
