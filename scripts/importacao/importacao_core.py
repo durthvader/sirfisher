@@ -62,9 +62,9 @@ class ResultadoImportacao:
     periodo_fim: date | None
 
 
-def criar_parser(descricao: str) -> argparse.ArgumentParser:
+def criar_parser(descricao: str, *, arquivo_nargs: str | None = None) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=descricao)
-    parser.add_argument("arquivo", type=Path, help="arquivo CSV a importar")
+    parser.add_argument("arquivo", type=Path, nargs=arquivo_nargs, help="arquivo CSV a importar")
     parser.add_argument(
         "--dry-run",
         action="store_true",
@@ -89,7 +89,10 @@ def criar_parser(descricao: str) -> argparse.ArgumentParser:
 
 
 def ler_opcoes(parser: argparse.ArgumentParser, argv: Sequence[str] | None = None) -> OpcoesImportacao:
-    args = parser.parse_args(argv)
+    return opcoes_de_args(parser, parser.parse_args(argv))
+
+
+def opcoes_de_args(parser: argparse.ArgumentParser, args: argparse.Namespace) -> OpcoesImportacao:
     unidade = validar_unidade(args.unidade)
     if args.periodo_inicio and args.periodo_fim and args.periodo_inicio > args.periodo_fim:
         parser.error("--periodo-inicio não pode ser posterior a --periodo-fim")

@@ -34,7 +34,7 @@ for %%F in ("%DOWNLOADS%\Comprovante de Extrato*.csv") do (
         echo ============================================
         echo Importando [Extrato Stone]: %%~nxF
         echo ============================================
-        python "%SCRIPT%" "%%~fF"
+        python "%SCRIPT%" "%%~fF" --sem-refresh-painel
         if !ERRORLEVEL! NEQ 0 (
             echo.
             echo ERRO ao importar: %%~nxF
@@ -70,7 +70,7 @@ for %%F in ("%DOWNLOADS%\relatorio-recebimentos-*.csv") do (
         echo ============================================
         echo Importando [Recebiveis Stone]: %%~nxF
         echo ============================================
-        python "%SCRIPT%" "%%~fF"
+        python "%SCRIPT%" "%%~fF" --sem-refresh-painel
         if !ERRORLEVEL! NEQ 0 (
             echo.
             echo ERRO ao importar: %%~nxF
@@ -106,7 +106,7 @@ for %%F in ("%DOWNLOADS%\Extrato conta corrente - ??????.csv") do (
         echo ============================================
         echo Importando [Extrato BB]: %%~nxF
         echo ============================================
-        python "%SCRIPT%" "%%~fF"
+        python "%SCRIPT%" "%%~fF" --sem-refresh-painel
         if !ERRORLEVEL! NEQ 0 (
             echo.
             echo ERRO ao importar: %%~nxF
@@ -142,7 +142,7 @@ for %%F in ("%DOWNLOADS%\resultado_consulta*.csv") do (
         echo ============================================
         echo Importando [Extrato BS Cash]: %%~nxF
         echo ============================================
-        python "%SCRIPT%" "%%~fF"
+        python "%SCRIPT%" "%%~fF" --sem-refresh-painel
         if !ERRORLEVEL! NEQ 0 (
             echo.
             echo ERRO ao importar: %%~nxF
@@ -177,7 +177,7 @@ for /f "delims=" %%F in ('powershell -NoProfile -Command "Get-ChildItem -Path %D
     echo ============================================
     echo Importando [Vendas Stone]: %%~nxF
     echo ============================================
-    python "%SCRIPT%" "%%F"
+    python "%SCRIPT%" "%%F" --sem-refresh-painel
     if !ERRORLEVEL! NEQ 0 (
         echo.
         echo ERRO ao importar: %%~nxF
@@ -202,12 +202,34 @@ if "%ACHOU_PADRAO%"=="0" (
     echo.
 )
 
-echo ============================================
 if "%TOTAL_IMPORTADOS%"=="0" (
+    echo ============================================
     echo Nenhum arquivo encontrado em "%DOWNLOADS%" para os padroes conhecidos.
-) else (
-    echo Processo finalizado. Total de arquivos importados: %TOTAL_IMPORTADOS%
+    echo Painel nao precisou ser atualizado.
+    echo ============================================
+    pause
+    exit /b 0
 )
+
+rem === Atualiza o painel UMA vez, apos todas as cargas (refresh_painel e caro) ===
+echo ============================================
+echo Atualizando painel apos %TOTAL_IMPORTADOS% carga(s)...
+echo ============================================
+python "%SCRIPT%" --somente-refresh-painel
+if !ERRORLEVEL! NEQ 0 (
+    echo.
+    echo ATENCAO: As cargas foram gravadas e os arquivos ja foram movidos,
+    echo mas a atualizacao do painel falhou. Os dados estao salvos; falta
+    echo apenas refazer os snapshots de leitura. Rode novamente:
+    echo     python "%SCRIPT%" --somente-refresh-painel
+    echo (ou use o botao de atualizar painel na tela de Despesas, se for admin).
+    pause
+    exit /b 1
+)
+
+echo ============================================
+echo Processo finalizado. Total de arquivos importados: %TOTAL_IMPORTADOS%
+echo Painel atualizado.
 echo ============================================
 pause
 exit /b 0

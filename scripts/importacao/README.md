@@ -19,7 +19,10 @@ repositório.
 extrato/vendas/recebíveis, BB e BS Cash), chama `importar.py` para cada
 arquivo encontrado e move o CSV importado para a respectiva pasta
 `relatorio-*-old`. Um padrão sem arquivo correspondente é simplesmente
-pulado; o processo só para se uma importação falhar.
+pulado; o processo só para se uma importação falhar. Cada carga roda com
+`--sem-refresh-painel` e, ao final, o BAT dispara **um único**
+`--somente-refresh-painel` — `refresh_painel()` reprocessa duas materialized
+views e é caro, então não faz sentido repeti-lo por arquivo.
 
 `importar.py` é o dispatcher: recebe um único CSV, detecta o tipo comparando
 o cabeçalho do arquivo com o `CABECALHOS` de cada módulo (`01_importar_extrato_stone.py`,
@@ -55,10 +58,21 @@ python scripts/importacao/importar.py arquivo.csv `
   --dry-run --periodo-inicio 2026-07-01 --periodo-fim 2026-07-31
 ```
 
-Em uma carga real, inserção, recálculo e registro em `log_carga` são uma única
-transação. O refresh do painel ocorre após o commit. Se o refresh falhar, o
-processo retorna erro para que o BAT não arquive o CSV; uma nova execução é
-segura por causa da deduplicação.
+Em uma carga real, inserção, recálculo de saldo e registro em `log_carga` são
+uma única transação. O refresh do painel (`refresh_painel()`) é separado e
+ocorre após o commit.
+
+Atualização do painel:
+
+- Uso manual de um arquivo (`python importar.py arquivo.csv`): o painel é
+  atualizado ao final da carga, como antes.
+- Fluxo em lote (`rodar_importacoes.bat`): cada carga usa
+  `--sem-refresh-painel` e o painel é atualizado **uma vez só** no fim, via
+  `python importar.py --somente-refresh-painel`. Se esse refresh final
+  falhar, os dados já estão gravados (as cargas usam transação e
+  deduplicação); basta refazer o refresh, rodando de novo
+  `python importar.py --somente-refresh-painel` ou usando o botão de
+  atualizar painel na tela de Despesas (admin).
 
 ## Códigos de saída
 

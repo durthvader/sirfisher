@@ -7,6 +7,18 @@ específica. Este dispatcher só decide qual módulo usar, comparando o
 cabeçalho do CSV recebido com o conjunto ``CABECALHOS`` de cada um, antes de
 abrir qualquer conexão com o banco.
 
+O refresh do painel (``refresh_painel()``, que reprocessa as materialized
+views) é caro e não precisa rodar uma vez por arquivo. Por isso há duas
+flags:
+
+- ``--sem-refresh-painel``: grava a carga sem atualizar o painel. O fluxo em
+  lote (``rodar_importacoes.bat``) usa isso em cada arquivo e dispara um
+  único refresh ao final.
+- ``--somente-refresh-painel``: não importa nada, apenas atualiza o painel.
+
+Sem nenhuma das flags (uso manual de um arquivo só), o painel é atualizado
+ao fim da carga, como antes.
+
 Para adicionar uma nova origem no futuro: criar o módulo seguindo o mesmo
 padrão dos existentes (constantes ``CABECALHOS``/``COLUNAS`` e funções
 ``ler_csv``/``resumo``/``gravar``) e incluí-lo em ``REGISTRO`` abaixo.
@@ -27,7 +39,7 @@ from importacao_core import (
     criar_parser,
     executar_com_saida,
     imprimir_resultado,
-    ler_opcoes,
+    opcoes_de_args,
     validar_arquivo,
 )
 
@@ -78,13 +90,41 @@ def _ler_e_resumir(modulo: ModuleType, caminho: Path, opcoes: OpcoesImportacao):
     return registros, periodo
 
 
+def _refresh_painel() -> None:
+    print("\n== Atualizando painel ==")
+    atualizar_painel()
+    print("  painel atualizado.")
+
+
 def fluxo() -> None:
-    opcoes = ler_opcoes(
-        criar_parser(
-            "Detecta o tipo do CSV e importa "
-            "(extrato/vendas/recebíveis Stone, BB ou BS Cash)"
-        )
+    parser = criar_parser(
+        "Detecta o tipo do CSV e importa "
+        "(extrato/vendas/recebíveis Stone, BB ou BS Cash)",
+        arquivo_nargs="?",
     )
+    parser.add_argument(
+        "--sem-refresh-painel",
+        action="store_true",
+        help="grava sem atualizar o painel ao fim (o lote faz um refresh único depois)",
+    )
+    parser.add_argument(
+        "--somente-refresh-painel",
+        action="store_true",
+        help="apenas atualiza o painel e sai, sem importar arquivo",
+    )
+    args = parser.parse_args()
+
+    if args.somente_refresh_painel:
+        if args.arquivo is not None:
+            parser.error("--somente-refresh-painel não aceita arquivo")
+        _refresh_painel()
+        print("\nOK.")
+        return
+
+    if args.arquivo is None:
+        parser.error("informe o arquivo CSV a importar (ou use --somente-refresh-painel)")
+
+    opcoes = opcoes_de_args(parser, args)
     caminho = validar_arquivo(opcoes.arquivo)
     modulo = detectar_modulo(caminho)
     print(f"Lendo: {caminho}")
@@ -98,9 +138,12 @@ def fluxo() -> None:
 
     print("\n== Gravando, recalculando e registrando carga ==")
     imprimir_resultado(modulo.gravar(registros, periodo))
-    print("\n== Atualizando painel ==")
-    atualizar_painel()
-    print("  painel atualizado.")
+
+    if args.sem_refresh_painel:
+        print("\n[painel] Refresh adiado (--sem-refresh-painel); será feito uma vez ao fim do lote.")
+    else:
+        _refresh_painel()
+
     print("\nOK.")
 
 
