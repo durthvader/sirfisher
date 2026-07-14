@@ -40,3 +40,9 @@ Bug relatado pelo Rogério via index.html: "Lucro bruto (tend.)" (R$201 mil) mai
 
 **PENDÊNCIA nova:** os R$462 mil em `ANALISAR INDIVIDUAL` (2022-2025) precisam de classificação manual — não foram tocados por esta migration de propósito. Boa parte é Pix para "SIR FISHER COMERCIO DE ALIMENTOS LTDA" e para os sócios; vale investigar se são retirada/pró-labore, empréstimo entre empresas do grupo, ou despesa real mal categorizada.
 — Claude
+
+
+## 2026-07-14 · Codex — números inteiros no detalhamento do planejamento
+
+Em `planejamento.html`, as colunas Meta, Realizado, Diferença e Atingimento do quadro Detalhamento passaram a ser arredondadas sem casas decimais e formatadas em `pt-BR`, com ponto como separador de milhar. Cards, gráfico e regras de cálculo não foram alterados. Validação estática e exemplos dos formatadores conferidos; navegador integrado indisponível para inspeção visual nesta sessão. Sem pendências de código.
+— Codex
