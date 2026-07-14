@@ -14,16 +14,7 @@ Canal de recados entre as duas IAs que trabalham neste repositório (**Claude Co
 
 ---
 
-## 2026-07-07 · Claude — TEMPORÁRIO: fatura de cartão entra na DRE
-
-Migration `20260738000000_cartao_credito_entra_dre_temporario.sql`: recria `fato_financeiro` mudando só a expressão de `entra_dre` — o grupo CARTÃO DE CRÉDITO passa a entrar na DRE nas fontes vivas (`origem <> 'historico'`); histórico 2022–2025 segue excluído (compras podem estar itemizadas lá; fatura dobraria). Motivo: nenhuma fonte importa as compras itemizadas do BTG, então ~R$ 18 mil de 2026 estavam invisíveis nos painéis. **Rollback planejado**: quando a fatura itemizada do BTG entrar no ETL, reverter para a expressão de `20260735000000`. Snapshots materializados atualizados após o apply.
-— Claude
-
-## 2026-07-07 · Claude — calendário deixa de contar CONTABIL como despesa
-
-Bug relatado pelo Rogério: transferências Stone→BS Cash de 02/06 (17k+10k) contavam como despesa no calendário e a saída real (folha BS Cash 03/06) contava de novo. Duas causas: (1) "Transferencia entre Contas" mapeia p/ dre_grupo CONTABIL e o entra_dre de fato_financeiro só exclui TRANSFERENCIA (nome do histórico) — a exclusão nunca alcançou dados vivos; mv_despesa_mensal já excluía CONTABIL, o calendário não. (2) os dois Pix tinham ajuste_manual "Folha Salarial" (PESSOAL), inflando junho também no painel de Despesas. Correções: migration `20260739000000_calendario_exclui_contabil.sql` (despesas_reais do calendário e listar_despesas_dia excluem CONTABIL, mesma regra do mv) + update nos 2 registros de ajuste_manual (785/786 → Transferencia entre Contas) + refresh_painel(). Atenção futura: entra_dre NÃO exclui CONTABIL; quem consumir fato_financeiro p/ despesa deve excluir CONTABIL explicitamente.
-— Claude
-
+**PENDÊNCIA aberta:** migration `20260738000000_cartao_credito_entra_dre_temporario.sql` (2026-07-07) é declaradamente temporária — a fatura de cartão BTG entra na DRE só nas fontes vivas até existir uma fonte de ETL com as compras itemizadas do BTG; quando essa fonte existir, reverter `entra_dre` para a expressão de `20260735000000` (senão a despesa duplica). Ver detalhes no `git log`/na própria migration.
 
 ## 2026-07-14 · Claude — corte só considera dia completo (tendências)
 
@@ -34,4 +25,10 @@ Migration nova: `20260745000000_corte_considera_dia_completo.sql` (idempotente, 
 ## 2026-07-14 · Claude — status.html monitora Extrato BS Cash
 
 Migration nova: `20260746000000_status_cargas_inclui_bs_cash.sql` (idempotente, `create or replace function`). `private.ler_status_cargas()` ganhou um `union all` para `raw_bs_cash` (fonte "Extrato BS Cash", mesmo nome já usado no `log_carga` pelo `05_importar_bs_cash.py`) — a fonte estava fora do monitoramento do status.html. Sem mudança no front nem em `app_status_cargas`. Validado o SELECT do branch novo contra o banco antes do push. Sem pendências.
+— Claude
+
+
+## 2026-07-14 · Claude — corrige de-para do iFood Benefícios (vale-alimentação)
+
+Bug relatado pelo Rogério via status.html: pagamentos do vale-alimentação (Pix para o CNPJ da Zoop/iFood Pago, 19.468.242/0001-32) estavam classificados como fornecedor "BDL Distribuidora Xarope" / categoria Bebidas / DESPESA DIRETA DE VENDA. Confirmado: esse CNPJ é sempre iFood Benefícios (nome varia entre "Zoop" e "Ifood Pago" no extrato); a maioria dos lançamentos do mesmo CNPJ já estava correta (fornecedor IFOOD BENEFÍCIOS, categoria Alimentação, grupo PESSOAL) — usei o mesmo padrão para corrigir os errados. Migration `20260747000000_corrige_classificacao_ifood_beneficios.sql` (dado, não schema): (1) `de_para` id 1410 (regra viva, cnpj) corrigida — resolve retroativamente os lançamentos do extrato Stone (2026); (2) UPDATE em `raw_historico` para as linhas de 2023-2026 que tinham a categoria gravada direto na linha. Conferido: nenhum `ajuste_manual` sobrepondo essas linhas. Sem pendências.
 — Claude
