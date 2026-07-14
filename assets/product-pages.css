@@ -15,6 +15,8 @@ header{background:var(--header);color:#fff;position:sticky;top:0;z-index:10}
 .sangria-summary .summary-card.collected .value{color:var(--green)}
 .sangria-summary .summary-card.pending{border-color:#e2c977;background:#fffaf0}
 .sangria-summary .summary-card.pending .value{color:#9a741c}
+.responsaveis-recolhido{font-size:10.5px;color:var(--muted);margin:-9px 0 18px;padding:0 2px}
+.responsaveis-recolhido strong{color:inherit;font-weight:600}
 .panel{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:15px}
 .panel-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}
 .panel h3{font-size:14px}

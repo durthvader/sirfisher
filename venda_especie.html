@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
 <link href="assets/dashboard-common.css" rel="stylesheet">
-<link href="assets/product-pages.css?v=20260705-2" rel="stylesheet">
+<link href="assets/product-pages.css?v=20260714-1" rel="stylesheet">
 <link href="assets/accessibility.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.108.2" integrity="sha384-JWEyvHh+lRf0sN/WWY+QTQwX+CyWqmNg4tkc8GQzAMEtR2wGNrCJlvnu1lHD1kDm" crossorigin="anonymous"></script>
 <script src="assets/supabase-client.js"></script>
@@ -30,6 +30,8 @@
       <div class="summary-card collected"><div class="label">Recolhido</div><div class="value" id="totalRecolhido">—</div><div class="note">Fora do quiosque, aguardando depósito</div></div>
       <div class="summary-card pending"><div class="label">Pendente de depósito</div><div class="value" id="totalPendente">—</div><div class="note">No quiosque + recolhido</div></div>
     </div>
+
+    <div class="responsaveis-recolhido" id="responsaveisRecolhido"></div>
 
     <div class="panel">
       <div class="panel-head"><div><h3>Sangrias em acompanhamento</h3><div class="hint">Últimos 14 dias e todas as recolhidas que ainda aguardam depósito.</div></div></div>
@@ -86,10 +88,28 @@ function fmtMoeda(valor){
 
 function atualizarResumo(registros){
   const aRecolher=registros.filter(r=>!r.recolhida_em&&!r.depositada_em).reduce((s,r)=>s+(Number(r.valor)||0),0);
-  const recolhido=registros.filter(r=>r.recolhida_em&&!r.depositada_em).reduce((s,r)=>s+(Number(r.valor)||0),0);
+  const recolhidos=registros.filter(r=>r.recolhida_em&&!r.depositada_em);
+  const recolhido=recolhidos.reduce((s,r)=>s+(Number(r.valor)||0),0);
   document.getElementById('totalARecolher').textContent=fmtMoeda(aRecolher);
   document.getElementById('totalRecolhido').textContent=fmtMoeda(recolhido);
   document.getElementById('totalPendente').textContent=fmtMoeda(aRecolher+recolhido);
+  atualizarResponsaveisRecolhido(recolhidos);
+}
+
+function atualizarResponsaveisRecolhido(recolhidos){
+  const el=document.getElementById('responsaveisRecolhido');
+  const porNome={};
+  recolhidos.forEach(r=>{
+    const nome=r.recolhida_por_nome||'Não identificado';
+    porNome[nome]=(porNome[nome]||0)+(Number(r.valor)||0);
+  });
+  const nomes=Object.keys(porNome);
+  if(!nomes.length){
+    el.innerHTML='';
+    return;
+  }
+  const partes=nomes.sort((a,b)=>porNome[b]-porNome[a]).map(nome=>`<strong>${esc(nome)}</strong> ${esc(fmtMoeda(porNome[nome]))}`);
+  el.innerHTML='Com quem está a sangria recolhida: '+partes.join(' · ');
 }
 
 async function carregar(){
