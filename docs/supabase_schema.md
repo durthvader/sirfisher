@@ -260,6 +260,25 @@ no repositório.
   - `peso_total`
   - `projecao_fechamento`
 
+### corte_venda / corte_caixa
+- Tipo: views de corte (1 linha, coluna `dia`).
+- Uso: base de todas as views de tendência/projeção (`tendencia_mes`,
+  `projecao_venda_diaria`, `painel_diario`, `painel_tendencia_diaria`,
+  fluxo de caixa e `listar_calendario_financeiro`).
+- Propósito: definir o último **dia completo** de dados. Dias após o corte são
+  tratados como "projetado"; dias até o corte como "real".
+- Regra (desde `20260745000000_corte_considera_dia_completo.sql`):
+  - `corte_venda` = `least(max(data_venda) da raw_stone_vendas, max(data) da
+    venda_especie, ontem em America/Sao_Paulo)`. Um dia só conta quando as duas
+    fontes já passaram por ele e o dia terminou. Semântica da espécie: dia sem
+    lançamento mas com lançamento posterior = zero implícito (conta); dia sem
+    lançamento na fronteira = fica fora até o próximo lançamento; lançar R$ 0
+    explícito avança a fronteira.
+  - `corte_caixa` = `least(max(data_caixa) de fato_financeiro, ontem em
+    America/Sao_Paulo)`.
+- `tendencia_mes` usa `corte_venda.dia` diretamente como `dia_ref` (não mais
+  `max(dia)` do mês, que deixava espécie adiantada furar o corte).
+
 ### listar_calendario_financeiro(date)
 - Tipo: RPC mensal `SECURITY DEFINER`, protegida pela permissão de `calendario.html`.
 - Uso: `calendario.html`.
