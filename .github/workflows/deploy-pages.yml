@@ -49,6 +49,7 @@ jobs:
             classificar_excecoes.html \
             conciliacao.html \
             contas_recorrentes.html \
+            importar.html \
             parametros.html \
             parametros_editor.html \
             parametros_gerais.html \
@@ -88,6 +89,7 @@ jobs:
             despesas.html \
             dre.html \
             gerente.html \
+            importar.html \
             index.html \
             parametros.html \
             parametros_editor.html \
