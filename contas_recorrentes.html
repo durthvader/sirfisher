@@ -117,7 +117,7 @@ function linhaConta(row){
 }
 function listaHTML(filtradas){
   if(!filtradas.length)return '<div class="empty">Nenhuma conta encontrada neste filtro.</div>';
-  const concluida=r=>r.situacao==='pago'||(r.tipo==='rotina'&&r.situacao==='sem_movimento');
+  const concluida=r=>r.situacao==='pago'||r.situacao==='sem_movimento';
   const abertas=filtradas.filter(r=>!concluida(r)),pagas=filtradas.filter(concluida);
   const grupo=(titulo,lista)=>lista.length?`<div class="recurring-group"><div class="recurring-group-head">${titulo}<span>${lista.length}</span></div><div class="recurring-list">${lista.map(linhaConta).join('')}</div></div>`:'';
   return grupo('Em aberto',abertas)+grupo('Pagas',pagas);
