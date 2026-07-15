@@ -62,6 +62,7 @@ const FONTES=[
 ];
 
 let ARQUIVOS=[];
+let OCUPADO=false;
 
 // Parser CSV (RFC 4180: aspas, aspas duplicadas, delimitador e quebra dentro de
 // campo). Equivale ao csv.reader do Python. Inline de proposito: o site e
@@ -133,7 +134,9 @@ function num(v){return Number(v||0).toLocaleString('pt-BR');}
 
 function render(){
   const main=document.getElementById('main');
-  const conferidos=ARQUIVOS.filter(a=>a.previa&&!a.erro);
+  // Só os que ainda não foram gravados: o render roda a cada arquivo do lote e
+  // não pode reabilitar o botão no meio da gravação.
+  const pendentes=ARQUIVOS.filter(a=>a.previa&&!a.erro&&!a.resultado);
   main.innerHTML=`
     <div class="page-intro"><div><h2>Importar dados</h2><p>Carrega os relatórios CSV da Stone direto por aqui, sem precisar dos scripts na máquina — serve pelo celular ou de qualquer computador. Reenviar um arquivo já importado não duplica nada: as linhas repetidas são ignoradas.</p></div></div>
 
@@ -158,8 +161,8 @@ function render(){
       }).join('')}
       </tbody></table></div>
       <div class="actions" style="margin-top:14px">
-        <button id="importar" class="button" ${conferidos.length?'':'disabled'}>Importar ${conferidos.length||''} arquivo(s)</button>
-        <button id="limpar" class="button secondary">Limpar</button>
+        <button id="importar" class="button" ${pendentes.length&&!OCUPADO?'':'disabled'}>Importar ${pendentes.length||''} arquivo(s)</button>
+        <button id="limpar" class="button secondary" ${OCUPADO?'disabled':''}>Limpar</button>
         <span id="msg" class="hint"></span>
       </div>
     </section>`:''}`;
@@ -199,29 +202,64 @@ async function conferir(a){
   render();
 }
 
+function aviso(texto,cor){
+  const el=document.getElementById('msg');
+  if(!el)return;
+  el.style.color=cor||'';
+  el.textContent=texto;
+}
+
+// Gravacao, recalculo e refresh sao chamadas SEPARADAS de proposito. O papel
+// authenticated tem statement_timeout de 8s e cada uma dessas etapas custa
+// alguns segundos; juntas nao cabem (era o que estourava). Separadas, cada uma
+// ganha sua propria janela. Recalculo e refresh rodam UMA vez ao fim do lote,
+// como o rodar_importacoes.bat ja faz com o refresh.
 async function importar(){
-  const btn=document.getElementById('importar');
-  const msg=document.getElementById('msg');
+  if(OCUPADO)return;
   const fila=ARQUIVOS.filter(a=>a.previa&&!a.erro&&!a.resultado);
   if(!fila.length)return;
-  btn.disabled=true;
-  msg.style.color='';
-  let total=0;
+  OCUPADO=true;
+  render();
+
+  let total=0,ini=null,fim=null;
   for(const a of fila){
-    msg.textContent=`Gravando ${a.nome}…`;
+    aviso(`Gravando ${a.nome}…`);
     const {data,error}=await sb.rpc('importar_csv_stone',{p_fonte:a.cfg.fonte,p_linhas:a.registros,p_dry_run:false});
-    if(error){a.erro=error.message;render();msg.style.color='var(--red)';msg.textContent='Parou em '+a.nome+': '+error.message;btn.disabled=false;return;}
-    a.resultado=data;total+=data.inseridos;render();
+    if(error){
+      a.erro=error.message;OCUPADO=false;render();
+      aviso(`Parou em ${a.nome}: ${error.message}. Os arquivos anteriores já foram gravados; reenviar não duplica.`,'var(--red)');
+      return;
+    }
+    a.resultado=data;total+=data.inseridos;
+    // Periodo das linhas efetivamente novas (null quando nada entrou).
+    if(data.recalculo_inicio&&(!ini||data.recalculo_inicio<ini))ini=data.recalculo_inicio;
+    if(data.recalculo_fim&&(!fim||data.recalculo_fim>fim))fim=data.recalculo_fim;
+    render();
   }
-  // Refresh unico ao fim, como o rodar_importacoes.bat faz: refresh_painel()
-  // reprocessa materialized views e e caro para repetir por arquivo.
-  const msg2=document.getElementById('msg');
-  msg2.textContent='Atualizando o painel — isso leva alguns segundos.';
-  const {error}=await sb.rpc('solicitar_refresh_painel');
-  const fim=document.getElementById('msg');
-  if(error){fim.style.color='var(--red)';fim.textContent=`Dados gravados (${total} nova(s) linha(s)), mas o painel não atualizou: ${error.message}. Use "Atualizar painel agora" na tela de Status.`;return;}
-  fim.style.color='var(--green)';
-  fim.textContent=`✓ ${total} nova(s) linha(s) importada(s) e painel atualizado.`;
+
+  // Nada novo: nada mudou, entao nao ha o que recalcular nem atualizar.
+  if(!total||!ini){
+    OCUPADO=false;render();
+    aviso('✓ Nenhuma linha nova: os arquivos já estavam importados. Painel inalterado.','var(--green)');
+    return;
+  }
+
+  aviso('Recalculando o saldo — isso leva alguns segundos.');
+  const rec=await sb.rpc('solicitar_recalculo_saldo',{p_data_min:ini,p_data_max:fim});
+  if(rec.error){
+    OCUPADO=false;render();
+    aviso(`${total} linha(s) gravada(s), mas o recálculo do saldo falhou: ${rec.error.message}. Os dados estão salvos; avise o administrador — o saldo de fechamento pode ficar desatualizado até rodar de novo.`,'var(--red)');
+    return;
+  }
+
+  aviso('Atualizando o painel — isso leva alguns segundos.');
+  const ref=await sb.rpc('solicitar_refresh_painel');
+  OCUPADO=false;render();
+  if(ref.error){
+    aviso(`${total} linha(s) gravada(s) e saldo recalculado, mas o painel não atualizou: ${ref.error.message}. Use "Atualizar painel agora" na tela de Status.`,'var(--red)');
+    return;
+  }
+  aviso(`✓ ${total} nova(s) linha(s) importada(s), saldo recalculado e painel atualizado.`,'var(--green)');
 }
 
 (async()=>{const auth=await SirFisherAuth.requireRole(sb);if(auth)render();})();
