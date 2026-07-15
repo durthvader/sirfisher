@@ -376,6 +376,35 @@ no repositório.
   - `valor`
   - `qtd`
 
+### importar_csv_stone(text, jsonb, boolean)
+- Tipo: RPC de escrita `SECURITY DEFINER`, protegida pela permissão de `importar.html`.
+- Uso: `importar.html` (rotina "Importar dados").
+- Propósito: carregar as três fontes Stone (`stone_extrato`, `stone_vendas`,
+  `stone_recebiveis`) pelo site, sem depender dos scripts Python locais — de
+  qualquer computador ou do celular.
+- O navegador só lê o CSV e faz o parse em objetos por cabeçalho; validação,
+  conversão, dedup, recálculo de saldo e `log_carga` acontecem nesta RPC, que é
+  a autoridade. Grava nas mesmas tabelas `raw_stone_*`, com as mesmas chaves de
+  dedup dos scripts (`uq_extrato_dedup`, `uq_vendas_stoneid`,
+  `uq_receb_stoneid_parcela`), então os dois caminhos convivem e reenviar um
+  arquivo não duplica.
+- `p_dry_run = true` valida e devolve o resumo (linhas, novas, período) sem
+  gravar — é o que alimenta a tela de conferência. Como é o mesmo código do
+  caminho real, o preview não diverge da gravação.
+- Tolerância zero a rejeição, igual ao Python: qualquer linha inválida aborta o
+  arquivo inteiro. Limite de 20.000 linhas por chamada; cargas históricas
+  grandes continuam no caminho Python.
+- Parse delegado a `private.parse_stone_extrato/vendas/recebiveis(jsonb)` e aos
+  helpers `private.campo_csv`, `private.parse_valor_br`,
+  `private.parse_data_hora_br`, `private.parse_inteiro_br`, que espelham
+  `scripts/importacao/importacao_core.py`. Os equivalentes foram conferidos caso
+  a caso contra as funções reais do Python.
+- O refresh do painel fica de fora e é disparado uma vez ao fim do lote pela
+  tela, via `solicitar_refresh_painel()` — cujo gate passou a aceitar também
+  quem tem acesso a `importar.html`, e não só admin (senão o sócio importaria e
+  continuaria vendo o painel velho).
+- Criada em `20260751000000_importacao_web_stone.sql`.
+
 ## Tabelas / views que alimentam os painéis HTML
 - `analise_individual` → `analise_individual.html`
 - `categoria_dre` → `analise_individual.html`, `classificar_excecoes.html`
@@ -406,6 +435,9 @@ no repositório.
 - `painel_recebimento_resumo` → `vendas.html`
 - `painel_recebimento_canal` → `vendas.html`
 - `painel_recebimento_hora` → `vendas.html`
+- `importar_csv_stone(text, jsonb, boolean)` → `importar.html`
+- `raw_stone_extrato` / `raw_stone_vendas` / `raw_stone_recebiveis` → destino da
+  carga, tanto pelo `importar.html` quanto pelos scripts de `scripts/importacao/`
 
 ## Observações
 - O front-end autenticado usa views `app_*` e RPCs protegidas; tabelas internas

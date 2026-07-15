@@ -1,5 +1,19 @@
 # Importação de dados
 
+> **Existe um segundo caminho: a página `importar.html`.** As três fontes Stone
+> (extrato, vendas e recebíveis) também podem ser carregadas pelo site, sem
+> Python nem `.env`, de qualquer computador ou do celular. Ela grava nas mesmas
+> tabelas, com as mesmas chaves de dedup, então os dois caminhos convivem e o
+> mesmo arquivo não duplica linha.
+>
+> **Ao mudar regra de parse/validação/dedup destes módulos, mudar também o
+> espelho em SQL** (`private.parse_stone_*` e helpers, criados em
+> `supabase/migrations/20260751000000_importacao_web_stone.sql`). O ponto mais
+> sensível é o `dedup_hash` do extrato: ele é o md5 de uma f-string, e f-string
+> de `None` vira o literal `"None"` — o SQL reproduz isso com
+> `coalesce(campo, 'None')`. Se as duas pontas divergirem, o mesmo arquivo gera
+> hash diferente nos dois caminhos e duplica.
+
 ## Preparação
 
 Na raiz do repositório, instale as versões registradas:

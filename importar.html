@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; upgrade-insecure-requests">
+<title>Sir Fisher · Importar dados</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="assets/dashboard-common.css" rel="stylesheet">
+<link href="assets/product-pages.css" rel="stylesheet">
+<link href="assets/accessibility.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.108.2" integrity="sha384-JWEyvHh+lRf0sN/WWY+QTQwX+CyWqmNg4tkc8GQzAMEtR2wGNrCJlvnu1lHD1kDm" crossorigin="anonymous"></script>
+<script src="assets/supabase-client.js"></script>
+<script src="assets/auth.js"></script>
+<script src="assets/safe-dom.js"></script>
+<script src="assets/accessibility.js"></script>
+<style>
+  .drop-area{border:2px dashed #d1d5db;border-radius:14px;padding:26px 18px;text-align:center;background:#fbfaf7;transition:border-color .15s,background .15s}
+  .drop-area.over{border-color:var(--teal,#00a6a6);background:#f0fbfb}
+  .drop-area p{margin:9px 0 0;font-size:12.5px;color:#6b7280}
+  .drop-area input[type=file]{display:block;margin:12px auto 0;max-width:100%;font-size:12.5px}
+  .file-erro{color:var(--red,#c94c4c);font-size:12px;word-break:break-word}
+  .file-nome{word-break:break-all}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="head-row"><div class="brand"><div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M2 12s3-6 10-6 10 6 10 6-3 6-10 6S2 12 2 12z"/><circle cx="9" cy="12" r="1" fill="#fff"/></svg></div><div><h1>Sir Fisher</h1><span>Painel de Gestão</span></div></div><div class="head-meta"><div class="unidade">Importar dados</div></div></div>
+    <nav class="tabs"><a href="./">Visão Geral</a><a href="vendas.html">Faturamento</a><a href="caixa.html">Caixa</a><a href="dre.html">DRE</a><a href="despesas.html">Despesas</a><a href="conciliacao.html">Conciliação</a><a href="planejamento.html">Planejamento</a><a href="rotinas.html" class="routines">Rotinas</a></nav>
+  </header>
+  <main id="main"><div class="loading">Carregando…</div></main>
+</div>
+<script>
+const sb=SirFisherSupabase;
+const esc=SirFisherDOM.escapeHTML;
+
+// Espelha o REGISTRO/CABECALHOS dos modulos Python (scripts/importacao/). O
+// cabecalho e comparado como subconjunto, igual ao detectar_modulo() do
+// importar.py: se os cabecalhos obrigatorios da fonte estao no arquivo, e ela.
+// Os tres CSVs Stone sao utf-8-sig; o BOM cai sozinho no TextDecoder('utf-8').
+// Nao normalizamos os nomes de coluna (nem trim): o Python compara o texto cru
+// do cabecalho, e o SQL le as chaves com estes mesmos nomes.
+const FONTES=[
+  {fonte:'stone_extrato',rotulo:'Extrato Stone',delim:',',cabecalhos:[
+    'Movimentação','Tipo','Valor','Saldo antes','Saldo depois','Tarifa','Data',
+    'Horário','Situação','Nosso Número','Destino','Destino Documento',
+    'Destino Instituição','Destino Agência','Destino Conta','Origem',
+    'Origem Documento','Origem Instituição','Origem Agência','Origem Conta','Descrição']},
+  {fonte:'stone_vendas',rotulo:'Vendas Stone',delim:';',cabecalhos:[
+    'DOCUMENTO','STONECODE','DATA DA VENDA','BANDEIRA','PRODUTO','STONE ID',
+    'N DE PARCELAS','VALOR BRUTO','VALOR LIQUIDO','DESCONTO DE MDR',
+    'DESCONTO DE ANTECIPACAO','DESCONTO UNIFICADO','N DO CARTAO','MEIO DE CAPTURA',
+    'N DE SERIE','ULTIMO STATUS','DATA DO ULTIMO STATUS']},
+  {fonte:'stone_recebiveis',rotulo:'Recebíveis Stone',delim:';',cabecalhos:[
+    'DOCUMENTO','STONECODE','CATEGORIA','DATA DA VENDA','DATA DE VENCIMENTO',
+    'DATA DE VENCIMENTO ORIGINAL','BANDEIRA','PRODUTO','STONE ID','QTD DE PARCELAS',
+    'Nº DA PARCELA','VALOR BRUTO','VALOR LÍQUIDO','DESCONTO DE MDR',
+    'DESCONTO DE ANTECIPAÇÃO','DESCONTO UNIFICADO','ÚLTIMO STATUS',
+    'DATA DO ÚLTIMO STATUS','ENTRADAS BRUTAS','SAÍDAS BRUTAS']}
+];
+
+let ARQUIVOS=[];
+
+// Parser CSV (RFC 4180: aspas, aspas duplicadas, delimitador e quebra dentro de
+// campo). Equivale ao csv.reader do Python. Inline de proposito: o site e
+// estatico no GitHub Pages e a CSP nao libera CDN de biblioteca.
+function parseCSV(texto,delim){
+  const linhas=[];let linha=[];let campo='';let aspas=false;let i=0;
+  while(i<texto.length){
+    const c=texto[i];
+    if(aspas){
+      if(c==='"'){
+        if(texto[i+1]==='"'){campo+='"';i+=2;continue;}
+        aspas=false;i++;continue;
+      }
+      campo+=c;i++;continue;
+    }
+    if(c==='"'){aspas=true;i++;continue;}
+    if(c===delim){linha.push(campo);campo='';i++;continue;}
+    if(c==='\r'){i++;continue;}
+    if(c==='\n'){linha.push(campo);linhas.push(linha);linha=[];campo='';i++;continue;}
+    campo+=c;i++;
+  }
+  if(campo!==''||linha.length){linha.push(campo);linhas.push(linha);}
+  return linhas;
+}
+
+function vazia(linha){return linha.length===0||(linha.length===1&&linha[0]==='');}
+
+// Detecta a fonte pelo cabecalho, igual ao dispatcher do Python: nenhum
+// candidato ou mais de um e erro, nao chute.
+function detectar(texto){
+  const cache=new Map();const candidatos=[];
+  for(const cfg of FONTES){
+    if(!cache.has(cfg.delim))cache.set(cfg.delim,parseCSV(texto,cfg.delim));
+    const linhas=cache.get(cfg.delim);
+    if(!linhas.length||vazia(linhas[0]))continue;
+    const cab=linhas[0];const presentes=new Set(cab);
+    if(cfg.cabecalhos.every(h=>presentes.has(h)))candidatos.push({cfg,linhas,cab});
+  }
+  if(!candidatos.length)throw new Error('nenhum importador reconhece o cabeçalho deste arquivo');
+  if(candidatos.length>1)throw new Error('cabeçalho ambíguo, reconhecido por mais de uma fonte');
+  return candidatos[0];
+}
+
+// Linhas -> objetos por cabecalho, como o csv.DictReader. Campo ausente fica
+// fora do objeto; o SQL le com ->> e recebe null, que e o None do Python.
+function objetos(linhas,cab){
+  const out=[];
+  for(let i=1;i<linhas.length;i++){
+    const l=linhas[i];
+    if(vazia(l))continue;
+    const o={};
+    for(let j=0;j<cab.length;j++){if(j<l.length)o[cab[j]]=l[j];}
+    out.push(o);
+  }
+  return out;
+}
+
+async function lerArquivo(file){
+  const buf=await file.arrayBuffer();
+  const texto=new TextDecoder('utf-8').decode(buf);
+  const {cfg,linhas,cab}=detectar(texto);
+  const registros=objetos(linhas,cab);
+  if(!registros.length)throw new Error('arquivo sem linhas de dados');
+  return {cfg,registros};
+}
+
+function fmtDia(v){return v?new Date(`${v}T12:00:00`).toLocaleDateString('pt-BR'):'—';}
+function num(v){return Number(v||0).toLocaleString('pt-BR');}
+
+function render(){
+  const main=document.getElementById('main');
+  const conferidos=ARQUIVOS.filter(a=>a.previa&&!a.erro);
+  main.innerHTML=`
+    <div class="page-intro"><div><h2>Importar dados</h2><p>Carrega os relatórios CSV da Stone direto por aqui, sem precisar dos scripts na máquina — serve pelo celular ou de qualquer computador. Reenviar um arquivo já importado não duplica nada: as linhas repetidas são ignoradas.</p></div></div>
+
+    <section class="panel"><div class="panel-head"><div><h3>1 · Escolher arquivos</h3><div class="hint">Extrato, Vendas e Recebíveis da Stone. A fonte é reconhecida pelo cabeçalho do arquivo — não precisa dizer qual é qual. Pode mandar os três de uma vez.</div></div></div>
+      <div id="drop" class="drop-area">
+        <b>Arraste os CSV aqui</b>
+        <p>ou toque para escolher do aparelho</p>
+        <input type="file" id="files" accept=".csv,text/csv" multiple aria-label="Escolher arquivos CSV">
+      </div>
+    </section>
+
+    ${ARQUIVOS.length?`<section class="panel"><div class="panel-head"><div><h3>2 · Conferir</h3><div class="hint">Nada foi gravado ainda. Esta conferência roda no banco, com as mesmas regras da gravação.</div></div></div>
+      <div class="table-wrap"><table class="data-table"><thead><tr><th>Arquivo</th><th>Fonte</th><th class="right">Linhas</th><th class="right">Novas</th><th>Período</th><th>Situação</th></tr></thead><tbody>
+      ${ARQUIVOS.map(a=>{
+        if(a.erro)return `<tr><td class="file-nome"><b>${esc(a.nome)}</b></td><td colspan="5" class="file-erro">${esc(a.erro)}</td></tr>`;
+        if(!a.previa)return `<tr><td class="file-nome"><b>${esc(a.nome)}</b></td><td colspan="5" class="hint">Conferindo…</td></tr>`;
+        const p=a.previa;
+        const estado=a.resultado
+          ? `<span class="status ok">Importado</span>`
+          : (p.novas>0?`<span class="status ok">Pronto</span>`:`<span class="status warn">Nada novo</span>`);
+        return `<tr><td class="file-nome"><b>${esc(a.nome)}</b></td><td>${esc(p.fonte)}</td><td class="right">${num(p.linhas)}</td><td class="right">${a.resultado?num(a.resultado.inseridos):num(p.novas)}</td><td>${fmtDia(p.periodo_inicio)} a ${fmtDia(p.periodo_fim)}</td><td>${estado}</td></tr>`;
+      }).join('')}
+      </tbody></table></div>
+      <div class="actions" style="margin-top:14px">
+        <button id="importar" class="button" ${conferidos.length?'':'disabled'}>Importar ${conferidos.length||''} arquivo(s)</button>
+        <button id="limpar" class="button secondary">Limpar</button>
+        <span id="msg" class="hint"></span>
+      </div>
+    </section>`:''}`;
+
+  document.getElementById('files').addEventListener('change',e=>adicionar(e.target.files));
+  const drop=document.getElementById('drop');
+  ['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('over');}));
+  ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('over');}));
+  drop.addEventListener('drop',e=>adicionar(e.dataTransfer.files));
+  const btn=document.getElementById('importar');
+  if(btn)btn.addEventListener('click',importar);
+  const limpar=document.getElementById('limpar');
+  if(limpar)limpar.addEventListener('click',()=>{ARQUIVOS=[];render();});
+}
+
+async function adicionar(fileList){
+  const novos=Array.from(fileList||[]).map(f=>({nome:f.name,file:f}));
+  if(!novos.length)return;
+  ARQUIVOS=ARQUIVOS.concat(novos);
+  render();
+  for(const a of novos)await conferir(a);
+}
+
+// Dry-run: manda as linhas e deixa o banco validar. Nao repetimos a validacao
+// aqui no navegador de proposito — o preview tem que ser o mesmo codigo que
+// grava, senao ele mente.
+async function conferir(a){
+  try{
+    const {cfg,registros}=await lerArquivo(a.file);
+    a.cfg=cfg;a.registros=registros;
+    const {data,error}=await sb.rpc('importar_csv_stone',{p_fonte:cfg.fonte,p_linhas:registros,p_dry_run:true});
+    if(error)throw new Error(error.message);
+    a.previa=data;
+  }catch(e){
+    a.erro=e.message||String(e);
+  }
+  render();
+}
+
+async function importar(){
+  const btn=document.getElementById('importar');
+  const msg=document.getElementById('msg');
+  const fila=ARQUIVOS.filter(a=>a.previa&&!a.erro&&!a.resultado);
+  if(!fila.length)return;
+  btn.disabled=true;
+  msg.style.color='';
+  let total=0;
+  for(const a of fila){
+    msg.textContent=`Gravando ${a.nome}…`;
+    const {data,error}=await sb.rpc('importar_csv_stone',{p_fonte:a.cfg.fonte,p_linhas:a.registros,p_dry_run:false});
+    if(error){a.erro=error.message;render();msg.style.color='var(--red)';msg.textContent='Parou em '+a.nome+': '+error.message;btn.disabled=false;return;}
+    a.resultado=data;total+=data.inseridos;render();
+  }
+  // Refresh unico ao fim, como o rodar_importacoes.bat faz: refresh_painel()
+  // reprocessa materialized views e e caro para repetir por arquivo.
+  const msg2=document.getElementById('msg');
+  msg2.textContent='Atualizando o painel — isso leva alguns segundos.';
+  const {error}=await sb.rpc('solicitar_refresh_painel');
+  const fim=document.getElementById('msg');
+  if(error){fim.style.color='var(--red)';fim.textContent=`Dados gravados (${total} nova(s) linha(s)), mas o painel não atualizou: ${error.message}. Use "Atualizar painel agora" na tela de Status.`;return;}
+  fim.style.color='var(--green)';
+  fim.textContent=`✓ ${total} nova(s) linha(s) importada(s) e painel atualizado.`;
+}
+
+(async()=>{const auth=await SirFisherAuth.requireRole(sb);if(auth)render();})();
+</script>
+</body>
+</html>

@@ -23,6 +23,7 @@
     'classificar_excecoes.html',
     'venda_especie.html',
     'contas_recorrentes.html',
+    'importar.html',
     'gerente.html'
   ]);
   const KNOWN_PAGES = new Set([...ADMIN_ONLY_PAGES, ...CONFIGURABLE_PAGES]);
