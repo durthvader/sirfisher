@@ -100,3 +100,23 @@ Pedido do Rogério: contabilizar no caixa o dinheiro em espécie que a empresa j
 
 **Pendência deixada de propósito:** `projecao_despesa_fixa` ainda mede o "já realizado" por competência no DRE. Como o caixa da folha sai na transferência e a despesa só é reconhecida no import do BS Cash, há uma janela em que o colchão **reprojeta folha cujo dinheiro já saiu**. Tratar na recalibragem da despesa fixa, medindo o "já realizado" no universo de caixa (incluindo as transferências pro BS Cash). **Não recalibrar o colchão antes de o BS Cash estar importado em dia** — os números de julho estão distorcidos (folha incompleta infla o colchão).
 — Claude
+
+## 2026-07-20 · Claude — BB e BS Cash entram na importação pela web
+
+Pedido do Rogério: ele tentou importar o extrato do BS Cash pela `importar.html` e tomou "nenhum importador reconhece o cabeçalho". A página só conhecia as 3 fontes Stone — BB e BS Cash seguiam presos ao script local, o que na prática travou a atualização do BS Cash por semanas.
+
+**Arquivos:** migration `20260756000000_importacao_web_bb_bs_cash.sql` (nova) e `importar.html`.
+
+**Desenho:** mesmo da `20260751000000` — o navegador só lê o CSV, o banco valida/converte/deduplica. A RPC `public.importar_csv_stone` passa a aceitar `'bb'` e `'bs_cash'` (5 fontes no total).
+
+**Coisas que quem mexer aqui precisa saber:**
+- **O nome `importar_csv_stone` foi mantido de propósito** (hoje é nome histórico). Renomear exigiria drop+create, e a página (GitHub Pages) e o banco (integração Supabase) publicam em **momentos diferentes** — a janela com página nova + banco velho (ou o inverso) quebraria a importação. Mantendo o nome, as duas pontas ficam compatíveis nos dois sentidos.
+- **`ignorar` é uma coluna nova nos parsers, e não é frescura.** Os dois scripts PULAM linhas antes de validar, e linha pulada nunca vira rejeição: BB pula `Lançamento in ('Saldo Anterior','Saldo do dia','S A L D O')`; BS Cash pula linha sem `Data` (o rodapé "SALDO ANTERIOR"). Sem isso, o próprio rodapé do extrato reprovaria o arquivo inteiro — a tolerância a rejeição é zero.
+- **Não dá para reusar `private.parse_data_hora_br`** nessas fontes: ela aceita hora sem segundos, e o `strptime` do BS Cash não (`"%d/%m/%Y %H:%M:%S"` ou só data). Seria mais permissiva que o Python e aceitaria linha que o script rejeita. Daí `parse_data_br` (só `dd/mm/aaaa`, BB) e `parse_data_hora_seg_br` (segundos obrigatórios quando há hora, BS Cash). Ambas sem bloco EXCEPTION, como manda a 20260752000000.
+- **BS Cash junta crédito e débito:** no Python `valor_raw = creditos_raw or debitos_raw`. Como `campo()` já devolveu null pra vazio, o `or` é `coalesce` — e o que entra no hash é o **texto cru** da coluna escolhida, não o número convertido.
+- **CODIFICAÇÃO (na página, não no SQL):** o Python lê o **BB em latin-1** e o **BS Cash em utf-8**. Como o `dedup_hash` é md5 do texto, ler com a codificação errada muda o hash e duplicaria a linha. A página detecta tentando as duas e depois **re-decodifica na codificação canônica da fonte**. O latin-1 é feito **byte a byte**, não via `TextDecoder('iso-8859-1')` — o TextDecoder segue o WHATWG e trata `0x80-0x9F` como windows-1252, divergindo do Python nessa faixa.
+
+**Validações rodadas:** `dedup_hash` conferido contra o `hashlib.md5` real do Python em 3 linhas verdadeiras do extrato (com e sem favorecido, crédito e débito) — **os três batem**, e o rodapé "SALDO ANTERIOR" cai em `ignorar`. Formatos de data comparados com `strptime` em 9 casos × 2 fontes (sem segundos, 29/02 bissexto e não, 32/01, mês 13, hora 25, sem zero à esquerda) — **as 18 batem**. Sintaxe JS da página checada em motor real (node embutido do VS Code via `ELECTRON_RUN_AS_NODE`; validado com arquivo quebrado antes, pra garantir que o checador acusa).
+
+**Pendência:** a migration **não foi aplicada aqui** (só validada read-only) — será exercitada no Supabase Preview. O teste ponta a ponta com sessão logada fica com o Rogério.
+— Claude

@@ -39,26 +39,35 @@ const esc=SirFisherDOM.escapeHTML;
 // Espelha o REGISTRO/CABECALHOS dos modulos Python (scripts/importacao/). O
 // cabecalho e comparado como subconjunto, igual ao detectar_modulo() do
 // importar.py: se os cabecalhos obrigatorios da fonte estao no arquivo, e ela.
-// Os tres CSVs Stone sao utf-8-sig; o BOM cai sozinho no TextDecoder('utf-8').
 // Nao normalizamos os nomes de coluna (nem trim): o Python compara o texto cru
 // do cabecalho, e o SQL le as chaves com estes mesmos nomes.
+//
+// "encoding" e a codificacao FIXA que o importador Python usa para cada fonte:
+// utf-8 nas Stone (utf-8-sig; o BOM cai sozinho no TextDecoder) e no BS Cash,
+// latin-1 no BB. Isso nao e detalhe: o dedup_hash e md5 do texto, entao ler com
+// a codificacao errada muda o hash e duplicaria a linha entre a web e o script.
 const FONTES=[
-  {fonte:'stone_extrato',rotulo:'Extrato Stone',delim:',',cabecalhos:[
+  {fonte:'stone_extrato',rotulo:'Extrato Stone',delim:',',encoding:'utf8',cabecalhos:[
     'Movimentação','Tipo','Valor','Saldo antes','Saldo depois','Tarifa','Data',
     'Horário','Situação','Nosso Número','Destino','Destino Documento',
     'Destino Instituição','Destino Agência','Destino Conta','Origem',
     'Origem Documento','Origem Instituição','Origem Agência','Origem Conta','Descrição']},
-  {fonte:'stone_vendas',rotulo:'Vendas Stone',delim:';',cabecalhos:[
+  {fonte:'stone_vendas',rotulo:'Vendas Stone',delim:';',encoding:'utf8',cabecalhos:[
     'DOCUMENTO','STONECODE','DATA DA VENDA','BANDEIRA','PRODUTO','STONE ID',
     'N DE PARCELAS','VALOR BRUTO','VALOR LIQUIDO','DESCONTO DE MDR',
     'DESCONTO DE ANTECIPACAO','DESCONTO UNIFICADO','N DO CARTAO','MEIO DE CAPTURA',
     'N DE SERIE','ULTIMO STATUS','DATA DO ULTIMO STATUS']},
-  {fonte:'stone_recebiveis',rotulo:'Recebíveis Stone',delim:';',cabecalhos:[
+  {fonte:'stone_recebiveis',rotulo:'Recebíveis Stone',delim:';',encoding:'utf8',cabecalhos:[
     'DOCUMENTO','STONECODE','CATEGORIA','DATA DA VENDA','DATA DE VENCIMENTO',
     'DATA DE VENCIMENTO ORIGINAL','BANDEIRA','PRODUTO','STONE ID','QTD DE PARCELAS',
     'Nº DA PARCELA','VALOR BRUTO','VALOR LÍQUIDO','DESCONTO DE MDR',
     'DESCONTO DE ANTECIPAÇÃO','DESCONTO UNIFICADO','ÚLTIMO STATUS',
-    'DATA DO ÚLTIMO STATUS','ENTRADAS BRUTAS','SAÍDAS BRUTAS']}
+    'DATA DO ÚLTIMO STATUS','ENTRADAS BRUTAS','SAÍDAS BRUTAS']},
+  {fonte:'bb',rotulo:'Extrato BB',delim:',',encoding:'latin1',cabecalhos:[
+    'Data','Lançamento','Detalhes','N° documento','Valor','Tipo Lançamento']},
+  {fonte:'bs_cash',rotulo:'Extrato BS Cash',delim:',',encoding:'utf8',cabecalhos:[
+    'Data','Dcto.','Operação','Histórico','Favorecido',
+    'Créditos (R$)','Débitos (R$)','Saldo (R$)']}
 ];
 
 let ARQUIVOS=[];
@@ -120,13 +129,39 @@ function objetos(linhas,cab){
   return out;
 }
 
+// latin-1 byte a byte, e nao via TextDecoder('iso-8859-1'): o TextDecoder segue
+// o WHATWG e trata 0x80-0x9F como windows-1252 (aspas curvas etc.), enquanto o
+// latin-1 do Python mapeia byte -> code point 1:1. Num byte dessa faixa os dois
+// gerariam textos diferentes — e hashes diferentes.
+function decodeLatin1(buf){
+  const bytes=new Uint8Array(buf);let s='';
+  for(let i=0;i<bytes.length;i+=8192){
+    s+=String.fromCharCode.apply(null,bytes.subarray(i,i+8192));
+  }
+  return s;
+}
+function decodificar(buf,enc){
+  return enc==='latin1'?decodeLatin1(buf):new TextDecoder('utf-8').decode(buf);
+}
+
+// Detecta tentando as duas codificacoes (um extrato BB lido como utf-8 vira
+// "Lan?amento" e nao casa; um BS Cash lido como latin-1 vira "OperaÃ§Ã£o" e
+// tambem nao). Achada a fonte, RE-DECODIFICA na codificacao canonica dela antes
+// de montar as linhas, para o texto — e portanto o dedup_hash — bater com o
+// Python byte a byte.
 async function lerArquivo(file){
   const buf=await file.arrayBuffer();
-  const texto=new TextDecoder('utf-8').decode(buf);
-  const {cfg,linhas,cab}=detectar(texto);
-  const registros=objetos(linhas,cab);
+  let achado=null,erro=null;
+  for(const enc of ['utf8','latin1']){
+    try{achado=detectar(decodificar(buf,enc));break;}
+    catch(e){if(!erro)erro=e;}
+  }
+  if(!achado)throw erro;
+  const linhas=parseCSV(decodificar(buf,achado.cfg.encoding),achado.cfg.delim);
+  if(!linhas.length||vazia(linhas[0]))throw new Error('arquivo sem cabeçalho');
+  const registros=objetos(linhas,linhas[0]);
   if(!registros.length)throw new Error('arquivo sem linhas de dados');
-  return {cfg,registros};
+  return {cfg:achado.cfg,registros};
 }
 
 function fmtDia(v){return v?new Date(`${v}T12:00:00`).toLocaleDateString('pt-BR'):'—';}
@@ -138,9 +173,9 @@ function render(){
   // não pode reabilitar o botão no meio da gravação.
   const pendentes=ARQUIVOS.filter(a=>a.previa&&!a.erro&&!a.resultado);
   main.innerHTML=`
-    <div class="page-intro"><div><h2>Importar dados</h2><p>Carrega os relatórios CSV da Stone direto por aqui, sem precisar dos scripts na máquina — serve pelo celular ou de qualquer computador. Reenviar um arquivo já importado não duplica nada: as linhas repetidas são ignoradas.</p></div></div>
+    <div class="page-intro"><div><h2>Importar dados</h2><p>Carrega os relatórios CSV da Stone, do Banco do Brasil e do BS Cash direto por aqui, sem precisar dos scripts na máquina — serve pelo celular ou de qualquer computador. Reenviar um arquivo já importado não duplica nada: as linhas repetidas são ignoradas.</p></div></div>
 
-    <section class="panel"><div class="panel-head"><div><h3>1 · Escolher arquivos</h3><div class="hint">Extrato, Vendas e Recebíveis da Stone. A fonte é reconhecida pelo cabeçalho do arquivo — não precisa dizer qual é qual. Pode mandar os três de uma vez.</div></div></div>
+    <section class="panel"><div class="panel-head"><div><h3>1 · Escolher arquivos</h3><div class="hint">Extrato, Vendas e Recebíveis da Stone, extrato do Banco do Brasil e extrato do BS Cash. A fonte é reconhecida pelo cabeçalho do arquivo — não precisa dizer qual é qual. Pode mandar vários de uma vez.</div></div></div>
       <div id="drop" class="drop-area">
         <b>Arraste os CSV aqui</b>
         <p>ou toque para escolher do aparelho</p>
