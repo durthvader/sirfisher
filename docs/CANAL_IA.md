@@ -81,3 +81,22 @@ Pedido do Rogério: contabilizar no caixa o dinheiro em espécie que a empresa j
 
 **Pendência:** migration **não aplicada aqui** (só validada read-only) — será exercitada no Supabase Preview. Depois de aplicar, rodar "Atualizar tudo agora" em `status.html` para refresh do `mv_fluxo_caixa_diario` + recálculo do snapshot. **Parte B combinada, ainda não iniciada:** trocar `projecao_despesa_fixa` (hoje média de 3 meses ÷ dias, causa a "flutuação") por vencimentos datados de `conta_recorrente` + colchão residual **visível** = `média típica − já contabilizado`, piso zero, num lump no fim do mês.
 — Claude
+
+## 2026-07-20 · Claude — BS Cash sai do universo de caixa
+
+**Regra de negócio (definida pelo Rogério):** a conta **BS Cash é aprovisionamento de folha** (13º, férias, rescisão). O dinheiro que vai pra lá é considerado *"que não existe mais"* pro caixa — sai da Stone e não volta a ser saldo disponível. A despesa de folha em si é reconhecida no DRE quando o extrato do BS Cash é importado. **Caixa e DRE têm tempos diferentes de propósito.**
+
+**Arquivos:** migration `20260755000000_bs_cash_fora_do_caixa.sql` (nova). Sem mudança de HTML.
+
+**O problema que isso conserta:** o BS Cash estava *meio dentro, meio fora*. O **saldo** nunca entrou no `saldo_anchor` (Stone + BB; `saldo_inicial` só tem `bb`) — certo pela regra. Mas as **movimentações** entravam: as linhas `origem='bs_cash'` são `empresa='PRAIA'` e passavam pelo filtro do `caixa_real_diario`, **com as duas pernas** (o crédito da transferência recebida e o débito da folha paga). Com as duas pernas no fluxo, a transferência se anulava e o fluxo passava a tratar o BS Cash como parte do caixa, enquanto a âncora não. Fluxo num universo, âncora em outro.
+
+**⚠️ Armadilha que isso evita:** importar o extrato do BS Cash em dia **piorava** o quadro — a perna de entrada aparecia e cancelava a saída da Stone no fluxo, com o saldo seguindo fora do anchor.
+
+**A mudança:** `caixa_real_diario` passa a ignorar `origem='bs_cash'` (com `is distinct from`, pra preservar origem nula). O fluxo passa a andar no mesmo universo da âncora (Stone + BB): a transferência Stone → BS Cash é a saída definitiva; o que rola dentro do BS Cash não mexe mais no caixa.
+
+**Não muda:** DRE e Despesas (leem `fato_financeiro` direto — folha e tarifa do BS Cash seguem aparecendo por competência); `saldo_anchor`; a projeção futura (usa `recebimento_*`/`projecao_despesa_*`, não o `caixa_real_diario`).
+
+**Muda:** a curva histórica de caixa e os saldos de meses passados — correção pretendida, essas movimentações nunca deveriam contar sem o saldo correspondente. `painel_saldo_atual.saldo_comp` se ajusta junto.
+
+**Pendência deixada de propósito:** `projecao_despesa_fixa` ainda mede o "já realizado" por competência no DRE. Como o caixa da folha sai na transferência e a despesa só é reconhecida no import do BS Cash, há uma janela em que o colchão **reprojeta folha cujo dinheiro já saiu**. Tratar na recalibragem da despesa fixa, medindo o "já realizado" no universo de caixa (incluindo as transferências pro BS Cash). **Não recalibrar o colchão antes de o BS Cash estar importado em dia** — os números de julho estão distorcidos (folha incompleta infla o colchão).
+— Claude
