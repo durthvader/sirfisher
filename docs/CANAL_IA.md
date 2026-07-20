@@ -120,3 +120,18 @@ Pedido do Rogério: ele tentou importar o extrato do BS Cash pela `importar.html
 
 **Pendência:** a migration **não foi aplicada aqui** (só validada read-only) — será exercitada no Supabase Preview. O teste ponta a ponta com sessão logada fica com o Rogério.
 — Claude
+
+## 2026-07-20 · Claude — corrige contagem dupla no colchão de despesa fixa
+
+Depois que o Rogério importou o BS Cash em dia (folha de julho completa no `fato_financeiro`), medimos o colchão de `projecao_despesa_fixa` com dado limpo: o "já pago" da view só somava `conta_recorrente_pagamento`, um subconjunto bem menor do que o realizado real nos 4 grupos DRE — o colchão ficava superestimado. Essa diferença explicava quase todo o gap restante contra a planilha do dono.
+
+**Arquivos:** migration `20260757000000_corrige_colchao_despesa_fixa.sql` (nova). Sem HTML.
+
+**A mudança:** o "já realizado" passa a vir do **mesmo universo** usado para calcular a "média típica" (`fato_financeiro`, mesmos 4 grupos DRE, por competência), em vez de um subconjunto (`conta_recorrente_pagamento`). Media e realizado agora comparam a mesma coisa. **Efeito colateral desejado:** isso também reduz boa parte da "flutuação" que o dono reclamava — a instabilidade vinha do numerador subestimado (que se acumulava nos últimos dias do mês), não do formato de distribuição por dias restantes, então **não mudei a forma de espalhar** o colchão pelos dias.
+
+**Visibilidade:** nova view `public.painel_colchao_despesa_fixa` (média típica · já realizado · colchão · dias restantes · valor/dia), sem grant direto — mesmo padrão das demais `painel_*`, pronta pra um wrapper `app_*` quando existir uma tela pra mostrar isso. **Nenhuma UI foi criada** — só o dado ficou disponível.
+
+**Validado (dry-run read-only):** meses futuros (sem `fato_financeiro` ainda) não mudam — "já realizado"=0 antes e depois. Só o mês aberto muda.
+
+**Pendência:** migration não aplicada aqui, só validada. Depois de aplicar, rodar "Atualizar tudo agora" em status.html.
+— Claude
