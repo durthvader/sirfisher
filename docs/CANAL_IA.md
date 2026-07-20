@@ -64,3 +64,20 @@ Pedido do Rogério: poder atualizar o painel sem os scripts na máquina (celular
 
 **⚠️ Pendência/risco:** a migration **não foi executada em lugar nenhum** — não há Docker/CLI Supabase/psql nesta máquina e não apliquei em produção sem autorização. A lógica foi validada peça por peça (read-only), mas o DDL inteiro só será exercitado no "Supabase Preview". **Se o Preview falhar, é aí.** Idem para o fluxo ponta a ponta da página, que precisa de sessão logada: o Rogério vai fazer o primeiro teste real com um CSV de verdade.
 — Claude
+
+## 2026-07-20 · Claude — dinheiro em espécie pendente entra no caixa (Parte A)
+
+Pedido do Rogério: contabilizar no caixa o dinheiro em espécie que a empresa já tem em mãos mas ainda não depositou (antes só entrava quando caía no extrato do BB). Contexto: análise comparando a projeção de caixa da planilha antiga (`.xlsb`, aba CONTROL) com a do app — descobrimos que os dois usam quase o mesmo motor e concordam no caixa de hoje; a divergência vinha, em parte, desse dinheiro não depositado que a planilha lançava à mão como "previsão de depósito".
+
+**Arquivos:** migration `20260754000000_dinheiro_especie_no_caixa.sql` (nova). **Nenhuma mudança de HTML** — a UI se ajusta sozinha.
+
+**O que muda:** `saldo_anchor` passa a somar `venda_especie` com `depositada_em IS NULL` (unidade PRAIA, `data <= corte`) no `saldo_total`, via nova coluna `dinheiro_pendente` — acrescentada **no fim** da lista de colunas, porque `create or replace view` não deixa reordenar coluna existente (`saldo_total` fica na posição 4). `painel_saldo_por_conta` ganha a linha "Dinheiro a depositar" (só quando `<> 0`), que a tela "Onde está o dinheiro" da `caixa.html` renderiza sozinha (`drawContas` é genérico e `corConta` já pinta 'dinheiro'). Como `saldo_mensal_calculado` e `fluxo_caixa_diario` leem `saldo_anchor.saldo_total`, a projeção inteira e o KPI "Saldo atual" sobem pelo pendente.
+
+**Sem contagem dupla:** as depositadas têm `depositada_em` e já estão no extrato do BB; as pendentes não. `venda_especie` também não entra em `fato_financeiro`/`caixa_real_diario`. Ao marcar o depósito, sai do pendente e entra no BB — só troca de bolso.
+
+**Impacto (dry-run read-only):** o `saldo_total` sobe exatamente pela soma de `venda_especie` pendente (confere com a base); havia lançamentos pendentes de depósito desde o fim de junho.
+
+**⚠️ Atenção operacional:** se um lançamento já depositado ficar sem `depositada_em`, ele conta em dobro (BB + pendente) até ser marcado.
+
+**Pendência:** migration **não aplicada aqui** (só validada read-only) — será exercitada no Supabase Preview. Depois de aplicar, rodar "Atualizar tudo agora" em `status.html` para refresh do `mv_fluxo_caixa_diario` + recálculo do snapshot. **Parte B combinada, ainda não iniciada:** trocar `projecao_despesa_fixa` (hoje média de 3 meses ÷ dias, causa a "flutuação") por vencimentos datados de `conta_recorrente` + colchão residual **visível** = `média típica − já contabilizado`, piso zero, num lump no fim do mês.
+— Claude
