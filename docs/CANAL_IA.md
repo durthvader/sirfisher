@@ -239,3 +239,23 @@ alteradas. Transferências podem aumentar simultaneamente os totais brutos de
 entradas e saídas, sem alterar o efeito líquido no caixa.
 
 — Codex
+
+## 2026-07-21 · Codex — saldo histórico detalhado por data
+
+**Arquivos:** migration `20260763000000_saldo_diario_detalhado.sql`,
+`calendario.html` e `docs/supabase_schema.md`.
+
+O Calendário agora usa um snapshot diário próprio com Stone, Banco do Brasil e
+dinheiro em espécie ainda não depositado naquela data. Isso elimina a
+retroatividade do pendente atual sobre fechamentos antigos. O saldo realizado é
+clicável e abre essa memória por conta; BS Cash permanece fora do caixa
+disponível.
+
+A variação positiva do dinheiro físico entra em Recebimentos e a baixa no
+depósito entra em Despesas, em conjunto com o crédito bancário, para a memória
+diária continuar reconciliando. Importações atualizam o snapshot pelo refresh
+normal. Alterações de sangria acionam somente um job temporário de refresh desse
+snapshot pequeno; ele se remove ao concluir e não há cron permanente nem
+atualização diária agendada.
+
+— Codex

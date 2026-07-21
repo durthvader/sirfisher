@@ -279,21 +279,47 @@ no repositório.
 - `tendencia_mes` usa `corte_venda.dia` diretamente como `dia_ref` (não mais
   `max(dia)` do mês, que deixava espécie adiantada furar o corte).
 
+### mv_saldo_caixa_diario_detalhado / detalhar_saldo_caixa_dia(date)
+- Tipo: materialized view interna e RPC diária `SECURITY DEFINER`, protegida
+  pela permissão de `calendario.html`.
+- Uso: saldo realizado e popover da coluna Saldo caixa em `calendario.html`.
+- Propósito: preservar a memória de fechamento de cada data separada em saldo
+  Stone, saldo Banco do Brasil e dinheiro em espécie ainda não depositado
+  naquela data. O total diário é a soma dos três componentes; BS Cash continua
+  fora do caixa disponível.
+- O dinheiro pendente é reconstituído pelos eventos de custódia: entra na data
+  da venda em espécie e sai na data local em que a sangria é marcada como
+  depositada. Assim, o pendente atual não é reaplicado retroativamente aos
+  fechamentos antigos.
+- A variação positiva do dinheiro pendente participa das entradas realizadas;
+  a variação negativa participa das saídas. No depósito, a baixa física e o
+  crédito bancário ficam visíveis separadamente, preservando a igualdade
+  `saldo do dia - saldo anterior = recebimentos - despesas`.
+- A view não possui `grant` direto ao navegador. A RPC retorna somente uma
+  linha e é carregada sob demanda, com cache no front-end.
+- Importações a atualizam pelo `refresh_painel()`. Alterações de sangria criam
+  apenas um job `pg_cron` temporário para este snapshot pequeno; o worker se
+  remove depois do refresh. Não existe agendamento permanente nem diário.
+- Criados em `20260763000000_saldo_diario_detalhado.sql`.
+
 ### listar_calendario_financeiro(date)
 - Tipo: RPC mensal `SECURITY DEFINER`, protegida pela permissão de `calendario.html`.
 - Uso: `calendario.html`.
 - Propósito: consolidar, por dia, meta e faturamento acumulados, vendas por
   forma, recebimentos, despesas recorrentes/não recorrentes e saldo de caixa.
-- O realizado reutiliza as fontes dos painéis existentes. Depois do corte das
-  cargas, a RPC preserva o último saldo realizado e calcula cada saldo futuro
+- O saldo realizado vem de `mv_saldo_caixa_diario_detalhado`, com os
+  componentes efetivamente mantidos em cada data. Depois do corte das cargas,
+  a RPC preserva o último saldo realizado e calcula cada saldo futuro
   pela mesma memória exibida na linha: `saldo anterior + recebimentos -
   despesas`. Assim, a projeção não depende do snapshot de `caixa.html` estar
   atualizado para conciliar com as colunas diárias.
 - No realizado, recebimentos e despesas usam o mesmo universo do saldo:
   `fato_financeiro` de PRAIA/BB, sem a origem BS Cash. Créditos Stone do tipo
   `Transação` representam vendas via QR Code; tipo `Pix`, TED e demais créditos
-  são outras entradas/transferências. Todos os débitos desse universo aparecem
-  em Despesas, mesmo quando não entram na DRE. A parcela recorrente usa
+  são outras entradas/transferências. A variação do dinheiro físico também é
+  incorporada para reconciliar as colunas com o saldo detalhado. Todos os
+  débitos desse universo aparecem em Despesas, mesmo quando não entram na DRE.
+  A parcela recorrente usa
   pagamentos de `conta_recorrente_pagamento` limitada ao total financeiro do
   dia; o restante é apresentado como não recorrente.
 
@@ -303,7 +329,8 @@ no repositório.
 - Propósito: listar as despesas individuais de um dia realizado (descrição, categoria, valor).
 - Mesmo recorte da CTE `saidas_reais` de `listar_calendario_financeiro`
   (`fato_financeiro` por `data_caixa`, Débito, empresas PRAIA/BB e origem
-  diferente de BS Cash), para a soma da lista bater com a coluna Despesas.
+  diferente de BS Cash), acrescido da baixa do dinheiro pendente quando uma
+  sangria é depositada, para a soma da lista bater com a coluna Despesas.
 - Criada em `20260737000000_listar_despesas_dia.sql`; o recorte foi alinhado
   ao fluxo integral do caixa em
   `20260762000000_calendario_realizado_concilia_caixa.sql`.
@@ -317,6 +344,8 @@ no repositório.
   - `data`
   - `unidade`
   - `valor`
+  - `observacao`
+  - `criado_em`
   - `recolhida_em`
   - `depositada_em`
   - `cadastrado_por`
@@ -330,8 +359,9 @@ no repositório.
   `salvar_sangria(date, text, numeric)` para vincular o usuário autenticado.
 - Na implantação do controle de responsáveis, os registros preexistentes foram
   marcados como recolhidos e depositados, sem atribuição retroativa de usuário.
-  - `observacao`
-  - `criado_em`
+- Salvar um valor ou alterar o status solicita a atualização assíncrona apenas
+  de `mv_saldo_caixa_diario_detalhado`, por job temporário e auto-removível. A
+  ação não executa o refresh pesado do painel e não mantém cron permanente.
 
 ### conta_recorrente / conta_recorrente_pagamento
 - Tipo: cadastro operacional e histórico mensal de contas recorrentes.
@@ -448,6 +478,8 @@ no repositório.
 - `painel_composicao_despesa` → `index.html`
 - `painel_margem_contribuicao` → `index.html`
 - `painel_diario` → `index.html`, `vendas.html`
+- `mv_saldo_caixa_diario_detalhado` / `detalhar_saldo_caixa_dia(date)` → saldo
+  realizado e memória por conta de `calendario.html`
 - `listar_calendario_financeiro(date)` → `calendario.html`
 - `listar_despesas_dia(date)` → `calendario.html`
 - `venda_especie` → `venda_especie.html`
