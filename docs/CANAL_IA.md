@@ -195,3 +195,18 @@ com o mês anterior também passa a usar a cascata da DRE, mantendo a mesma
 definição do indicador em toda a interface.
 
 — Codex
+
+## 2026-07-21 · Codex — contas abertas entram na previsão de Caixa
+
+**Arquivo:** migration `20260760000000_previsao_contas_abertas_no_caixa.sql`.
+`projecao_despesa_fixa` agora agenda cada conta recorrente ativa, do tipo
+despesa, marcada `incluir_totais`, sem pagamento na competência e com média
+positiva dos últimos três pagamentos. O valor entra no vencimento; se vencido
+após o corte, entra no próximo dia projetado.
+
+O compromisso explícito é abatido do colchão genérico antes de este ser
+distribuído, evitando dupla contagem. `painel_colchao_despesa_fixa` ganhou a
+coluna `contas_abertas` para auditoria. Nenhum pagamento ou lançamento real é
+criado pela previsão.
+
+— Codex
