@@ -161,3 +161,11 @@ O Rogério importou quatro arquivos pela `importar.html`; 112 linhas foram grava
 **Validação local:** sintaxe JS das duas páginas e estrutura/segurança da migration. A migration não foi aplicada localmente; `pg_cron` será exercitado no Supabase Preview. Depois do deploy, reenviar os mesmos CSVs não cria duplicatas e não precisa ser feito: a tarefa semeada recupera o lote já salvo automaticamente.
 
 — Codex
+
+## 2026-07-21 · Codex — cron do recálculo existe só sob demanda
+
+O Rogério não quis um polling permanente para uma rotina usada apenas 3–5 vezes por semana. A migration `20260759000000_recalculo_saldo_cron_sob_demanda.sql` remove o job a cada 10 segundos deixado pela 20260758000000. Agora `solicitar_recalculo_saldo` insere a tarefa e cria temporariamente o job `sirfisher-processar-recalculo-saldo`; o worker processa a fila e chama `cron.unschedule` quando não resta tarefa pendente. Fora de importações ou do botão de manutenção, não há cron nem consulta à fila. Durante o trabalho, o intervalo é 5 segundos e normalmente dura apenas alguns segundos.
+
+Se a tarefa de recuperação semeada pela migration anterior ainda estiver pendente durante o deploy, a nova migration liga o worker uma vez para não perdê-la. Nenhuma tela ou regra financeira mudou. Não foi criado refresh diário às 00:05.
+
+— Codex

@@ -410,11 +410,14 @@ no repositório.
 - Uso: `importar.html`, `status.html`.
 - Propósito: enfileirar e acompanhar o recálculo assíncrono do saldo depois de
   uma importação ou manutenção. A fila privada guarda somente período, estado
-  e mensagem técnica. O job `sirfisher-processar-recalculo-saldo` processa uma
-  tarefa por vez a cada 10 segundos e atualiza os snapshots ao concluir. A
-  migration inicial enfileira uma recomposição desde o começo do ano para
-  recuperar automaticamente dados já gravados antes da correção.
-- Criadas/redefinidas em `20260758000000_recalculo_saldo_assincrono.sql`.
+  e mensagem técnica. Não há cron permanente: cada solicitação liga
+  temporariamente `sirfisher-processar-recalculo-saldo`, que processa uma
+  tarefa por vez, atualiza os snapshots e remove o próprio agendamento quando a
+  fila esvazia. A migration inicial enfileira uma recomposição desde o começo
+  do ano para recuperar automaticamente dados já gravados antes da correção.
+- Criadas em `20260758000000_recalculo_saldo_assincrono.sql`; agendamento
+  convertido para sob demanda em
+  `20260759000000_recalculo_saldo_cron_sob_demanda.sql`.
 
 ## Tabelas / views que alimentam os painéis HTML
 - `analise_individual` → `analise_individual.html`
