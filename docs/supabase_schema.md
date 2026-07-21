@@ -289,19 +289,24 @@ no repositório.
   pela mesma memória exibida na linha: `saldo anterior + recebimentos -
   despesas`. Assim, a projeção não depende do snapshot de `caixa.html` estar
   atualizado para conciliar com as colunas diárias.
-- O total de despesas realizadas vem de `fato_financeiro`. A parcela recorrente
-  usa pagamentos de `conta_recorrente_pagamento` limitada ao total financeiro
-  do dia; o restante é apresentado como não recorrente. Diferenças ficam
-  expostas em `despesa_recorrente_nao_conciliada`, sem alterar a origem.
+- No realizado, recebimentos e despesas usam o mesmo universo do saldo:
+  `fato_financeiro` de PRAIA/BB, sem a origem BS Cash. Créditos Stone do tipo
+  `Transação` representam vendas via QR Code; tipo `Pix`, TED e demais créditos
+  são outras entradas/transferências. Todos os débitos desse universo aparecem
+  em Despesas, mesmo quando não entram na DRE. A parcela recorrente usa
+  pagamentos de `conta_recorrente_pagamento` limitada ao total financeiro do
+  dia; o restante é apresentado como não recorrente.
 
 ### listar_despesas_dia(date)
 - Tipo: RPC diária `SECURITY DEFINER`, protegida pela permissão de `calendario.html`.
 - Uso: popover de despesas de `calendario.html`, carregada sob demanda (com cache por dia).
 - Propósito: listar as despesas individuais de um dia realizado (descrição, categoria, valor).
-- Mesmo recorte da CTE `despesas_reais` de `listar_calendario_financeiro`
-  (`fato_financeiro` por `data_caixa`, Débito, `entra_dre`, empresas PRAIA/BB),
-  para a soma da lista bater com a coluna Despesas.
-- Criada em `20260737000000_listar_despesas_dia.sql`.
+- Mesmo recorte da CTE `saidas_reais` de `listar_calendario_financeiro`
+  (`fato_financeiro` por `data_caixa`, Débito, empresas PRAIA/BB e origem
+  diferente de BS Cash), para a soma da lista bater com a coluna Despesas.
+- Criada em `20260737000000_listar_despesas_dia.sql`; o recorte foi alinhado
+  ao fluxo integral do caixa em
+  `20260762000000_calendario_realizado_concilia_caixa.sql`.
 
 ### venda_especie
 - Tipo: tabela de vendas por espécie

@@ -222,3 +222,20 @@ snapshot nem de cron para a projeção do Calendário conciliar; nenhuma origem
 financeira, lançamento ou pagamento foi alterado.
 
 — Codex
+
+## 2026-07-21 · Codex — realizado do Calendário conciliado ao caixa
+
+**Arquivos:** migration `20260762000000_calendario_realizado_concilia_caixa.sql`,
+`calendario.html` e `docs/supabase_schema.md`. Nos dias realizados, as colunas
+Recebimentos e Despesas agora usam o mesmo universo de movimentos que forma o
+saldo: `fato_financeiro` de PRAIA/BB, excluindo BS Cash. Assim, a variação do
+saldo diário passa a ser explicada pelas duas colunas.
+
+Na Stone, o tipo `Transação` é apresentado como venda via QR Code. O tipo
+`Pix`, TED, créditos do BB e outros movimentos são apresentados como outras
+entradas/transferências. Todas as saídas de caixa aparecem em Despesas, ainda
+que não pertençam à DRE. As regras de vendas, DRE e projeções futuras não foram
+alteradas. Transferências podem aumentar simultaneamente os totais brutos de
+entradas e saídas, sem alterar o efeito líquido no caixa.
+
+— Codex
