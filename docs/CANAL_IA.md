@@ -210,3 +210,15 @@ coluna `contas_abertas` para auditoria. Nenhum pagamento ou lançamento real é
 criado pela previsão.
 
 — Codex
+
+## 2026-07-21 · Codex — saldo projetado do Calendário reconciliado
+
+**Arquivos:** migration `20260761000000_calendario_saldo_mesma_memoria.sql` e
+`docs/supabase_schema.md`. A RPC `listar_calendario_financeiro` mantém os
+saldos realizados do snapshot até o corte de caixa. Nos dias futuros, ela
+parte do último saldo realizado e acumula exatamente `recebimentos -
+despesas` retornados na própria linha. Portanto, não depende de refresh do
+snapshot nem de cron para a projeção do Calendário conciliar; nenhuma origem
+financeira, lançamento ou pagamento foi alterado.
+
+— Codex

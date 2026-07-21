@@ -285,8 +285,10 @@ no repositório.
 - Propósito: consolidar, por dia, meta e faturamento acumulados, vendas por
   forma, recebimentos, despesas recorrentes/não recorrentes e saldo de caixa.
 - O realizado reutiliza as fontes dos painéis existentes. Depois do corte das
-  cargas, a RPC usa as projeções de venda, recebimento, despesa e saldo já
-  adotadas em `caixa.html`.
+  cargas, a RPC preserva o último saldo realizado e calcula cada saldo futuro
+  pela mesma memória exibida na linha: `saldo anterior + recebimentos -
+  despesas`. Assim, a projeção não depende do snapshot de `caixa.html` estar
+  atualizado para conciliar com as colunas diárias.
 - O total de despesas realizadas vem de `fato_financeiro`. A parcela recorrente
   usa pagamentos de `conta_recorrente_pagamento` limitada ao total financeiro
   do dia; o restante é apresentado como não recorrente. Diferenças ficam
