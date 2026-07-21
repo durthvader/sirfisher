@@ -169,3 +169,15 @@ O Rogério não quis um polling permanente para uma rotina usada apenas 3–5 ve
 Se a tarefa de recuperação semeada pela migration anterior ainda estiver pendente durante o deploy, a nova migration liga o worker uma vez para não perdê-la. Nenhuma tela ou regra financeira mudou. Não foi criado refresh diário às 00:05.
 
 — Codex
+
+## 2026-07-21 · Codex — custódia visível em cada sangria
+
+**Arquivo:** `venda_especie.html`. Sem migration: a view protegida
+`app_venda_especie_controle` já expõe os nomes necessários.
+
+Cada linha agora mostra diretamente o estado de custódia no selo ao lado do
+dia: `Quiosque`, `Com [responsável que recolheu]` ou `Depositado`. O botão
+Histórico continua disponível para consultar datas e todas as etapas; os
+botões Recolhida/Depositada seguem sendo as ações operacionais.
+
+— Codex

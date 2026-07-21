@@ -153,7 +153,11 @@ function linha(dataISO, registro){
   const { label, dow } = fmtDataLabel(dataISO);
   const recolhida=!!(registro&&registro.recolhida_em);
   const depositada=!!(registro&&registro.depositada_em);
-  const status=depositada?'<span class="status ok">Depositada</span>':recolhida?'<span class="status warn">Recolhida</span>':registro?'<span class="status neutral">No quiosque</span>':'';
+  const custodia=depositada
+    ?'<span class="status ok">Depositado</span>'
+    :recolhida
+      ?`<span class="status warn">Com ${esc(registro.recolhida_por_nome||'responsável não informado')}</span>`
+      :registro?'<span class="status neutral">Quiosque</span>':'';
   const etapas=registro?[
     {classe:'registered',rotulo:'Cadastrada',nome:registro.cadastrado_por_nome,data:registro.criado_em},
     recolhida?{classe:'collected',rotulo:'Recolhida',nome:registro.recolhida_por_nome,data:registro.recolhida_em}:null,
@@ -174,7 +178,7 @@ function linha(dataISO, registro){
   el.innerHTML = `
     <div class="info">
       <div class="nome">${label}</div>
-      <div class="meta"><span>${dow}</span>${status}${historico}</div>
+      <div class="meta"><span>${dow}</span>${custodia}${historico}</div>
     </div>
     <div class="direita">
       <input type="number" step="0.01" placeholder="0,00" value="${registro ? (Number(registro.valor)||0) : ''}">
