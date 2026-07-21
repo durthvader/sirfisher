@@ -259,3 +259,19 @@ snapshot pequeno; ele se remove ao concluir e não há cron permanente nem
 atualização diária agendada.
 
 — Codex
+
+## 2026-07-21 · Codex — histórico de caixa unificado nas telas
+
+**Arquivos:** migration
+`20260764000000_caixa_historico_usa_saldo_diario.sql` e
+`docs/supabase_schema.md`.
+
+A curva realizada de `caixa.html`, os fechamentos de meses encerrados e o
+saldo comparativo da Visão Geral agora usam
+`mv_saldo_caixa_diario_detalhado`, a mesma memória diária do Calendário. O
+saldo atual, o mês corrente, as projeções e a DRE foram preservados. Os
+contratos `app_*` continuam iguais e a variação percentual do painel do
+gerente também foi alinhada. Quando não houver snapshot histórico, as views
+mantêm o cálculo anterior como fallback.
+
+— Codex

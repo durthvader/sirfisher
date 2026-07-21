@@ -49,6 +49,9 @@ no repositório.
 - Tipo: painel / view agregada
 - Uso: `caixa.html`, `index.html`
 - Propósito: fornece saldo atual e saldo comparativo para o painel financeiro.
+- O wrapper `app_painel_saldo_atual` preserva o saldo atual da fonte original,
+  mas busca `saldo_comp` no snapshot diário da data comparada. Isso impede que
+  dinheiro pendente no corte atual seja reaplicado ao passado.
 - Colunas importantes:
   - `data_ref`
   - `saldo_atual`
@@ -59,6 +62,9 @@ no repositório.
 - Tipo: painel / view agregada
 - Uso: `caixa.html`, `index.html`
 - Propósito: dados de saldo no final do mês para histórico e projeção.
+- No wrapper `app_painel_saldo_fim_mes`, meses já encerrados usam o último
+  snapshot diário disponível no próprio mês. O mês corrente e os meses futuros
+  continuam usando a projeção original.
 - Colunas importantes:
   - `mes`
   - `ano_mes`
@@ -69,6 +75,9 @@ no repositório.
 - Tipo: painel / view agregada
 - Uso: `caixa.html`
 - Propósito: mostra fluxo de caixa diário, saldo real/projetado e entradas/saídas.
+- As linhas realizadas usam `mv_saldo_caixa_diario_detalhado`; as linhas
+  projetadas preservam a memória prospectiva anterior. No corte, as duas
+  fontes convergem e mantêm a continuidade da curva.
 - Colunas importantes:
   - `dia`
   - `tipo`
@@ -301,6 +310,15 @@ no repositório.
   apenas um job `pg_cron` temporário para este snapshot pequeno; o worker se
   remove depois do refresh. Não existe agendamento permanente nem diário.
 - Criados em `20260763000000_saldo_diario_detalhado.sql`.
+
+### Histórico de caixa unificado nas telas
+- Desde `20260764000000_caixa_historico_usa_saldo_diario.sql`, a curva
+  realizada de `caixa.html`, os fechamentos de meses encerrados e o saldo de
+  comparação da Visão Geral usam a mesma memória diária do Calendário.
+- A variação percentual de saldo exibida ao gerente usa os mesmos fechamentos.
+- A correção é transparente ao front-end: os contratos `app_*` não mudaram.
+- Dias ou meses sem snapshot usam o valor da fonte anterior como fallback.
+- Saldo atual, projeções futuras, faturamento e DRE não são alterados.
 
 ### listar_calendario_financeiro(date)
 - Tipo: RPC mensal `SECURITY DEFINER`, protegida pela permissão de `calendario.html`.
