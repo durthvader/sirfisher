@@ -181,3 +181,17 @@ Histórico continua disponível para consultar datas e todas as etapas; os
 botões Recolhida/Depositada seguem sendo as ações operacionais.
 
 — Codex
+
+## 2026-07-21 · Codex — Visão Geral alinha lucro líquido à DRE
+
+**Arquivo:** `index.html`. O KPI “Lucro líquido” usava `monthTrend()` sobre o
+resultado acumulado de `painel_resumo_mensal`, escalando despesas já realizadas
+com a curva de vendas. Agora lê a cascata da DRE e as mesmas projeções de
+despesa fixa/direta usadas no Caixa e na DRE: resultado operacional realizado
++ receita futura − despesas futuras + itens abaixo da operação já realizados.
+
+Meses fechados continuam usando o resultado líquido realizado. A comparação
+com o mês anterior também passa a usar a cascata da DRE, mantendo a mesma
+definição do indicador em toda a interface.
+
+— Codex
