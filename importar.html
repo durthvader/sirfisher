@@ -244,11 +244,27 @@ function aviso(texto,cor){
   el.textContent=texto;
 }
 
-// Gravacao, recalculo e refresh sao chamadas SEPARADAS de proposito. O papel
-// authenticated tem statement_timeout de 8s e cada uma dessas etapas custa
-// alguns segundos; juntas nao cabem (era o que estourava). Separadas, cada uma
-// ganha sua propria janela. Recalculo e refresh rodam UMA vez ao fim do lote,
-// como o rodar_importacoes.bat ja faz com o refresh.
+function esperar(ms){return new Promise(resolve=>setTimeout(resolve,ms));}
+
+// A partir da migration 20260758000000 o recalculo roda em background, fora
+// do timeout curto do navegador. Durante a janela de publicacao, banco antigo
+// continua compativel: a resposta antiga nao tem id e segue pelo fluxo abaixo.
+async function aguardarRecalculo(id){
+  const limite=Date.now()+120000;
+  while(Date.now()<limite){
+    await esperar(2000);
+    const {data,error}=await sb.rpc('consultar_recalculo_saldo',{p_id:id});
+    if(error)return {situacao:'erro',mensagem:error.message};
+    if(data&&data.situacao==='concluido')return data;
+    if(data&&data.situacao==='erro')return data;
+    aviso('Dados salvos. Recalculando o saldo e atualizando o painel em segundo plano…');
+  }
+  return {situacao:'processando'};
+}
+
+// A gravacao continua sincrona para a tela saber exatamente o que entrou. O
+// recalculo e o refresh rodam uma unica vez ao fim do lote, em background,
+// porque o recalculo deixou de caber no statement_timeout de authenticated.
 async function importar(){
   if(OCUPADO)return;
   const fila=ARQUIVOS.filter(a=>a.previa&&!a.erro&&!a.resultado);
@@ -287,6 +303,23 @@ async function importar(){
     return;
   }
 
+  // Banco novo: o worker tambem faz o refresh depois do recalculo, na ordem
+  // correta. Nao disparar um refresh concorrente por esta requisicao.
+  if(rec.data&&rec.data.id){
+    aviso('Dados salvos. Recalculando o saldo e atualizando o painel em segundo plano…');
+    const estado=await aguardarRecalculo(rec.data.id);
+    OCUPADO=false;render();
+    if(estado.situacao==='concluido'){
+      aviso(`✓ ${total} nova(s) linha(s) importada(s), saldo recalculado e painel atualizado.`,'var(--green)');
+    }else if(estado.situacao==='erro'){
+      aviso(`${total} linha(s) gravada(s), mas a atualização em segundo plano falhou: ${estado.mensagem||'erro desconhecido'}. Os dados estão salvos; avise o administrador.`,'var(--red)');
+    }else{
+      aviso(`✓ ${total} nova(s) linha(s) importada(s). A atualização continua em segundo plano e aparecerá no painel em instantes.`,'var(--green)');
+    }
+    return;
+  }
+
+  // Compatibilidade temporaria com o banco anterior a 20260758000000.
   aviso('Atualizando o painel — isso leva alguns segundos.');
   const ref=await sb.rpc('solicitar_refresh_painel');
   OCUPADO=false;render();

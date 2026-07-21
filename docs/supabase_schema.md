@@ -379,9 +379,9 @@ no repositório.
 ### importar_csv_stone(text, jsonb, boolean)
 - Tipo: RPC de escrita `SECURITY DEFINER`, protegida pela permissão de `importar.html`.
 - Uso: `importar.html` (rotina "Importar dados").
-- Propósito: carregar as três fontes Stone (`stone_extrato`, `stone_vendas`,
-  `stone_recebiveis`) pelo site, sem depender dos scripts Python locais — de
-  qualquer computador ou do celular.
+- Propósito: carregar as fontes Stone (`stone_extrato`, `stone_vendas`,
+  `stone_recebiveis`), Banco do Brasil (`bb`) e BS Cash (`bs_cash`) pelo site,
+  sem depender dos scripts Python locais — de qualquer computador ou celular.
 - O navegador só lê o CSV e faz o parse em objetos por cabeçalho; validação,
   conversão, dedup, recálculo de saldo e `log_carga` acontecem nesta RPC, que é
   a autoridade. Grava nas mesmas tabelas `raw_stone_*`, com as mesmas chaves de
@@ -399,11 +399,22 @@ no repositório.
   `private.parse_data_hora_br`, `private.parse_inteiro_br`, que espelham
   `scripts/importacao/importacao_core.py`. Os equivalentes foram conferidos caso
   a caso contra as funções reais do Python.
-- O refresh do painel fica de fora e é disparado uma vez ao fim do lote pela
-  tela, via `solicitar_refresh_painel()` — cujo gate passou a aceitar também
-  quem tem acesso a `importar.html`, e não só admin (senão o sócio importaria e
-  continuaria vendo o painel velho).
+- O recálculo e o refresh ficam fora da transação de gravação. Desde
+  `20260758000000`, `solicitar_recalculo_saldo()` enfileira o período e um job
+  `pg_cron` executa `recalcular_saldo_fechamento()` + `refresh_painel()` em
+  background, fora do `statement_timeout` curto de `authenticated`.
 - Criada em `20260751000000_importacao_web_stone.sql`.
+
+### solicitar_recalculo_saldo(date, date) / consultar_recalculo_saldo(bigint)
+- Tipo: RPCs `SECURITY DEFINER`, protegidas pela permissão de `importar.html`.
+- Uso: `importar.html`, `status.html`.
+- Propósito: enfileirar e acompanhar o recálculo assíncrono do saldo depois de
+  uma importação ou manutenção. A fila privada guarda somente período, estado
+  e mensagem técnica. O job `sirfisher-processar-recalculo-saldo` processa uma
+  tarefa por vez a cada 10 segundos e atualiza os snapshots ao concluir. A
+  migration inicial enfileira uma recomposição desde o começo do ano para
+  recuperar automaticamente dados já gravados antes da correção.
+- Criadas/redefinidas em `20260758000000_recalculo_saldo_assincrono.sql`.
 
 ## Tabelas / views que alimentam os painéis HTML
 - `analise_individual` → `analise_individual.html`

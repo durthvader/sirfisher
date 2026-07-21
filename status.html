@@ -30,6 +30,20 @@ const esc=SirFisherDOM.escapeHTML;
 function fmtDate(value){return value?new Date(value).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'}):'—';}
 function fmtDay(value){if(!value)return'—';return new Date(`${value}T12:00:00`).toLocaleDateString('pt-BR');}
 function statusInfo(value){if(value==='em dia')return['Em dia','ok'];if(value==='atenção')return['Atenção','warn'];return[value==='atrasada'?'Atrasada':'Sem carga','bad'];}
+function esperar(ms){return new Promise(resolve=>setTimeout(resolve,ms));}
+
+async function aguardarRecalculo(id,onWait){
+  const limite=Date.now()+120000;
+  while(Date.now()<limite){
+    await esperar(2000);
+    const {data,error}=await sb.rpc('consultar_recalculo_saldo',{p_id:id});
+    if(error)return {situacao:'erro',mensagem:error.message};
+    if(data&&data.situacao==='concluido')return data;
+    if(data&&data.situacao==='erro')return data;
+    if(onWait)onWait();
+  }
+  return {situacao:'processando'};
+}
 
 async function loadStatus(){
   const main=document.getElementById('main');
@@ -59,13 +73,25 @@ async function loadStatus(){
     const recalc=await sb.rpc('solicitar_recalculo_saldo',{p_data_min:inicioMes});
     if(recalc.error)erros.push('saldo: '+recalc.error.message);
 
-    atualizarBtn.textContent='Atualizando painel…';atualizarMsg.textContent='Atualizando os snapshots de Despesas e Caixa — isso leva alguns segundos…';
-    const refresh=await sb.rpc('solicitar_refresh_painel');
-    if(refresh.error)erros.push('painel: '+refresh.error.message);
+    let refresh={data:null,error:null};
+    let estado=null;
+    if(!recalc.error&&recalc.data&&recalc.data.id){
+      atualizarBtn.textContent='Processando…';atualizarMsg.textContent='Recalculando o saldo e atualizando os snapshots em segundo plano…';
+      estado=await aguardarRecalculo(recalc.data.id,()=>{atualizarMsg.textContent='A atualização continua em segundo plano…';});
+      if(estado.situacao==='erro')erros.push('saldo/painel: '+(estado.mensagem||'erro desconhecido'));
+    }else if(!recalc.error){
+      // Compatibilidade temporaria com o banco anterior a 20260758000000.
+      atualizarBtn.textContent='Atualizando painel…';atualizarMsg.textContent='Atualizando os snapshots de Despesas e Caixa — isso leva alguns segundos…';
+      refresh=await sb.rpc('solicitar_refresh_painel');
+      if(refresh.error)erros.push('painel: '+refresh.error.message);
+    }
 
     atualizarBtn.disabled=false;atualizarBtn.textContent=original;
     if(erros.length){atualizarMsg.style.color='var(--red)';atualizarMsg.textContent='Concluído com erro(s) — '+erros.join('; ');return;}
-    const quando=new Date(refresh.data||Date.now()).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+    if(estado&&estado.situacao==='processando'){
+      atualizarMsg.style.color='var(--green)';atualizarMsg.textContent='✓ Atualização agendada e ainda processando em segundo plano.';return;
+    }
+    const quando=new Date((estado&&estado.concluido_em)||refresh.data||Date.now()).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
     atualizarMsg.style.color='var(--green)';atualizarMsg.textContent='✓ Atualizado às '+quando+'. '+(sync.data||0)+' linha(s) de histórico classificada(s); saldo projetado, despesas e caixa já refletem os dados atuais.';
   });
 }

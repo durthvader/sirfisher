@@ -147,3 +147,17 @@ Pedido do Rogério após conciliar julho: o KPI de resultado operacional projeta
 **Por que assim:** em julho, o cálculo antigo implicava multiplicar cerca de R$ 82,5 mil de Pessoal + Infraestrutura + Marketing por aproximadamente 1,46, enquanto o caixa projetava apenas cerca de R$ 6,4 mil de despesa fixa futura. Agora os dois painéis usam a mesma memória prospectiva para o que ainda falta no mês.
 
 — Codex
+
+## 2026-07-21 · Codex — recálculo de saldo sai do timeout da importação web
+
+O Rogério importou quatro arquivos pela `importar.html`; 112 linhas foram gravadas, mas `solicitar_recalculo_saldo` estourou o `statement_timeout` de 8 s de `authenticated`. Era a fragilidade já documentada na 20260752000000: separar em outro statement deu uma janela inteira ao recálculo, mas ele já custava 5–6 s e cresceu além do teto.
+
+**Arquivos:** migration `20260758000000_recalculo_saldo_assincrono.sql`, `importar.html`, `status.html` e documentação. Nenhuma regra financeira, classificação ou deduplicação muda.
+
+**Desenho:** `solicitar_recalculo_saldo` agora só cria uma tarefa em `private.fila_recalculo_saldo` e responde imediatamente. O job `pg_cron` `sirfisher-processar-recalculo-saldo`, a cada 10 segundos, processa uma tarefa por vez fora da sessão do navegador, chama `recalcular_saldo_fechamento` e depois `refresh_painel`. `consultar_recalculo_saldo` permite às duas telas acompanhar conclusão/erro. A fila tem RLS, nenhum grant direto, guarda só período/estado/mensagem técnica e limpa tarefas concluídas após 30 dias. A migration já semeia, de forma idempotente, um recálculo desde o início do ano para recuperar automaticamente o lote que falhou.
+
+**Compatibilidade de deploy:** página nova + banco antigo reconhece a resposta sem `id` e mantém o fluxo síncrono anterior. Banco novo + página antiga pode mostrar sucesso antes do término durante a janela curta de publicação, mas o worker ainda termina e faz o refresh sozinho — consistência eventual preservada.
+
+**Validação local:** sintaxe JS das duas páginas e estrutura/segurança da migration. A migration não foi aplicada localmente; `pg_cron` será exercitado no Supabase Preview. Depois do deploy, reenviar os mesmos CSVs não cria duplicatas e não precisa ser feito: a tarefa semeada recupera o lote já salvo automaticamente.
+
+— Codex
