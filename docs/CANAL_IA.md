@@ -135,3 +135,15 @@ Depois que o Rogério importou o BS Cash em dia (folha de julho completa no `fat
 
 **Pendência:** migration não aplicada aqui, só validada. Depois de aplicar, rodar "Atualizar tudo agora" em status.html.
 — Claude
+
+## 2026-07-21 · Codex — DRE projeta o resultado com as premissas do caixa
+
+Pedido do Rogério após conciliar julho: o KPI de resultado operacional projetava prejuízo embora o caixa mostrasse geração futura positiva. A causa era metodológica: `monthTrend()` multiplicava o resultado operacional acumulado inteiro pelo fator `faturamento_proj / faturamento`, extrapolando também Pessoal, Infraestrutura e Marketing já realizados como se crescessem na mesma proporção das vendas.
+
+**Arquivo:** `dre.html`. Sem migration e sem mudança nos valores realizados da DRE.
+
+**A mudança:** no mês aberto, o resultado operacional projetado passa a ser `resultado operacional realizado + receita futura − despesa direta futura − despesa fixa futura`. Receita futura é a diferença entre a receita projetada pela curva de vendas e a realizada; as duas despesas futuras vêm das mesmas views usadas no caixa (`app_projecao_despesa_direta` e `app_projecao_despesa_fixa`). O resultado líquido projetado parte desse novo operacional e soma os itens abaixo da operação já realizados, sem extrapolá-los. As margens dos dois KPIs são recalculadas sobre a receita projetada. Uma memória compacta com as quatro parcelas fica visível logo abaixo dos KPIs. Meses encerrados continuam mostrando os valores realizados.
+
+**Por que assim:** em julho, o cálculo antigo implicava multiplicar cerca de R$ 82,5 mil de Pessoal + Infraestrutura + Marketing por aproximadamente 1,46, enquanto o caixa projetava apenas cerca de R$ 6,4 mil de despesa fixa futura. Agora os dois painéis usam a mesma memória prospectiva para o que ainda falta no mês.
+
+— Codex

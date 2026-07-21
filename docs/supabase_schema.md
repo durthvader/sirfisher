@@ -97,15 +97,15 @@ no repositório.
 
 ### projecao_despesa_fixa
 - Tipo: painel / view agregada
-- Uso: `caixa.html`
-- Propósito: mostra projeção de despesas fixas por dia. Calcula a média mensal dos 3 meses fechados anteriores (débitos dos grupos DRE PESSOAL, INFRAESTRUTURA, MARKETING E PUBLICIDADE e IMPOSTOS em `fato_financeiro`), subtrai o que já foi pago na competência em contas recorrentes (`conta_recorrente_pagamento` com `situacao='pago'`, contas `tipo='despesa'` e `incluir_totais`) e distribui o restante (nunca negativo) pelos dias do mês após o corte de caixa. Meses futuros sem pagamento lançado projetam a média cheia. Redefinida em `20260736000000_projecao_despesa_fixa_desconta_recorrentes.sql`.
+- Uso: `caixa.html`, `dre.html`
+- Propósito: mostra projeção de despesas fixas por dia. Calcula a média mensal dos 3 meses fechados anteriores (débitos dos grupos DRE PESSOAL, INFRAESTRUTURA, MARKETING E PUBLICIDADE e IMPOSTOS em `fato_financeiro`), subtrai o realizado na mesma fonte e nos mesmos grupos e distribui o restante (nunca negativo) pelos dias do mês após o corte de caixa. Meses futuros sem realizado projetam a média cheia. Redefinida em `20260757000000_corrige_colchao_despesa_fixa.sql`.
 - Colunas importantes:
   - `dia`
   - `valor`
 
 ### projecao_despesa_direta
 - Tipo: painel / view agregada
-- Uso: `caixa.html`
+- Uso: `caixa.html`, `dre.html`
 - Propósito: mostra projeção de despesas diretas por dia.
 - Colunas importantes:
   - `dia`
@@ -180,7 +180,7 @@ no repositório.
 ### painel_dre_cascata
 - Tipo: painel / view agregada
 - Uso: `dre.html`
-- Propósito: fornece a cascata DRE mensal com receita, CMV, despesas e resultado líquido.
+- Propósito: fornece a cascata DRE mensal realizada com receita, CMV, despesas e resultado líquido. No mês aberto, `dre.html` calcula os KPIs projetados somando ao resultado operacional realizado a receita futura da curva de vendas e descontando as despesas diretas e fixas futuras das mesmas views usadas pelo caixa; itens abaixo da operação permanecem pelo realizado.
 - Colunas importantes:
   - `mes`
   - `ano_mes`

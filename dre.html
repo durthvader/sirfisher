@@ -24,6 +24,7 @@
   .alerta{background:#fbf3e0;border:1px solid #e6d6a8;border-radius:11px;padding:11px 13px;font-size:12px;color:#7a5e1e;margin-bottom:14px;display:flex;align-items:center;gap:9px;}
   .alerta svg{width:18px;height:18px;flex-shrink:0;}
   .alerta b{font-weight:700;}
+  .proj-memoria{margin:-6px 0 18px;padding:9px 12px;border-left:3px solid var(--amber);background:#faf8f1;border-radius:0 7px 7px 0;line-height:1.5;}
   .kpi .value{font-size:23px;font-weight:700;line-height:1.1;letter-spacing:-.5px;}
   .h-wf{height:420px;}.h-marg{height:230px;}
   .tbl{width:100%;border-collapse:collapse;font-size:12.5px;}
@@ -91,13 +92,13 @@ const sb=SirFisherSupabase;
 const esc=SirFisherDOM.escapeHTML;
 const C={header:'#12313F',teal:'#00A6A6',amber:'#D6A84F',green:'#2E7D5B',red:'#C94C4C',muted:'#6B7280',border:'#E5E7EB'};
 const MESES=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-let CHARTS=[],ROWS=[],RESUMO=[],ULTIMA=null,CARGAS=[];
+let CHARTS=[],ROWS=[],RESUMO=[],DESP_FIXA=[],DESP_DIRETA=[],ULTIMA=null,CARGAS=[];
 
 const DESC={
   rec:'Receita de vendas líquida de estornos. No mês em andamento, o KPI mostra a tendência de fechamento; a DRE detalhada permanece acumulada até o corte.',
   mc:'Margem de contribuição. No mês em andamento, o valor é projetado pela curva de vendas, mantendo a margem observada até o corte.',
-  op:'Resultado operacional. No mês em andamento, o valor é projetado pela curva de vendas, mantendo a margem observada até o corte.',
-  liq:'Resultado líquido. No mês em andamento, o valor é projetado pela curva de vendas, mantendo a margem observada até o corte.'
+  op:'Resultado operacional. No mês em andamento, soma ao realizado a receita futura esperada e desconta as despesas diretas e fixas ainda projetadas, usando as mesmas premissas do caixa.',
+  liq:'Resultado líquido. No mês em andamento, parte do resultado operacional projetado e mantém, sem extrapolar, os itens não operacionais já realizados.'
 };
 
 function brl(v){if(v==null||isNaN(v))return '—';const a=Math.abs(v);if(a>=1e6)return 'R$ '+(v/1e6).toFixed(2).replace('.',',')+' mi';if(a>=1e3)return 'R$ '+(v/1e3).toFixed(1).replace('.',',')+' mil';return 'R$ '+v.toFixed(0);}
@@ -145,13 +146,18 @@ function montarSeletorPeriodo(anoMesList,selecionado){
 
 async function main(){
   try{
-    const [r,res]=await Promise.all([
+    const [r,res,df,dd]=await Promise.all([
       sb.from('app_painel_dre_cascata').select('*').order('mes',{ascending:true}),
-      sb.from('app_painel_resumo_mensal').select('ano_mes,faturamento,faturamento_proj').order('ano_mes',{ascending:true})
+      sb.from('app_painel_resumo_mensal').select('ano_mes,faturamento,faturamento_proj').order('ano_mes',{ascending:true}),
+      sb.from('app_projecao_despesa_fixa').select('dia,valor'),
+      sb.from('app_projecao_despesa_direta').select('dia,valor')
     ]);
     if(r.error)throw r.error;
     if(res.error)throw res.error;
+    if(df.error)throw df.error;
+    if(dd.error)throw dd.error;
     ROWS=r.data||[];RESUMO=res.data||[];
+    DESP_FIXA=df.data||[];DESP_DIRETA=dd.data||[];
     const [uc,cg]=await Promise.all([
       sb.from('app_painel_ultima_carga').select('ultima'),
       sb.from('app_painel_cargas').select('*')
@@ -179,6 +185,26 @@ function renderMes(anoMes){
   const P=k=>prev&&prev[k]!=null?Number(prev[k]):null;
   const trend=SirFisherFormat.monthTrend(RESUMO,anoMes);
   const T=k=>trend.value(N(k));
+  const somaProj=(rows)=>rows
+    .filter(x=>x.dia&&x.dia.slice(0,7)===anoMes)
+    .reduce((s,x)=>s+Math.abs(Number(x.valor)||0),0);
+  const receitaProj=T('receita');
+  const receitaFutura=trend.active?Math.max(receitaProj-N('receita'),0):0;
+  const despDiretaFutura=trend.active?somaProj(DESP_DIRETA):0;
+  const despFixaFutura=trend.active?somaProj(DESP_FIXA):0;
+  const resultadoOpProj=trend.active
+    ? N('resultado_operacional')+receitaFutura-despDiretaFutura-despFixaFutura
+    : N('resultado_operacional');
+  const abaixoOperacional=N('nao_operacional')+N('contabil')+N('capex')+N('nao_categorizado');
+  const resultadoLiqProj=trend.active?resultadoOpProj+abaixoOperacional:N('resultado_liquido');
+  const margemOpProj=receitaProj?resultadoOpProj/receitaProj*100:null;
+  const margemLiqProj=receitaProj?resultadoLiqProj/receitaProj*100:null;
+  const memoriaProj=trend.active
+    ? '<div class="hint proj-memoria"><b>Memória do resultado operacional projetado:</b> '
+      +brl(N('resultado_operacional'))+' realizado + '+brl(receitaFutura)+' receita futura − '
+      +brl(despDiretaFutura)+' despesa direta − '+brl(despFixaFutura)+' despesa fixa = <b>'
+      +brl(resultadoOpProj)+'</b></div>'
+    : '';
 
   const naoCat=N('nao_categorizado');
   const alertaHtml=Math.abs(naoCat)>0.5
@@ -191,9 +217,10 @@ function renderMes(anoMes){
     <div class="kpis">
       ${kpi(trend.label('Receita de vendas','Receita (tend.)'),'cash',brl0(T('receita')),deltaVal(T('receita'),P('receita')),C.header,'rec')}
       ${kpi(trend.label('Margem de contribuição','Margem contrib. (tend.)'),'mc',brl0(T('margem_contribuicao')),subMarg(N('mc_perc'),P('mc_perc')),C.teal,'mc')}
-      ${kpi(trend.label('Resultado operacional','Result. operac. (tend.)'),'op',brl0(T('resultado_operacional')),subMarg(N('margem_op_perc'),P('margem_op_perc')),C.amber,'op')}
-      ${kpi(trend.label('Resultado líquido','Resultado líq. (tend.)'),'liq',brl0(T('resultado_liquido')),subMarg(N('margem_liq_perc'),P('margem_liq_perc')),T('resultado_liquido')>=0?C.green:C.red,'liq')}
+      ${kpi(trend.label('Resultado operacional','Result. operac. (proj.)'),'op',brl0(resultadoOpProj),subMarg(margemOpProj,P('margem_op_perc')),C.amber,'op')}
+      ${kpi(trend.label('Resultado líquido','Resultado líq. (proj.)'),'liq',brl0(resultadoLiqProj),subMarg(margemLiqProj,P('margem_liq_perc')),resultadoLiqProj>=0?C.green:C.red,'liq')}
     </div>
+    ${memoriaProj}
 
     <div class="section-title">Cascata do resultado</div>
     <div class="card">
