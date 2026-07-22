@@ -275,3 +275,14 @@ gerente também foi alinhada. Quando não houver snapshot histórico, as views
 mantêm o cálculo anterior como fallback.
 
 — Codex
+
+## 2026-07-22 · Codex — centavos na posição atual das contas
+
+**Arquivo:** `caixa.html`.
+
+Na seção “Onde está o dinheiro”, os valores de cada conta, o total e o tooltip
+do gráfico agora usam moeda brasileira completa, com separador de milhar e duas
+casas decimais. Os valores de origem e os demais componentes da tela não foram
+alterados.
+
+— Codex

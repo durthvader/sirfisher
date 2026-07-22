@@ -97,6 +97,7 @@ const DESC={
 
 function brl(v){if(v==null||isNaN(v))return '—';const a=Math.abs(v);if(a>=1e6)return 'R$ '+(v/1e6).toFixed(2).replace('.',',')+' mi';if(a>=1e3)return 'R$ '+(v/1e3).toFixed(1).replace('.',',')+' mil';return 'R$ '+v.toFixed(0);}
 function brl0(v){if(v==null||isNaN(v))return '—';const a=Math.abs(v);if(a>=1e6)return 'R$ '+(v/1e6).toFixed(1).replace('.',',')+' mi';if(a>=1e3)return 'R$ '+Math.round(v/1e3)+' mil';return 'R$ '+v.toFixed(0);}
+function brl2(v){if(v==null||isNaN(v))return '—';return Number(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL',minimumFractionDigits:2,maximumFractionDigits:2});}
 function brlK(v){if(v==null||isNaN(v))return '—';const a=Math.abs(v);if(a>=1e6)return 'R$ '+Math.round(v/1e3)+'k';if(a>=1e3)return 'R$ '+Math.round(v/1e3)+'k';return 'R$ '+Math.round(v);}
 function rs(v){return v==null?'—':'R$ '+Number(v).toFixed(2).replace('.',',');}
 function num(v){return v==null?null:Number(v);}
@@ -423,9 +424,9 @@ function drawContas(){
   CHARTS.push(new Chart(document.getElementById('contas'),{type:'doughnut',
     data:{labels:rows.map(r=>r.conta),datasets:[{data:rows.map(r=>r.saldo),backgroundColor:rows.map(r=>r.cor),borderColor:'#fff',borderWidth:2}]},
     options:{responsive:true,maintainAspectRatio:false,cutout:'60%',
-      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+c.label+': '+brl(c.parsed)+' ('+(c.parsed/total*100).toFixed(0)+'%)'}}}}}));
-  tbl.innerHTML='<table class="tbl">'+rows.map(r=>'<tr><td><span class="dot" style="background:'+r.cor+'"></span>'+esc(r.conta)+'</td><td class="r">'+brl0(r.saldo)+'</td><td class="r" style="color:var(--muted)">'+(r.saldo/total*100).toFixed(0)+'%</td></tr>').join('')+
-    '<tr class="net"><td>Total</td><td class="r">'+brl0(total)+'</td><td class="r"></td></tr></table>';
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+c.label+': '+brl2(c.parsed)+' ('+(c.parsed/total*100).toFixed(0)+'%)'}}}}}));
+  tbl.innerHTML='<table class="tbl">'+rows.map(r=>'<tr><td><span class="dot" style="background:'+r.cor+'"></span>'+esc(r.conta)+'</td><td class="r">'+brl2(r.saldo)+'</td><td class="r" style="color:var(--muted)">'+(r.saldo/total*100).toFixed(0)+'%</td></tr>').join('')+
+    '<tr class="net"><td>Total</td><td class="r">'+brl2(total)+'</td><td class="r"></td></tr></table>';
 }
 
 // tooltip dos KPIs
