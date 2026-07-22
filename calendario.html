@@ -54,6 +54,7 @@ let AUTH=null;
 let DESPESAS_DIA={};
 let SALDOS_DIA={};
 let hoverTimer=null;
+let CARGA_ATUAL=0;
 const HOVER_FINO=window.matchMedia('(hover: hover) and (pointer: fine)').matches;
 
 function mesAtual(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;}
@@ -64,6 +65,10 @@ function compacto(v){if(v==null)return'—';const n=Number(v)||0;return Math.abs
 function classeValor(v){return Number(v)<0?'negative':'';}
 function valorSimples(v,extra=''){return `<span class="${classeValor(v)} ${extra}">${compacto(v)}</span>`;}
 function valorDetalhado(v,i,tipo,extra=''){return `<span class="cell-detail ${extra}"><span class="${classeValor(v)}">${compacto(v)}</span><button type="button" class="detail-trigger" data-row="${i}" data-detail="${tipo}" title="Ver detalhamento" aria-label="Ver detalhamento">i</button></span>`;}
+function erroTransitorio(error){
+  const texto=[error?.code,error?.message,error?.details,error?.hint].filter(Boolean).join(' ');
+  return Number(error?.status)>=500||/57014|statement timeout|canceling statement|failed to fetch|network/i.test(texto);
+}
 
 function render(){
   const hoje=new Date();const hojeISO=`${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}-${String(hoje.getDate()).padStart(2,'0')}`;
@@ -155,10 +160,28 @@ if(HOVER_FINO){
 document.addEventListener('click',event=>{if(!event.target.closest('#detailPopover'))fecharDetalhe();});
 document.addEventListener('keydown',event=>{if(event.key==='Escape')fecharDetalhe();});
 
-async function carregar(){
-  const main=document.getElementById('main');const mes=document.getElementById('mesSel')?.value||mesAtual();main.innerHTML='<div class="loading">Carregando calendário…</div>';
-  const {data,error}=await sb.rpc('listar_calendario_financeiro',{p_mes:`${mes}-01`});
-  if(error){console.error('Falha ao carregar calendário:',error);main.innerHTML='<div class="erro">Não foi possível carregar o calendário financeiro.</div>';return;}
+async function carregar(mesForcado){
+  const carga=++CARGA_ATUAL;
+  const main=document.getElementById('main');
+  const mes=typeof mesForcado==='string'?mesForcado:(document.getElementById('mesSel')?.value||mesAtual());
+  main.innerHTML='<div class="loading">Carregando calendário…</div>';
+  let data=null,error=null;
+  for(let tentativa=1;tentativa<=3;tentativa++){
+    if(carga!==CARGA_ATUAL)return;
+    try{
+      ({data,error}=await sb.rpc('listar_calendario_financeiro',{p_mes:`${mes}-01`}));
+    }catch(falha){data=null;error=falha;}
+    if(carga!==CARGA_ATUAL)return;
+    if(!error||!erroTransitorio(error)||tentativa===3)break;
+    main.innerHTML=`<div class="loading">O servidor demorou a responder. Tentando novamente… (${tentativa+1}/3)</div>`;
+    await new Promise(resolve=>setTimeout(resolve,350*tentativa));
+  }
+  if(error){
+    console.error('Falha ao carregar calendário:',error);
+    main.innerHTML='<div class="erro">Não foi possível carregar o calendário financeiro.<br><button type="button" class="button secondary" id="tentarCalendario" style="margin-top:10px">Tentar novamente</button></div>';
+    document.getElementById('tentarCalendario').addEventListener('click',()=>carregar(mes));
+    return;
+  }
   ROWS=data||[];DESPESAS_DIA={};SALDOS_DIA={};render();document.getElementById('mesSel').value=mes;
 }
 

@@ -286,3 +286,16 @@ casas decimais. Os valores de origem e os demais componentes da tela não foram
 alterados.
 
 — Codex
+
+## 2026-07-22 · Codex — calendário tolera timeout transitório
+
+**Arquivo:** `calendario.html`.
+
+O carregamento de `listar_calendario_financeiro` agora repete até três vezes
+somente em erros transitórios de timeout, `5xx` ou rede, com espera curta entre
+as tentativas. Se todas falharem, a tela oferece “Tentar novamente” preservando
+o mês solicitado. Erros permanentes continuam saindo imediatamente. Nenhuma
+consulta, regra financeira ou configuração de CSP foi alterada; o aviso de
+source map bloqueado permanece inofensivo.
+
+— Codex
