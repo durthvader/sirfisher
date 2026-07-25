@@ -123,7 +123,7 @@ async function mostrarDetalhe(button){
     }
     const saldo=SALDOS_DIA[r.dia];
     html=saldo
-      ?`<h3>Saldo em caixa · ${dataBR(r.dia)}</h3>${linha('Stone',saldo.saldo_stone)}${linha('Banco do Brasil',saldo.saldo_bb)}${linha('Dinheiro a depositar',saldo.dinheiro_pendente)}${linha('Total',saldo.saldo_total)}<div class="detail-note">Posição no fechamento desta data. O dinheiro considera somente sangrias ainda não depositadas naquele dia; BS Cash permanece fora do caixa disponível.</div>`
+      ?`<h3>Saldo em caixa · ${dataBR(r.dia)}</h3>${linha('Stone',saldo.saldo_stone)}${linha('Banco do Brasil',saldo.saldo_bb)}${Number(saldo.saldo_inter)?linha('Inter',saldo.saldo_inter):''}${linha('Dinheiro a depositar',saldo.dinheiro_pendente)}${linha('Total',saldo.saldo_total)}<div class="detail-note">Posição no fechamento desta data. O dinheiro considera somente sangrias ainda não depositadas naquele dia; BS Cash permanece fora do caixa disponível.</div>`
       :`<h3>Saldo em caixa · ${dataBR(r.dia)}</h3><div class="detail-note">A composição por conta não está disponível para esta data.</div>`;
   }
   if(tipo==='despesas'){
