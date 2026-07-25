@@ -63,8 +63,8 @@ create table if not exists public.raw_inter (
   data_raw text,
   historico text,
   descricao text,
-  valor numeric not null,
-  saldo numeric,
+  valor numeric(14,2) not null,
+  saldo numeric(14,2),
   dedup_hash text not null,
   importado_em timestamptz not null default now()
 );
@@ -229,7 +229,7 @@ live_base as (
     i.data as data_caixa,
     case when i.valor < 0 then 'Débito' else 'Crédito' end as movimentacao,
     i.historico as tipo,
-    i.valor,
+    i.valor::numeric(14,2) as valor,
     coalesce(nullif(trim(i.descricao), ''), i.historico) as contraparte_nome,
     null::text as contraparte_doc,
     false as transf_propria
