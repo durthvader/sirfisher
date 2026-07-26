@@ -285,6 +285,22 @@ no repositório.
   se propaga. Nota de equivalência: `tendencia_mes` pode não ter linha, então
   o join é `left join lateral ... on true` — um `cross join` apagaria as linhas.
 
+### raw_fundopay_vendas / venda_diaria
+- `venda_diaria` é a base do faturamento (planejamento, vendas.html, metas,
+  tendência, peso do dia e, por `projecao_venda_diaria`, a projeção de caixa).
+- Reúne três canais, sempre pela **data da venda** e pelo **valor bruto**:
+  `raw_stone_vendas` (líquido de cancelamento), `venda_especie` (sangrias
+  registradas à mão) e `raw_fundopay_vendas` (maquininha paralela usada de
+  mai/2025 a mai/2026).
+- O depósito de dinheiro que aparece no extrato do BB (`Dep dinheiro ATM`,
+  R$ 136 mil) **não** entra e não deve entrar: é o mesmo dinheiro já contado por
+  `venda_especie` na data da venda. Contar os dois duplicaria.
+- Em `raw_fundopay_vendas` a coluna `situacao` traz Aprovada, Negada e Desfeita;
+  a view filtra `lower(btrim(situacao)) = 'aprovada'`. Negada é cartão recusado
+  (não houve venda). O número do cartão não é gravado.
+- Carga: `scripts/importacao/07_importar_fundopay.py`, dedup pelo `ID Venda`.
+- Criados em `20260774000000_vendas_fundopay_no_faturamento.sql`.
+
 ### corte_venda / corte_caixa
 - Tipo: views de corte (1 linha, coluna `dia`).
 - Uso: base de todas as views de tendência/projeção (`tendencia_mes`,

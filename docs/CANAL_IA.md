@@ -430,3 +430,49 @@ transação com rollback comparando **linha a linha**: as 31 linhas de julho, as
 - O retry da tela continua como rede de segurança; não deve mais ser acionado.
 
 — Claude
+
+## 2026-07-26 · Claude — vendas da Fundopay entram no faturamento
+
+**Arquivos:** migration `20260774000000_vendas_fundopay_no_faturamento.sql`,
+`scripts/importacao/07_importar_fundopay.py`, `docs/supabase_schema.md`.
+
+O `venda_diaria` só conhecia dois canais (Stone e dinheiro em espécie). A
+maquininha **Fundopay**, usada de mai/2025 a mai/2026 em paralelo à Stone, nunca
+entrou: as vendas dela só apareciam quando o dinheiro caía na conta Inter, ou
+seja, na camada de caixa/DRE. Resultado: **a DRE contava e o planejamento não** —
+as duas telas discordavam sobre quanto o restaurante vendeu. O usuário confirmou
+que era outra maquininha e que as vendas não passavam pela Stone.
+
+**Fonte validada antes de importar:** vendas líquidas de MDR R$ 177.780,77 x
+recebido na conta Inter R$ 177.747,35 — diferença de R$ 33,42 (0,02%, vendas de
+maio liquidadas após o fim do extrato). Os dois terminais (6R867578 e 6R867564)
+estão no arquivo, não há antecipação e os 1.897 "ID Venda" são únicos.
+
+**Regra adotada:** entram só as **1.796 Aprovadas**, pela data real da venda e
+pelo valor **bruto** — mesmos critérios da Stone, para não misturar bases. As
+**98 Negadas** (cartão recusado, não houve venda) e 3 Desfeitas são gravadas na
+tabela mas filtradas na view; a decisão fica auditável e reversível. O braço
+conta 1 em `qtd`, então ticket médio e quantidade passam a considerar a Fundopay.
+
+**Resultado em produção:** +R$ 180.947,62 em 13 meses. fev/2026 (94%→107%),
+mar/2026 (99%→101%) e mai/2025 (94%→100%) passaram a atingir a meta. Maiores
+ganhos: ago/2025 +31,0 mil, set +28,9 mil, out +26,5 mil. A DRE **não** mudou —
+a correção elimina a divergência entre ela e o planejamento.
+
+**Detalhes que podem confundir quem mexer depois:**
+- O arquivo vai até 10/06/2026, mas a última venda **aprovada** é 10/05/2026 —
+  a data mais recente é uma tentativa negada. Por isso jun/2026 fica com delta
+  zero, e está certo.
+- 34 vendas de débito têm "Valor Líquido" zerado no export (R$ 2.923,91 de
+  bruto). Como o faturamento usa o **bruto**, não afeta; só distorceria se
+  alguém passasse a usar o líquido.
+
+**Pendências:**
+- **Pix QR Code recebido no BB (R$ 5.222, 131 lançamentos)** ainda está fora do
+  faturamento. Ficou de propósito: só temos a data em que o dinheiro caiu, sem
+  lista de vendas, então entraria com critério diferente do resto.
+- As **regras de recebimento** (`recebimento_regra`: crédito 48,7%/30d, débito
+  27,8%/1d, pix 23,5%) foram calibradas com o mix da Stone. Com a Fundopay no
+  faturamento o mix real mudou um pouco; vale recalibrar com a base completa.
+
+— Claude
