@@ -24,7 +24,7 @@
     <nav class="tabs"><a href="./">Visão Geral</a><a href="vendas.html">Faturamento</a><a href="caixa.html">Caixa</a><a href="dre.html">DRE</a><a href="despesas.html">Despesas</a><a href="conciliacao.html">Conciliação</a><a href="planejamento.html">Planejamento</a><a href="rotinas.html" class="routines">Rotinas</a></nav>
   </header>
   <main id="main">
-    <div class="page-intro"><div><h2>Classificar exceções</h2><p>Fornecedores novos no extrato que ainda não têm categoria. <b id="contador">—</b></p></div></div>
+    <div class="page-intro"><div><h2>Classificar exceções</h2><p>Fornecedores novos no extrato que ainda não têm categoria. O primeiro campo é como o fornecedor aparece nos relatórios: troque pelo apelido ou pelo produto (Uber, Ambev, Coco) para agrupar os lançamentos — o nome do extrato continua guardado. <b id="contador">—</b></p></div></div>
     <div class="panel"><div id="content"><div class="loading">Carregando…</div></div></div>
     <div class="panel classification-panel">
       <div class="panel-head"><div><h3>Classificações recentes</h3><div class="hint">Corrija a categoria ou desfaça uma regra criada anteriormente.</div></div></div>
@@ -139,6 +139,10 @@ function linha(exc, categorias){
     </div>
     <div class="${classeValor}">${sinal} ${fmtMoeda(exc.total)}<span class="qtd">${Number(exc.qtd_lancamentos)||0}x</span></div>
     <div class="controls">
+      <input class="field apelido" type="text" maxlength="60"
+             value="${esc(tituloCase(exc.contraparte_nome))}"
+             placeholder="Como chamar nos relatórios"
+             title="Nome usado nos relatórios. Troque pelo apelido ou pelo produto (ex.: Uber, Ambev, Coco). O nome do extrato continua guardado.">
       <select class="field">
         <option value="" disabled selected>Escolher categoria…</option>
         ${opcoes}
@@ -148,6 +152,7 @@ function linha(exc, categorias){
   `;
 
   const select = el.querySelector('select');
+  const apelido = el.querySelector('input.apelido');
   const btn = el.querySelector('button.save');
 
   select.addEventListener('change', () => {
@@ -157,13 +162,15 @@ function linha(exc, categorias){
   btn.addEventListener('click', async () => {
     const categoria = select.value;
     if (!categoria) return;
+    // Campo vazio volta ao nome do extrato: a regra nunca fica sem rótulo.
+    const rotulo = apelido.value.trim() || tituloCase(exc.contraparte_nome);
     el.classList.add('saving');
     btn.disabled = true;
 
     const { data: classificacaoId, error } = await sb.rpc('classificar_excecao', {
       p_chave_tipo: exc.chave_tipo,
       p_chave_valor: exc.chave_valor,
-      p_fornecedor: tituloCase(exc.contraparte_nome),
+      p_fornecedor: rotulo,
       p_categoria: categoria
     });
 
@@ -178,7 +185,7 @@ function linha(exc, categorias){
     SirFisherClassifications.offerUndo({
       tipo: 'excecao',
       id: classificacaoId,
-      message: 'Regra salva para ' + tituloCase(exc.contraparte_nome) + '.'
+      message: 'Regra salva para ' + rotulo + '.'
     });
     SirFisherClassifications.refresh();
     el.classList.add('done');
