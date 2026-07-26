@@ -719,3 +719,63 @@ lugar com presença 6/6 e classificada como recorrente; mês fechado (mai/2026)
 retorna corte 31 e mantém o comportamento histórico.
 
 — Claude
+
+## 2026-07-26 · Claude — três defeitos na carga de recebíveis Stone
+
+**Arquivos:** migration `20260780000000_recebiveis_chave_inclui_categoria.sql`,
+`scripts/importacao/03_importar_recebiveis_stone.py`. **Dados alterados em
+produção com autorização explícita do usuário.**
+
+Começou com ele perguntando por que a conciliação mostrava só 3 registros em
+agosto. A resposta imediata era boba (a tela abre no último mês com dados, e a
+agenda de recebíveis vai até o futuro), mas puxar o fio revelou três defeitos.
+
+**1. A chave única descartava cancelamentos — e isso mexia em faturamento.**
+A restrição era `(stone_id, n_parcela)`, mas a Stone emite **duas linhas com
+essa mesma chave** quando a venda é cancelada: uma `Venda` e uma
+`Cancelamento`. Com `on conflict do nothing`, só a primeira do arquivo
+sobrevivia — e qual delas era pura sorte de ordenação. Como `venda_diaria`
+desconta os cancelamentos da venda Stone, todo cancelamento descartado ficava
+sem ser abatido. A base tinha **4 cancelamentos quando deveria ter 7**.
+A chave passou a incluir `categoria` (nunca nula aqui, então sem o risco de
+UNIQUE com NULL). Efeito: faturamento de dez/2025 em diante **caiu R$ 114,20** —
+jan/2026 −11,90 e fev/2026 −102,30, exatamente os dois cancelamentos
+recuperados dentro da janela.
+
+**2. STONE ID em notação científica entrava calado.** Abrir o CSV no Excel
+converte o ID de 14 dígitos para `2,95639E+13`, guardando 6 dígitos
+significativos — perda irreversível, e a linha nunca mais casa com a venda.
+Já haviam entrado **109 registros assim (R$ 8.183,51)**, que viravam "recebível
+sem venda". O leitor agora **rejeita** a linha com mensagem explicando. As 109
+foram excluídas (nenhuma era cancelamento — conferido antes de apagar, com
+abort automático se houvesse).
+
+**3. Layout de 18 colunas era recusado.** O usuário identificou a causa: a Stone
+usava um layout até 2025 e atualizou depois. O antigo não traz `ENTRADAS BRUTAS`
+nem `SAÍDAS BRUTAS`. As duas **não alimentam nenhuma view** e já estavam nulas
+em 61% da base, então viraram opcionais.
+
+**Resultado em produção** (9 arquivos reexportados, dez/2025 a ago/2026, 201
+linhas novas, 109 excluídas):
+
+| | antes | depois |
+|---|---|---|
+| venda sem recebível | 183 | **11** |
+| ok | 28.786 | **28.955** |
+| recebível sem venda | 1.891 | **1.804** |
+| cancelado/estornado | 4 | **7** |
+| IDs corrompidos | 109 | **0** |
+
+**Pendências:**
+- **216 órfãos em jan/2026** vêm de vendas de **dez/2025 ausentes no export de
+  vendas** — dezembro tem 2.216 IDs de venda contra 276 IDs de recebível sem
+  par. Só fecha com o relatório de **vendas** de dez/2025, que não foi
+  reexportado.
+- Os 1.566 de jan e mar/2025 são anteriores ao início da importação. Ficam.
+- **Cancelamentos anteriores a dez/2025 seguem perdidos** — a linha foi
+  descartada na carga original. Só volta reexportando o período.
+- A tela ainda abre no último mês com dados, o que joga o usuário num mês futuro
+  quase vazio. Trocar para o mês corrente é uma linha; não foi feito porque ele
+  não pediu.
+
+— Claude

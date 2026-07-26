@@ -741,6 +741,28 @@ no repositório.
 - `raw_stone_extrato` / `raw_stone_vendas` / `raw_stone_recebiveis` → destino da
   carga, tanto pelo `importar.html` quanto pelos scripts de `scripts/importacao/`
 
+### raw_stone_recebiveis — armadilhas da carga
+- **A chave única é `(stone_id, n_parcela, categoria)`**, não apenas as duas
+  primeiras. A Stone emite **duas linhas com o mesmo STONE ID e número de
+  parcela** quando a venda é cancelada: uma `Venda` e uma `Cancelamento`. Sem a
+  categoria na chave, o `on conflict do nothing` descartava uma das duas de
+  forma arbitrária (a que viesse depois no arquivo).
+  Isso **tinha efeito financeiro**: `venda_diaria` desconta da venda Stone o
+  `sum(abs(valor_bruto))` das linhas de cancelamento, então cancelamento
+  descartado virava faturamento a mais. Corrigido em `20260780000000`; a base
+  tinha 4 cancelamentos quando deveria ter 7.
+- **STONE ID em notação científica** (`2,95639E+13`) é arquivo que passou pelo
+  Excel: o ID tem 14 dígitos e a conversão guarda 6 significativos, perda
+  irreversível. A linha nunca mais casa com a venda e vira "recebível sem venda"
+  na conciliação. O importador **rejeita** essas linhas desde `20260780000000`;
+  109 registros que já haviam entrado foram excluídos.
+- **Dois layouts de relatório**: até 2025 a Stone exportava 18 colunas; depois
+  passou a 20, com `ENTRADAS BRUTAS` e `SAÍDAS BRUTAS`. Essas duas não alimentam
+  nenhuma view e estão nulas na maior parte da base, então são **opcionais** no
+  importador — arquivo antigo continua válido.
+- Cancelamentos anteriores ao período reimportado seguem perdidos: a linha foi
+  descartada na carga original e só volta reexportando o período.
+
 ## Observações
 - O front-end autenticado usa views `app_*` e RPCs protegidas; tabelas internas
   não são expostas para leitura anônima.
