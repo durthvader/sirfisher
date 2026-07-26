@@ -269,6 +269,22 @@ no repositório.
   - `peso_total`
   - `projecao_fechamento`
 
+### projecao_venda_diaria
+- Tipo: view; venda realizada até `corte_venda` e projetada depois, rateada
+  pelo `peso_ajustado` do dia.
+- Uso: `vendas.html`, `caixa.html`, `dre.html`, `listar_calendario_financeiro`,
+  e como base de `recebimento_projetado` e `projecao_despesa_direta`.
+- Regra por mês: mês anterior ao do corte usa o realizado; o mês do corte usa
+  a tendência (ou a meta, se não houver tendência); meses futuros usam a meta.
+- **Desempenho (20260771000000).** A CTE `mes_total` executava subqueries
+  correlacionadas para cada um dos 68 meses de `calendario` (soma de
+  `venda_diaria`, `meta_mensal` e `peso_mensal` do mês, além de reavaliar
+  `tendencia_mes`), custando 1,21 s enquanto todas as dependências somavam
+  0,35 s. Passou a usar uma agregação única mais `left join`, caindo para
+  0,34 s com as 2.064 linhas idênticas. Como duas views derivam desta, o ganho
+  se propaga. Nota de equivalência: `tendencia_mes` pode não ter linha, então
+  o join é `left join lateral ... on true` — um `cross join` apagaria as linhas.
+
 ### corte_venda / corte_caixa
 - Tipo: views de corte (1 linha, coluna `dia`).
 - Uso: base de todas as views de tendência/projeção (`tendencia_mes`,
@@ -417,6 +433,18 @@ no repositório.
   A parcela recorrente usa
   pagamentos de `conta_recorrente_pagamento` limitada ao total financeiro do
   dia; o restante é apresentado como não recorrente.
+- **Desempenho (20260770000000).** A RPC chegou a levar 7,5–8,8 s contra o
+  limite de 8 s do PostgREST, o que fazia `calendario.html` falhar de forma
+  intermitente. O `explain analyze` mostrou 355 InitPlans e a CTE `de_para_u`
+  repetida 24 vezes — ou seja, `fato_financeiro` expandida 24 vezes na mesma
+  consulta. Isoladas, as fontes somam 1,65 s; juntas, passavam de 8 s. Duas
+  mudanças resolveram, sem alterar nenhum valor: `entradas_reais` e
+  `saidas_reais` (dois scans do mesmo recorte, diferindo só na movimentação)
+  passaram a sair de uma CTE única `movimento_real`; e as CTEs de fonte viraram
+  `AS MATERIALIZED`, de modo que cada uma é avaliada uma só vez em vez de ser
+  reexpandida pelo planner. Medido depois: jul/2026 2,3 s e os demais meses
+  ~1,2 s. **Ao acrescentar fonte nova aqui, declare-a como CTE materializada** —
+  sem isso o inline volta a multiplicar as avaliações de `fato_financeiro`.
 
 ### listar_despesas_dia(date)
 - Tipo: RPC diária `SECURITY DEFINER`, protegida pela permissão de `calendario.html`.

@@ -385,3 +385,48 @@ para ela. **Não reclassificar esses lançamentos.**
   for importado).
 
 — Claude
+
+## 2026-07-26 · Claude — timeout do Calendário resolvido na causa raiz
+
+**Arquivos:** migrations `20260770000000_calendario_uma_avaliacao_por_fonte.sql`
+e `20260771000000_projecao_venda_diaria_sem_subquery_por_mes.sql`,
+`docs/supabase_schema.md`.
+
+O retry de `calendario.html` (20260764) tratava o sintoma. A causa era o tempo
+da RPC: 7,5–8,8 s contra o limite de 8 s do PostgREST — por isso falhava às
+vezes e funcionava outras.
+
+`explain analyze` do corpo da função mostrou **355 InitPlans** e a CTE
+`de_para_u` repetida **24 vezes**: `fato_financeiro` (52 mil linhas, une cinco
+raws mais o `de_para`) estava sendo expandida 24 vezes na mesma consulta.
+Somadas isoladamente as fontes custam 1,65 s; juntas, passavam de 8 s. Testei
+`enable_mergejoin=off`, `enable_nestloop=off`, `jit=off` e
+`join_collapse_limit=1`: todos pioraram ou empataram, o que descarta plano ruim
+e confirma trabalho repetido.
+
+**Correções (nenhum valor mudou):**
+1. `listar_calendario_financeiro`: `entradas_reais` e `saidas_reais` eram dois
+   scans do mesmo recorte do `fato_financeiro`, diferindo só na movimentação —
+   viraram uma passada só (`movimento_real`). As CTEs de fonte passaram a
+   `AS MATERIALIZED`, uma avaliação cada.
+2. `projecao_venda_diaria`: `mes_total` fazia subquery correlacionada para cada
+   um dos 68 meses; virou agregação única + left joins. Beneficia junto
+   `recebimento_projetado` e `projecao_despesa_direta`, que derivam dela.
+
+**Medido (produção, melhor de 3):** jul/2026 7,91 s → 2,27 s; jun 5,71 → 1,19;
+mai → 1,21; nov/2025 7,01 → 1,19. Antes de enviar, testei as duas migrations em
+transação com rollback comparando **linha a linha**: as 31 linhas de julho, as
+2.064 da projeção e as somas de `recebimento_projetado` e
+`projecao_despesa_direta` saíram idênticas.
+
+**Para quem mexer aqui depois:**
+- Fonte nova em `listar_calendario_financeiro` deve entrar como CTE
+  **materializada**; sem isso o inline volta a multiplicar as avaliações de
+  `fato_financeiro` e o timeout retorna.
+- **Não materialize as projeções** sem resolver o corte antes: `corte_venda` e
+  `corte_caixa` usam `now()` e hoje estão limitados por "ontem" (dados até
+  25/07, corte 24/07 — conferido). Uma MV ficaria defasada na virada do dia.
+  Daria mais ~3 s, mas exige refresh amarrado ao corte.
+- O retry da tela continua como rede de segurança; não deve mais ser acionado.
+
+— Claude
