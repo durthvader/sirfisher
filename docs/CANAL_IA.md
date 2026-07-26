@@ -371,10 +371,17 @@ para ela. **Não reclassificar esses lançamentos.**
   Cash de 2025 fica fora do `fato_financeiro` pelo corte de 2026-01-01.
   O mesmo vale para os R$ 3.000 de 08/10/2025 ("Bs Instituicao de Pagamento"),
   que existem em `raw_bs_cash` como DEPOSITO.
-- **Continua em aberto apenas 1 lançamento:** 10/11/2025, R$ 5.000 para "Sir
-  Fisher Comercio de Alimentos". O BS Cash não recebeu nada entre 06 e 18/11 e
-  não há crédito de R$ 5.000 em nenhuma fonte entre 08 e 20/11 sem dono (o de
-  14/11 pertence a outra saída da Inter). Candidato provável: BNB, cujo
-  histórico termina em 07/07/2025.
+- O último caso, 10/11/2025 R$ 5.000, **foi para o BNB** — confirmado pelo
+  usuário fora do sistema (histórico de conversa). O sistema não o encontrava
+  porque o histórico do BNB termina em 07/07/2025. Com isso, as 22 saídas da
+  Inter (R$ 89.300) estão 100% rastreadas: R$ 63.300 com par direto,
+  R$ 21.000 no BS Cash (R$ 18.000 por data/valor mais R$ 3.000 já em
+  `raw_bs_cash`) e R$ 5.000 no BNB.
+- **Lacuna conhecida que sobra:** a conta BNB tem movimentação depois de
+  07/07/2025 que não está no sistema. Não afeta a DRE (o lançamento conhecido é
+  transferência entre contas), mas se aparecerem extratos BNB de ago/2025 em
+  diante vale importar para fechar a rastreabilidade. A chave `SIRFISHERBNB` já
+  existe no `de_para` (hoje como "Investimento negócio" — revisar se o extrato
+  for importado).
 
 — Claude
