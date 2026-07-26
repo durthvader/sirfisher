@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Importa recebíveis Stone com validação integral antes da transação."""
 
+import re
 import sys
 from collections import Counter
 
@@ -25,14 +26,24 @@ from importacao_core import (
 
 
 FORMATOS_DATA = ("%d/%m/%Y %H:%M:%S", "%d/%m/%Y %H:%M", "%d/%m/%Y")
+# A Stone emite duas variantes deste relatório: uma com 20 colunas e outra
+# com 18, sem ENTRADAS BRUTAS e SAÍDAS BRUTAS. As duas não alimentam nenhuma
+# view e já estão nulas na maior parte da base, então ficam opcionais —
+# `campo()` devolve None quando a coluna não existe.
 CABECALHOS = {
     "DOCUMENTO", "STONECODE", "CATEGORIA", "DATA DA VENDA",
     "DATA DE VENCIMENTO", "DATA DE VENCIMENTO ORIGINAL", "BANDEIRA", "PRODUTO",
     "STONE ID", "QTD DE PARCELAS", "Nº DA PARCELA", "VALOR BRUTO",
     "VALOR LÍQUIDO", "DESCONTO DE MDR", "DESCONTO DE ANTECIPAÇÃO",
     "DESCONTO UNIFICADO", "ÚLTIMO STATUS", "DATA DO ÚLTIMO STATUS",
-    "ENTRADAS BRUTAS", "SAÍDAS BRUTAS",
 }
+
+# O STONE ID tem 14 dígitos (cartão) ou 32 caracteres (Pix). Abrir o CSV no
+# Excel converte o número longo para notação científica ("2,95639E+13"),
+# guardando 6 dígitos significativos de 14 -- perda irreversível, e a linha
+# nunca mais casa com a venda. Já entraram 109 registros assim; rejeitar na
+# leitura impede que um arquivo estragado passe despercebido de novo.
+ID_NOTACAO_CIENTIFICA = re.compile(r"^\d+[.,]?\d*E[+-]?\d+$", re.IGNORECASE)
 COLUNAS = [
     "conta_id", "documento", "stonecode", "categoria", "data_venda",
     "data_vencimento", "data_vencimento_original", "bandeira", "produto",
@@ -92,6 +103,11 @@ def ler_csv(caminho, opcoes):
             motivos = []
             if not stone_id:
                 motivos.append("STONE ID ausente")
+            elif ID_NOTACAO_CIENTIFICA.match(stone_id):
+                motivos.append(
+                    f"STONE ID em notação científica ({stone_id}) — o arquivo passou "
+                    "pelo Excel e perdeu dígitos; reexporte sem abrir na planilha"
+                )
             if convertido["n_parcela"] is None:
                 motivos.append("número da parcela inválido")
             if convertido["valor_liquido"] is None:
@@ -154,7 +170,13 @@ def ler_csv(caminho, opcoes):
 
 
 def resumo(registros):
-    chaves = {(item["stone_id"], item["n_parcela"]) for item in registros}
+    # A categoria faz parte da chave: a Stone emite Venda e Cancelamento com
+    # o mesmo STONE ID e parcela. Sem ela, toda venda cancelada aparecia como
+    # "duplicata interna" e uma das duas linhas era descartada na carga.
+    chaves = {
+        (item["stone_id"], item["n_parcela"], item["categoria"])
+        for item in registros
+    }
     print("\n== Resumo do arquivo ==")
     print(f"  registros:           {len(registros)}")
     print(f"  chaves únicas:       {len(chaves)}")
@@ -167,7 +189,7 @@ def gravar(registros, periodo):
         registros=registros,
         tabela="raw_stone_recebiveis",
         colunas=COLUNAS,
-        conflito="(stone_id, n_parcela)",
+        conflito="(stone_id, n_parcela, categoria)",
         montar_linha=lambda item, conta_id: (
             [conta_id] + [item[coluna] for coluna in COLUNAS[1:]]
         ),
