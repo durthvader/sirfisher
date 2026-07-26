@@ -509,3 +509,59 @@ calibradas com o mix só da Stone. Com Fundopay e Pix QR Code no faturamento, o
 mix real mudou; vale recalibrar os percentuais com a base completa.
 
 — Claude
+
+## 2026-07-26 · Claude — consolidação dos apelidos de fornecedor
+
+**Arquivo:** migration `20260776000000_consolida_apelidos_de_fornecedor.sql`.
+
+`de_para.fornecedor` é o rótulo que aparece no relatório. Como cada chave era
+cadastrada à mão, o mesmo fornecedor acabou gravado sob grafias diferentes e o
+relatório quebrava em várias linhas o que era um só. **85 rótulos ajustados; nos
+fornecedores tocados, 31 rótulos distintos viraram 17.**
+
+Quatro blocos, do mais mecânico ao mais opinativo:
+
+- **A — caixa/acento (13 grupos).** `UBER`/`Uber`/`UBer`, `AMBEV`/`Ambev`,
+  `extra`/`Extra`, `LAREDO`/`Laredo`… Casa pela forma normalizada, então pega
+  variante nova que apareça depois.
+- **B — contas do grupo (13 chaves).** Três estavam com `fornecedor` NULL,
+  aparecendo **em branco** no relatório, e eram as de maior volume:
+  `BSINSTITUICAODEPAGAMENTOSA` (R$ 392.206,84), `SIRFISHERPUBCOMERCIO…`
+  (R$ 41.535,01) e `35220527HEMILEALEXANDRESILVA` (R$ 28.100,00) — as três
+  nasceram da 20260767000000, que corrigiu a categoria e não preencheu o rótulo.
+  Padronizadas na convenção que já existia: `Sir Fisher - <conta>`.
+- **C — mesmo fornecedor sob nomes diferentes.** O maior de longe:
+  **`Crbs Sa Cdd Fortaleza` (309 lanç., R$ 457.402,19) é o centro de distribuição
+  da Ambev** e estava separado da própria Ambev; juntos somam ~R$ 503 mil numa
+  linha só de Bebidas. Também `Uber Do Brasil Tecnologia` → Uber, `Extra Hiper`
+  → Extra e seis grafias de `Supermercado Cometa`.
+- **D — específico absorvido no genérico.** 32 chaves de posto já eram rotuladas
+  "COMBUSTÍVEL"; `POSTO ATLANTICO`, `PostoDomManoel` e `Estacionam bem vindo`
+  escaparam e viravam linha própria. **É a única troca de informação por
+  consistência neste arquivo** — o nome do posto sai do rótulo (continua em
+  `chave_valor` e no `contraparte_nome`). Se o usuário quiser ver posto a posto,
+  basta reverter essas três linhas.
+
+**Critério do rótulo canônico:** inicial maiúscula, conectivo em minúscula
+("Vai com Peixe", "Daniel da Silva Oliveira"), acento preservado — a forma que a
+própria tela gera por padrão (`tituloCase` em `classificar_excecoes.html`).
+Consolidar nessa direção é o que impede a fragmentação voltar: chave nova do
+mesmo fornecedor continua aparecendo (só Uber tem 26) e nasce já na grafia certa.
+
+**Verificação (transação revertida contra produção):** DRE **idêntica linha a
+linha** nas 62 linhas de (grupo, categoria) — mesma contagem e mesma soma. Isso
+era o ponto a provar: `fornecedor` só é usado como rótulo em `fato_financeiro` e
+`app_classificacoes_recentes`, nenhum join, filtro ou agrupamento depende dele.
+Segunda execução do arquivo não altera nada (idempotente).
+
+**Pendências e avisos:**
+- **Recalibrar `recebimento_regra` está descartado por ora** — o usuário foi
+  perguntado e respondeu "não quero, pode deixar assim por enquanto". Não pegar
+  essa tarefa sem ele pedir de novo.
+- `SIRFISHER` (18 lanç., R$ 151.308,67) ficou como **"Sir Fisher"**, sem sufixo
+  de conta: o extrato traz só o texto solto "SIR FISHER" e não dá para saber
+  qual conta é. Se aparecer como identificar, vale refinar.
+- Segue de pé: 144 débitos da Inter para classificar em
+  `classificar_excecoes.html`, e o extrato do BNB depois de 07/07/2025.
+
+— Claude

@@ -171,6 +171,17 @@ no repositório.
   - `categoria`
   - `ativo`
   - `atualizado_em`
+- `chave_valor` guarda o nome **original** normalizado e é o que casa com o
+  lançamento; `fornecedor` é só o **rótulo exibido**. Nenhum join, filtro,
+  agrupamento ou soma depende de `fornecedor` — ele aparece como coluna de saída
+  em `fato_financeiro` e em `app_classificacoes_recentes`, e a DRE agrupa por
+  `categoria`. Ou seja, renomear um apelido nunca move valor.
+- **Convenção do apelido** (firmada em `20260776000000`): inicial maiúscula,
+  conectivo em minúscula ("Vai com Peixe"), acento preservado — a mesma forma que
+  `tituloCase` em `classificar_excecoes.html` sugere por padrão. Manter essa
+  convenção ao criar regra nova: chaves diferentes do mesmo fornecedor continuam
+  surgindo e, com grafias divergentes, o relatório volta a quebrar em várias
+  linhas. Contas do próprio grupo seguem o padrão `Sir Fisher - <conta>`.
 
 ### app_classificacoes_recentes e RPCs de classificação
 - Tipo: view protegida e funções `SECURITY DEFINER`
@@ -394,6 +405,14 @@ no repositório.
     já existiam como Recebível de Cartão e o insert `where not exists` da
     20260765000000 as ignorou; Pix enviados para contas da própria empresa
     entravam na DRE como despesa do grupo RECEITAS (14 débitos, R$ 43.926,95).
+  - `20260776000000_consolida_apelidos_de_fornecedor.sql`: 85 rótulos ajustados
+    (31 rótulos distintos → 17 nos fornecedores tocados). Preencheu as três
+    chaves do grupo que a 20260767000000 deixou com `fornecedor` NULL — apareciam
+    em branco no relatório e somavam R$ 461.841,85 — e uniu o que era o mesmo
+    fornecedor sob nomes diferentes, com destaque para `CRBSSACDDFORTALEZA`
+    (centro de distribuição da Ambev, 309 lançamentos, R$ 457.402,19), que
+    figurava separado da própria Ambev. Só rótulo: DRE conferida idêntica linha a
+    linha nas 62 linhas de (grupo, categoria).
 - A conta Inter era da empresa, mas registrada no CNPJ da titular. A separação
   correta é pelo documento da contraparte, e o `de_para` já a reproduz sem
   ajuste adicional: os lançamentos da conta chegam com o nome prefixado pelo
