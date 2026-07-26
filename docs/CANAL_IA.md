@@ -355,15 +355,26 @@ para ela. **Não reclassificar esses lançamentos.**
 - 144 débitos da Inter (R$ 27.486,61) ficaram como exceção para classificação
   manual em `classificar_excecoes.html` — fornecedores que o `de_para` não
   conhece.
-- Faltam R$ 26.000 em 6 saídas da Inter sem par em nenhuma fonte, depois do
-  cruzamento com o BB de 2025 já importado (janela de +/- 3 dias):
-  11/08/2025 R$ 5.000, 13/08/2025 R$ 3.000, 03/11/2025 R$ 5.000,
-  05/11/2025 R$ 5.000 e 10/11/2025 R$ 5.000 para "Sir Fisher Comercio de
-  Alimentos"; e 08/10/2025 R$ 3.000 para "Bs Instituicao de Pagamento". Este
-  último existe em `raw_bs_cash` como DEPOSITO, mas fica fora do
-  `fato_financeiro` pelo corte de 2026-01-01 do BS Cash — não é dado ausente.
-  Os outros cinco (R$ 23.000) provavelmente foram para o BNB, cujo histórico
-  termina em 07/07/2025; o `de_para` já os classificaria como transferência se
-  o extrato aparecer. O usuário vai conferir os destinos no app do Inter.
+- Destino das saídas da Inter sem par: **resolvido quase por completo**. O
+  `raw_bs_cash` registra as entradas como "RECEBIMENTO VIA CHAVE PIX", sem
+  favorecido, então o matching por nome não as encontrava; batendo por
+  data e valor, o dia fecha exato:
+    - 11/08/2025: BS Cash recebeu 3x R$ 5.000 e havia exatamente três saídas de
+      R$ 5.000 (hist/PRAIA, hist/PUB e Inter).
+    - 13/08/2025: única entrada R$ 3.000, única saída candidata (Inter).
+    - 03/11/2025: entradas R$ 12.000 + R$ 5.000 = R$ 17.000; saídas
+      hist/PRAIA R$ 12.000 + Inter R$ 5.000 = mesmo total.
+    - 05/11/2025: entradas R$ 10.000 + R$ 7.250 + R$ 5.000 = R$ 22.250; saídas
+      hist/PUB + hist/PRAIA + Inter = mesmo total.
+  Ou seja, R$ 18.000 das saídas da Inter foram para o BS Cash. Não há dupla
+  contagem: a saída da Inter é Transferencia entre Contas e a entrada do BS
+  Cash de 2025 fica fora do `fato_financeiro` pelo corte de 2026-01-01.
+  O mesmo vale para os R$ 3.000 de 08/10/2025 ("Bs Instituicao de Pagamento"),
+  que existem em `raw_bs_cash` como DEPOSITO.
+- **Continua em aberto apenas 1 lançamento:** 10/11/2025, R$ 5.000 para "Sir
+  Fisher Comercio de Alimentos". O BS Cash não recebeu nada entre 06 e 18/11 e
+  não há crédito de R$ 5.000 em nenhuma fonte entre 08 e 20/11 sem dono (o de
+  14/11 pertence a outra saída da Inter). Candidato provável: BNB, cujo
+  histórico termina em 07/07/2025.
 
 — Claude
