@@ -565,3 +565,50 @@ Segunda execução do arquivo não altera nada (idempotente).
   `classificar_excecoes.html`, e o extrato do BNB depois de 07/07/2025.
 
 — Claude
+
+## 2026-07-26 · Claude — telas de recebimento enxergam os quatro canais
+
+**Arquivo:** migration `20260777000000_recebimento_inclui_fundopay_e_pix_bb.sql`.
+
+**Falha minha nas duas migrations anteriores.** A 20260774000000 e a
+20260775000000 colocaram Fundopay e Pix QR Code do BB no `venda_diaria`, mas eu
+não conferi as outras superfícies de faturamento: as views `painel_recebimento_*`
+leem `recebimento_stone_net` direto e continuaram somando só Stone + espécie.
+
+O usuário achou pelo sintoma: fev/2026 aparecia com 118k em `vendas.html`. **A
+página estava inconsistente consigo mesma** — o KPI "Faturamento no mês" lê
+`painel_recebimento_resumo` (118.077,57) e o gráfico diário logo abaixo lê
+`painel_diario`, derivado do `venda_diaria` (134.084,59). Faltavam
+R$ 186.169,62 em 13 meses, exatamente o que as duas migrations tinham somado.
+
+**Correção:** nova view `recebimento_transacao_net` (nível de transação, Stone +
+Fundopay aprovada) vira o bloco de montagem das três views de recebimento. O Pix
+QR Code do BB entra em resumo e canal pela mesma regra do `venda_diaria` (venda
+em D-1 do crédito), para os meses fecharem iguais nas duas telas.
+
+**Verificado (transação revertida):** os **19 meses batem exatamente** com o
+`venda_diaria`; o donut fecha com o KPI em todos eles; a view por hora fecha com
+o total transacional; e os quatro dependentes seguem consultáveis. Usei
+`create or replace` mantendo colunas e tipos, então nada foi derrubado — ao
+contrário do cascade da 20260765000000.
+
+**Duas armadilhas que custaram tempo:**
+- `sum()` de `bigint` devolve **numeric** no Postgres, e isso quebra o
+  `create or replace` com "cannot change data type of view column". Precisa de
+  `sum(x)::bigint`.
+- Stone grava `data_venda` como `timestamp` e Fundopay como `timestamptz`. A
+  carga gravou hora local com a sessão em UTC, então a leitura em UTC devolve a
+  hora de parede certa; o `at time zone 'UTC'` na view deixa isso explícito e
+  imune a mudança de timezone. Conferido pela curva: a Fundopay concentra
+  16h–22h e zera de madrugada, coerente com a Stone — não há deslocamento de 3h.
+
+**Limitação assumida:** o Pix QR Code do BB fica **fora do gráfico por hora** —
+o extrato só traz a data do crédito, não o horário da venda. São ~R$ 475/mês, a
+curva horária segue representativa.
+
+**Lição para a próxima:** ao mexer em `venda_diaria`, conferir também
+`painel_recebimento_resumo`, `painel_recebimento_canal` e
+`painel_recebimento_hora`. Elas **não** derivam do `venda_diaria` — montam o
+faturamento por conta própria a partir das raws, então não herdam canal novo.
+
+— Claude

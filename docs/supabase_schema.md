@@ -549,36 +549,70 @@ no repositório.
 - As views protegidas `app_contas_recorrentes_pagamentos` e
   `app_contas_recorrentes_totais` alimentam histórico e gráfico mensal.
 
+### recebimento_transacao_net
+- Tipo: view (nível de transação)
+- Uso: base das três `painel_recebimento_*`
+- Propósito: unir as vendas que **têm lista de transações** — `raw_stone_vendas`
+  (líquida de cancelamento, via `recebimento_stone_net`) e `raw_fundopay_vendas`
+  com `situacao = 'aprovada'`. A espécie não entra (não é transação individual) e
+  o Pix QR Code do BB também não (o extrato só tem o crédito, não a venda).
+- Colunas: `fonte`, `id`, `data_venda`, `produto`, `bandeira`, `bruto_net`.
+- `raw_stone_vendas.data_venda` é `timestamp` e `raw_fundopay_vendas.data_venda`
+  é `timestamptz`. A carga gravou hora local com a sessão em UTC, então a leitura
+  em UTC devolve a hora de parede correta; a view aplica `at time zone 'UTC'`
+  para deixar isso explícito e imune a mudança de timezone da sessão.
+- Criada em `20260777000000_recebimento_inclui_fundopay_e_pix_bb.sql`.
+
 ### painel_recebimento_resumo
 - Tipo: painel / view agregada
-- Uso: `vendas.html`
-- Propósito: resumo geral de recebimento por mês.
+- Uso: `vendas.html` (KPIs do topo)
+- Propósito: resumo geral de faturamento por mês.
 - Colunas importantes:
   - `ano_mes`
   - `mes`
   - `recebido_total`
   - `qtd_transacoes`
   - `ticket_transacao`
+- **Tem que bater com `venda_diaria` mês a mês** — é o mesmo faturamento visto
+  por outro caminho. Soma `recebimento_transacao_net` + `venda_especie` + Pix QR
+  Code do BB (em D-1 do crédito, igual ao `venda_diaria`). Conferido nos 19 meses.
+- `qtd_transacoes` e `ticket_transacao` cobrem só os canais transacionais: a
+  espécie entra no total e fica fora do denominador, porque não tem contagem de
+  pagamentos.
 
 ### painel_recebimento_canal
 - Tipo: painel / view agregada
-- Uso: `vendas.html`
-- Propósito: recebido por canal de pagamento.
+- Uso: `vendas.html` (donut "De onde vem o faturamento")
+- Propósito: faturamento por canal de pagamento.
 - Colunas importantes:
   - `ano_mes`
   - `canal`
   - `valor`
   - `qtd`
+- Os rótulos ficam como cada fonte os escreve (`Credito` da Stone, `Crédito à
+  vista` da Fundopay). O `normCanal` de `vendas.html` casa por trecho e funde os
+  dois na mesma fatia, então a origem não se perde e o gráfico continua com uma
+  fatia por canal.
 
 ### painel_recebimento_hora
 - Tipo: painel / view agregada
-- Uso: `vendas.html`
-- Propósito: recebimentos por hora para análise intra-dia.
+- Uso: `vendas.html` e `app_gerente_movimento_hora`
+- Propósito: faturamento por hora para análise intra-dia.
 - Colunas importantes:
   - `ano_mes`
   - `hora`
   - `valor`
   - `qtd`
+- Lê **apenas** `recebimento_transacao_net`. O Pix QR Code do BB fica de fora
+  porque o extrato não traz o horário da venda (~R$ 475/mês; a curva segue
+  representativa). Por isso esta view **não** fecha com o `painel_recebimento_resumo`.
+
+> **Ao mexer em `venda_diaria`, mexa também nestas três.** Elas não derivam do
+> `venda_diaria` — montam o faturamento por conta própria a partir das raws,
+> então não herdam canal novo. Foi assim que Fundopay e Pix QR Code entraram no
+> planejamento e ficaram de fora do KPI de `vendas.html`, deixando a mesma página
+> com dois números diferentes (fev/2026: 118.077,57 no KPI x 134.084,59 no
+> gráfico diário). Corrigido em `20260777000000`.
 
 ### importar_csv_stone(text, jsonb, boolean)
 - Tipo: RPC de escrita `SECURITY DEFINER`, protegida pela permissão de `importar.html`.
