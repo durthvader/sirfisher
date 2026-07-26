@@ -293,9 +293,11 @@ no repositório.
   pela permissão de `calendario.html`.
 - Uso: saldo realizado e popover da coluna Saldo caixa em `calendario.html`.
 - Propósito: preservar a memória de fechamento de cada data separada em saldo
-  Stone, saldo Banco do Brasil e dinheiro em espécie ainda não depositado
-  naquela data. O total diário é a soma dos três componentes; BS Cash continua
-  fora do caixa disponível.
+  Stone, saldo Banco do Brasil, saldo Inter e dinheiro em espécie ainda não
+  depositado naquela data. O total diário é a soma dos componentes; BS Cash
+  continua fora do caixa disponível. O saldo Inter é a soma acumulada de
+  `raw_inter` (a conta nasceu zerada em mai/2025 e foi encerrada zerada em
+  jun/2026), então só afeta as datas em que a conta tinha dinheiro.
 - O dinheiro pendente é reconstituído pelos eventos de custódia: entra na data
   da venda em espécie e sai na data local em que a sangria é marcada como
   depositada. Assim, o pendente atual não é reaplicado retroativamente aos
@@ -309,7 +311,49 @@ no repositório.
 - Importações a atualizam pelo `refresh_painel()`. Alterações de sangria criam
   apenas um job `pg_cron` temporário para este snapshot pequeno; o worker se
   remove depois do refresh. Não existe agendamento permanente nem diário.
-- Criados em `20260763000000_saldo_diario_detalhado.sql`.
+- Criados em `20260763000000_saldo_diario_detalhado.sql`; coluna `saldo_inter`
+  adicionada em `20260765000000_conta_inter_e_extrato_bb_2025.sql`.
+
+### raw_inter / conta Inter
+- Tipo: tabela raw de extrato (carga única) da conta Inter, encerrada em
+  jun/2026, usada pela unidade PRAIA para receber vendas Fundopay e pagar
+  despesas entre mai/2025 e jun/2026.
+- Carga: `scripts/importacao/06_importar_inter.py` (dedup por hash; tolera
+  codificação mista UTF-8/latin-1 no CSV exportado do Inter).
+- Corte no `fato_financeiro`: o histórico legado (`raw_historico`, empresa
+  `Inter`, até 17/07/2025, já classificado manualmente) permanece; `raw_inter`
+  entra apenas com `data` posterior ao fim desse histórico. Vendas Fundopay
+  ("Vendas Crédito"/"Vendas Débito") classificam como Recebível de Cartão;
+  transferências, como Transferencia entre Contas; débitos seguem o `de_para`.
+- O mesmo padrão de corte foi aplicado ao braço `bb`: `raw_bb` só entra após o
+  fim do histórico BB (16/07/2025), permitindo importar os extratos BB de
+  jul-dez/2025 sem duplicar a quinzena já coberta.
+- O `de_para` ganhou chaves de nome das contas do próprio grupo (Sir Fisher,
+  Sirfisher, Sir Fisher Pub, Sir Fisher Imprensa, BS, Hemile/Inter), todas
+  mapeando para Transferencia entre Contas, e 12 créditos históricos
+  (R$ 44.000, set-nov/2025) confirmados par a par como transferências internas
+  foram reclassificados de PIX/RECEITAS para Transferencia entre Contas.
+- Reconciliação conferida após a carga: `raw_inter` (extrato completo) bate com
+  `fato_financeiro` origem `inter` mais o histórico legado, com diferença de
+  R$ 0,72 — deslocamento de um dia entre a data do extrato e a data registrada
+  no histórico em alguns pares de dias, mais centavos de arredondamento em dois
+  lançamentos de 2025. O saldo Inter zera em 20/06/2026 e permanece zerado.
+- Criados em `20260765000000_conta_inter_e_extrato_bb_2025.sql`, com dois
+  complementos:
+  - `20260766000000_indice_corte_historico_por_empresa.sql`: índice
+    `raw_historico (empresa, data_hora desc)`. Sem ele, os dois cortes por
+    empresa viravam seq scan em 47 mil linhas e, como `fato_financeiro` não é
+    materializada e o `saldo_mensal_calculado` a expande dezenas de vezes, o
+    recálculo consumiu memória a ponto de reiniciar a instância e formar um
+    crashloop com o job `sirfisher-processar-recalculo-saldo`. Com o índice, o
+    custo do `saldo_mensal_calculado` caiu de 96.220 para 56.248 e o recálculo
+    completo roda em ~20s. **Qualquer novo corte por subselect em tabela grande
+    dentro do `fato_financeiro` precisa de índice equivalente.**
+  - `20260767000000_corrige_de_para_contas_do_grupo.sql`: três chaves do grupo
+    já existiam como Recebível de Cartão e o insert `where not exists` da
+    20260765000000 as ignorou; Pix enviados para contas da própria empresa
+    entravam na DRE como despesa do grupo RECEITAS (14 débitos, R$ 43.926,95).
+    `HEMILEALEXANDRESILVA` continua como Folha Salarial por decisão pendente.
 
 ### Histórico de caixa unificado nas telas
 - Desde `20260764000000_caixa_historico_usa_saldo_diario.sql`, a curva

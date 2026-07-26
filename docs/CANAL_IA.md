@@ -299,3 +299,58 @@ consulta, regra financeira ou configuração de CSP foi alterada; o aviso de
 source map bloqueado permanece inofensivo.
 
 — Codex
+
+## 2026-07-25 · Claude — conta Inter integrada e buraco do extrato BB fechado
+
+**Arquivos:** migrations `20260765000000_conta_inter_e_extrato_bb_2025.sql`,
+`20260766000000_indice_corte_historico_por_empresa.sql`,
+`20260767000000_corrige_de_para_contas_do_grupo.sql`,
+`scripts/importacao/06_importar_inter.py`, `calendario.html` e
+`docs/supabase_schema.md`.
+
+A conta Inter (encerrada, unidade PRAIA) entrou pelo mesmo trilho das demais:
+`raw_inter` + importador próprio + braço `inter` no `fato_financeiro`. Foram
+carregados 656 lançamentos (19/05/2025 a 20/06/2026). O histórico legado da
+empresa `Inter` (até 17/07/2025, classificado à mão) continua valendo; o
+`raw_inter` só entra depois dessa data. O saldo Inter entrou no snapshot diário
+e no popover do Calendário, e zera em 20/06/2026.
+
+Também foram importados os extratos BB de jul-dez/2025 (183 lançamentos), que
+fechavam um buraco entre o fim do histórico BB (16/07/2025) e o início do
+`raw_bb` (05/01/2026). O braço `bb` ganhou o mesmo corte por data do histórico,
+então a quinzena 01-16/07/2025 não duplica.
+
+**Cuidado que custou caro:** os dois cortes novos usam
+`max(data_hora) from raw_historico where empresa = ...`. Sem índice isso é seq
+scan em 47 mil linhas, reavaliado dezenas de vezes por recálculo — a instância
+reiniciou por memória e o job `sirfisher-processar-recalculo-saldo` entrou em
+crashloop (reprocessa a cada 5s enquanto o item segue pendente). Desagendei o
+job, marquei o item 13 da fila como erro e criei o índice
+`raw_historico (empresa, data_hora desc)`. Depois disso o recálculo completo
+leva ~20s. Se for criar outro corte por subselect em tabela grande dentro do
+`fato_financeiro`, crie o índice junto.
+
+**Classificação:** 12 créditos do histórico (R$ 44.000, set-nov/2025) eram
+transferências internas contadas como receita e foram reclassificados. Outras
+três chaves do `de_para` (Sir Fisher Comércio, Imprensa e Praia) apontavam para
+Recebível de Cartão e faziam Pix enviados entrarem na DRE como despesa do grupo
+RECEITAS — corrigidas para Transferencia entre Contas (14 débitos,
+R$ 43.926,95). Nenhum crédito foi afetado por essa correção.
+
+**Pendências para quem pegar depois:**
+- `HEMILEALEXANDRESILVA` no `de_para` continua como Folha Salarial. São 155
+  débitos no histórico (R$ 147.152,40, 2021-2025) e 13 na Stone em 2026
+  (R$ 28.652,83). Pode ser salário legítimo da titular ou aporte na conta
+  Inter; não dá para decidir sem o usuário. A chave
+  `35220527HEMILEALEXANDRESILVA` (formato dos Pix vindos da Inter) já é
+  transferência.
+- 144 débitos da Inter (R$ 27.486,61) ficaram como exceção para classificação
+  manual em `classificar_excecoes.html` — fornecedores que o `de_para` não
+  conhece.
+- Faltam R$ 28.000 de Pix da Inter (ago-nov/2025) para "Sir Fisher Comercio de
+  Alimentos": não estão em nenhuma fonte do sistema. A conta de destino provável
+  é o BNB, cujo histórico termina em 07/07/2025. Se aparecer extrato BNB desse
+  período, esses créditos entram e o `de_para` já os classifica como
+  transferência.
+
+— Claude
