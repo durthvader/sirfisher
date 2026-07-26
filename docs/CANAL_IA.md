@@ -476,3 +476,36 @@ a correção elimina a divergência entre ela e o planejamento.
   faturamento o mix real mudou um pouco; vale recalibrar com a base completa.
 
 — Claude
+
+## 2026-07-26 · Claude — Pix QR Code do BB fecha o faturamento
+
+**Arquivo:** migration `20260775000000_pix_qrcode_bb_no_faturamento.sql`.
+
+Último canal que faltava: 131 créditos, R$ 5.222,00, jul/2025 a mai/2026. É o
+único sem lista de vendas — o extrato só diz quando o dinheiro caiu.
+
+A regra de liquidação (próximo dia útil) foi informada pelo usuário e bate com
+os dados: nenhum crédito em sábado/domingo e a segunda concentra 65 dos 131,
+porque carrega sexta + sábado + domingo. O usuário delegou a decisão de como
+tratar o fim de semana ("o volume é pequeno").
+
+**Decisão: venda em D-1 do crédito.** D-1 e não a data do crédito porque crédito
+no dia 1º costuma ser venda do último dia do mês anterior — usar a data do
+crédito erraria o mês justamente na comparação com a meta. Limitação assumida:
+no crédito de segunda, vendas de sexta e sábado também caem no domingo (máximo
+dois dias, sempre na mesma semana). Descartei jogar tudo na sexta (subestimaria
+o fim de semana, que é quando mais se vende) e ratear pelo movimento da Stone
+(precisão que R$ 475/mês não justifica, e exigiria calendário de feriados dentro
+de uma view sensível a desempenho — a mesma do timeout da 20260770000000).
+
+**Estado do faturamento:** os quatro canais estão cobertos — Stone, espécie,
+Fundopay e Pix QR Code do BB. As duas correções de hoje somam R$ 186.170 que não
+apareciam no planejamento. Segue de fora, corretamente, o depósito de dinheiro
+no extrato do BB (R$ 136 mil): é a mesma espécie já contada por `venda_especie`
+na data da venda.
+
+**Pendência:** as regras de recebimento (`recebimento_regra`) continuam
+calibradas com o mix só da Stone. Com Fundopay e Pix QR Code no faturamento, o
+mix real mudou; vale recalibrar os percentuais com a base completa.
+
+— Claude

@@ -288,10 +288,19 @@ no repositório.
 ### raw_fundopay_vendas / venda_diaria
 - `venda_diaria` é a base do faturamento (planejamento, vendas.html, metas,
   tendência, peso do dia e, por `projecao_venda_diaria`, a projeção de caixa).
-- Reúne três canais, sempre pela **data da venda** e pelo **valor bruto**:
+- Reúne **quatro canais**, sempre pela **data da venda** e pelo **valor bruto**:
   `raw_stone_vendas` (líquido de cancelamento), `venda_especie` (sangrias
-  registradas à mão) e `raw_fundopay_vendas` (maquininha paralela usada de
-  mai/2025 a mai/2026).
+  registradas à mão), `raw_fundopay_vendas` (maquininha paralela usada de
+  mai/2025 a mai/2026) e o Pix QR Code recebido no BB.
+- O Pix QR Code (`raw_bb`, lançamento `Pix-Recebido QR Code`) é o único canal
+  sem lista de vendas: o extrato só informa quando o dinheiro caiu. Ele liquida
+  no próximo dia útil — confirmado nos dados, já que nenhum dos 131 créditos caiu
+  em sábado ou domingo e a segunda concentra 65 deles —, então a venda é lançada
+  em **D-1 do crédito**. D-1 e não a data do crédito porque um crédito no dia 1º
+  costuma ser venda do último dia do mês anterior, e usar a data do crédito
+  erraria o mês na comparação com a meta. Limitação assumida: no crédito de
+  segunda, vendas de sexta e sábado também caem no domingo (no máximo dois dias,
+  sempre na mesma semana). Ver `20260775000000_pix_qrcode_bb_no_faturamento.sql`.
 - O depósito de dinheiro que aparece no extrato do BB (`Dep dinheiro ATM`,
   R$ 136 mil) **não** entra e não deve entrar: é o mesmo dinheiro já contado por
   `venda_especie` na data da venda. Contar os dois duplicaria.
