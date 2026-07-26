@@ -612,3 +612,66 @@ curva horária segue representativa.
 faturamento por conta própria a partir das raws, então não herdam canal novo.
 
 — Claude
+
+## 2026-07-26 · Claude — ranking de fornecedores compara o mesmo período
+
+**Arquivos:** migration `20260778000000_ranking_fornecedor_mesmo_periodo.sql`,
+`despesas.html`.
+
+O usuário questionou a comparação do ranking: aplicava **tendência**, que é um
+multiplicador da curva de **vendas**, sobre despesa que não acompanha venda.
+Gasto fixo é pago uma vez e acabou; projetá-lo pelo avanço do mês inventa gasto.
+
+**O dado confirma, e de um jeito que resolve o problema sozinho.** Medindo
+jul/2026 com corte no dia 26:
+
+| fornecedor | média até dia 26 | média mês cheio |
+|---|---|---|
+| Imposto | 8.579,09 | **8.579,09** |
+| IFOOD BENEFÍCIOS | 5.692,51 | **5.692,51** |
+| Enel | 3.016,56 | **3.016,56** |
+| B&C | 6.525,87 | 7.284,14 |
+| Ambev | 7.971,32 | 9.730,28 |
+| SOLMAR | 7.050,21 | 8.190,43 |
+
+Onde as duas são idênticas, historicamente nada é pago depois do dia 26 — a
+tendência só inflava. Onde diferem, a compra continua até o fim do mês.
+**Cortando os dois lados no mesmo dia, não é preciso marcar quem é fixo e quem é
+variável: o próprio dado separa.**
+
+**Decisões do usuário** (perguntadas antes de implementar): comparar com a média
+dos meses anteriores **no mesmo ponto do mês** (não só o mês anterior, que é mais
+ruidoso), e **colapsar** folha e diárias em uma linha cada — não remover.
+
+**Nova RPC `listar_ranking_fornecedor(p_ano_mes, p_meses_base)`** devolve os
+fornecedores do mês com realizado até o corte e média até o mesmo dia. Em mês
+fechado o dia vai a 31 e não há corte, então o histórico não muda. Folha e
+diárias vêm colapsadas com a contagem em `pessoas`; as demais categorias de
+PESSOAL seguem individuais de propósito (iFood Benefícios, Plano Dentário e
+Fardamento são fornecedores negociáveis de verdade).
+
+**Nova MV `mv_despesa_diaria`** (13.425 linhas, 1,1 MB), no mesmo ciclo de
+`refresh_painel()`. **Não é firula — é o que torna a RPC viável:** lendo o
+`fato_financeiro` direto a chamada levava **1.588 ms** (1.541 ms de servidor no
+`explain`, contra 49 ms de latência de rede). Motivo: `data_competencia` é coluna
+**calculada** por ramo da view, então filtrar por período não usa índice e obriga
+a montar a união das cinco raws mais o de_para. **Marcar a CTE como MATERIALIZED
+não ajudou** — o custo é a montagem da view, não expansão repetida, ao contrário
+do caso do calendário. Com a MV: **183 ms**, mesmos 63 fornecedores e mesmos
+valores.
+
+**Cuidado com medição em cache quente:** meu primeiro `explain analyze` deu
+105 ms e me levou a escrever que estava barato. Ao medir 3x numa sessão limpa,
+o número real era 1,6 s. Sempre repetir a medida.
+
+**Verificado (transação revertida, com o gate de papel sobrescrito só dentro
+dela):** o gate barra quem não tem papel; a soma do ranking bate exatamente com
+a despesa do mês até o corte (R$ 146.703,61); folha vem em 1 linha com 33
+pessoas; nenhum CPF mascarado no top 15; mês fechado retorna corte 31.
+
+**Fica pendente, não é bug:** o KPI "Concentração top 5" e o bloco "Recorrente vs
+pontual" ainda leem a `mv_despesa_mensal` sem colapsar folha e sem corte. Não
+contradizem o ranking (medem outra coisa), mas se alguém quiser coerência total
+esses dois também precisariam mudar.
+
+— Claude

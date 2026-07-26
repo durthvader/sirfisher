@@ -183,6 +183,37 @@ no repositório.
   surgindo e, com grafias divergentes, o relatório volta a quebrar em várias
   linhas. Contas do próprio grupo seguem o padrão `Sir Fisher - <conta>`.
 
+### mv_despesa_diaria / listar_ranking_fornecedor
+- Tipo: materialized view + função `SECURITY DEFINER`
+- Uso: ranking de fornecedores e "vazamentos" em `despesas.html`
+- `mv_despesa_diaria` tem a mesma regra da `mv_despesa_mensal`, só que por
+  **dia** (13.425 linhas, 1,1 MB). Entra no `refresh_painel()` junto com as
+  demais. Não é exposta na Data API — o acesso é pela RPC.
+- **Por que a MV existe:** filtrar `fato_financeiro` por `data_competencia`
+  custa ~1,5 s, porque essa coluna é **calculada** por ramo da view e não usa
+  índice — obriga a montar a união das cinco raws mais o `de_para`. Marcar a CTE
+  como `MATERIALIZED` **não** resolve (o custo é montar a view, não expandi-la
+  várias vezes). Com a MV, a RPC responde em 183 ms.
+- `listar_ranking_fornecedor(p_ano_mes, p_meses_base default 6)` devolve os
+  fornecedores do mês com o realizado até o dia de corte e a média dos meses
+  anteriores **até o mesmo dia do mês** — sem tendência. Em mês fechado o corte
+  vai a 31 e cobre o mês inteiro.
+- **Por que o mesmo período, e não tendência:** a tendência é um multiplicador da
+  curva de **vendas**, e despesa fixa não segue venda — é paga uma vez e não
+  cresce com o avanço do mês. Cortando os dois lados no mesmo dia, o próprio dado
+  separa fixo de variável: para Imposto, Enel e iFood Benefícios a média até o
+  dia 26 é **idêntica** à do mês cheio (nada é pago depois), enquanto para B&C,
+  Ambev e SOLMAR ela fica em 82–90% (a compra continua).
+- As categorias `Folha Salarial` e `Diária` vêm **colapsadas** em uma linha cada,
+  com a contagem em `pessoas`. São ~58 pessoas físicas que disputavam as 15
+  posições com fornecedor negociável; o salário individual não é a informação
+  útil e não deve ficar exposto no painel. As demais categorias de PESSOAL
+  seguem individuais de propósito — iFood Benefícios, Plano Dentário, Fardamento
+  e Endomarketing são fornecedores de verdade.
+- Limitação assumida: boleto que muda de dia entre meses gera variação falsa
+  enquanto o mês não fecha; corrige-se sozinho no fechamento.
+- Criados em `20260778000000_ranking_fornecedor_mesmo_periodo.sql`.
+
 ### app_classificacoes_recentes e RPCs de classificação
 - Tipo: view protegida e funções `SECURITY DEFINER`
 - Uso: `analise_individual.html` e `classificar_excecoes.html`
