@@ -367,6 +367,27 @@ no repositório.
   ou seja, a conta nunca recebeu transferência das outras contas do grupo,
   então os débitos para o CPF não podem ter ido para ela.
 
+### Classificação automática por tipo de lançamento (fontes vivas)
+- O `fato_financeiro` classifica em duas etapas: primeiro o `de_para` pelo nome
+  da contraparte, depois regras por **tipo de lançamento** específicas de cada
+  origem. O `de_para` sempre tem precedência.
+- As regras por tipo existem porque, em algumas fontes, o nome da contraparte é
+  o cliente que pagou — e não um fornecedor recorrente. Sem elas, cada cliente
+  novo vira uma exceção nova e a fila de `classificar_excecoes.html` cresce a
+  cada importação sem que haja decisão real a tomar.
+- Cobertura por origem: `stone_extrato` (créditos → Recebível de Cartão, PIX,
+  TED ou Transação), `bs_cash` (créditos e folha/tarifa/estorno), `inter`
+  (vendas Fundopay → Recebível de Cartão; transferências) e `bb`, incluída em
+  `20260768000000_classifica_lancamentos_bb_por_tipo.sql`:
+  - `Pix-Recebido QR Code` → PIX (venda por QR Code; usa o mesmo rótulo dos
+    lançamentos que o `de_para` já classificava assim no próprio BB)
+  - `Tarifa Pix Recebido`, `Tarifa Pacote de Serviços`, `Cobrança de I.O.F.` e
+    `Cobrança de Juros` → Tarifas Bancárias
+  - `Pix-Envio devolvido` e `Pix-Recebimento devolvido` → pagamento devolvido
+- Ficam fora de propósito os tipos cuja categoria não é determinada pelo tipo:
+  `Pix - Enviado`, `Pagamento de Boleto` (já virou Aluguel, Gás e Plano
+  Dentário em casos distintos) e `Pagamento de Impostos`.
+
 ### Histórico de caixa unificado nas telas
 - Desde `20260764000000_caixa_historico_usa_saldo_diario.sql`, a curva
   realizada de `caixa.html`, os fechamentos de meses encerrados e o saldo de
