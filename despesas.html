@@ -118,12 +118,12 @@ function corGrupo(g){return GCOR[g]||'#B0A99A';}
 function nomeGrupo(g){return g==='DESPESA DIRETA DE VENDA'?'Despesa direta (CMV)':g==='MARKETING E PUBLICIDADE'?'Marketing':(g.charAt(0)+g.slice(1).toLowerCase());}
 
 let CHARTS=[],ROWS=[],RESUMO=[],ULTIMA=null,CARGAS=[];
-let MESES_LISTA=[],POR_MES=new Map(),FORN_HIST=new Map();
+let MESES_LISTA=[],POR_MES=new Map();
 
 const DESC={
   total:'Soma das despesas por competência. No mês em andamento, o KPI mostra uma tendência proporcional ao avanço da curva de vendas; os detalhamentos permanecem realizados.',
   grupo:'Grupo DRE que mais consumiu no mês e sua fatia do total de despesas.',
-  conc:'Fatia do gasto do mês concentrada nos 5 maiores fornecedores. Quanto maior, mais dependente de poucos fornecedores.',
+  conc:'Fatia do gasto concentrada nos 5 maiores fornecedores. Folha e diárias contam como uma linha cada, não como uma pessoa cada. No mês aberto, compara só até o último dia com dado.',
   naocat:'Despesa do mês sem grupo/categoria definidos. É gasto sem rastreio — classifique para não virar vazamento invisível.'
 };
 
@@ -223,14 +223,12 @@ async function main(){
 
     if(!ROWS.length)throw new Error('Sem dados de despesas.');
 
-    // pre-processa: por mes e historico por fornecedor
-    POR_MES=new Map(); FORN_HIST=new Map();
+    // pre-processa: agrupa por mes (o historico por fornecedor agora vem
+    // da RPC, que colapsa folha e corta no mesmo dia do mes)
+    POR_MES=new Map();
     ROWS.forEach(r=>{
       if(!POR_MES.has(r.ano_mes))POR_MES.set(r.ano_mes,[]);
       POR_MES.get(r.ano_mes).push(r);
-      if(!FORN_HIST.has(r.fornecedor))FORN_HIST.set(r.fornecedor,new Map());
-      const h=FORN_HIST.get(r.fornecedor);
-      h.set(r.ano_mes,(h.get(r.ano_mes)||0)+(Number(r.valor)||0));
     });
     MESES_LISTA=[...POR_MES.keys()].sort();
 
@@ -247,7 +245,27 @@ async function main(){
 
 Chart.defaults.font.family="'Roboto',Arial,sans-serif";Chart.defaults.color=C.muted;
 
-function renderMes(anoMes){
+let RENDER_SEQ=0;
+
+async function renderMes(anoMes){
+  const seq=++RENDER_SEQ;
+  // Ranking, vazamentos, concentracao e recorrencia saem todos da mesma
+  // RPC: folha colapsada e corte no mesmo dia do mes. Busca antes de
+  // desenhar para os quatro blocos nao discordarem entre si.
+  const rk=await q(()=>sb.rpc('listar_ranking_fornecedor',{p_ano_mes:anoMes}));
+  if(seq!==RENDER_SEQ)return; // o usuario ja pediu outro mes
+
+  const RK=rk.error?null:(rk.data||[]).map(r=>({
+    fornecedor:r.fornecedor, grupo:r.grupo||'',
+    valor:Number(r.valor)||0, lanc:Number(r.lancamentos)||0,
+    media:r.media==null?null:Number(r.media),
+    mesesBase:Number(r.meses_base)||0,
+    pessoas:r.pessoas==null?null:Number(r.pessoas),
+    corte:Number(r.dia_corte)||31,
+    mesesPresente:Number(r.meses_presente)||0,
+    mesesJanela:Number(r.meses_janela)||0
+  }));
+
   CHARTS.forEach(c=>{try{c.destroy()}catch(e){}});CHARTS=[];
   const rows=POR_MES.get(anoMes)||[];
   const idx=MESES_LISTA.indexOf(anoMes);
@@ -262,10 +280,14 @@ function renderMes(anoMes){
   // por grupo
   const porGrupo=[...aggBy(rows,r=>r.grupo).entries()].map(([g,v])=>({grupo:g,valor:v.valor})).sort((a,b)=>b.valor-a.valor);
   const maior=porGrupo[0];
-  // por fornecedor
-  const porForn=[...aggBy(rows,r=>r.fornecedor).entries()].map(([f,v])=>({fornecedor:f,valor:v.valor,lanc:v.lanc})).sort((a,b)=>b.valor-a.valor);
-  const top5=porForn.slice(0,5).reduce((s,r)=>s+r.valor,0);
-  const conc=total>0?top5/total*100:0;
+  // Concentracao sobre a base do ranking: com a folha em uma linha so, o
+  // maior gasto da casa finalmente conta como um fornecedor. Se a RPC
+  // falhar, cai para a base mensal antiga em vez de zerar o KPI.
+  const baseConc=RK||[...aggBy(rows,r=>r.fornecedor).entries()].map(([f,v])=>({fornecedor:f,valor:v.valor}));
+  const totalConc=baseConc.reduce((s,r)=>s+r.valor,0);
+  const top5=baseConc.slice(0,5).reduce((s,r)=>s+r.valor,0);
+  const conc=totalConc>0?top5/totalConc*100:0;
+  const corteConc=(RK&&RK.length)?RK[0].corte:31;
   // nao classificado
   const naoCat=rows.filter(r=>r.grupo==='Não classificado').reduce((s,r)=>s+(Number(r.valor)||0),0);
 
@@ -279,7 +301,7 @@ function renderMes(anoMes){
     <div class="kpis">
       ${kpi(trend.label('Despesa total','Despesa total (tend.)'),'out',brl0(totalTrend),deltaDesp(totalTrend,prevAm?totalPrev:null),C.header,'total')}
       ${kpi('Maior grupo','pie',maior?esc(nomeGrupo(maior.grupo)):'—',maior?('<div class="sub"><b>'+brl(maior.valor)+'</b> · '+pp(maior.valor/total*100)+' do total</div>'):'',corGrupo(maior?maior.grupo:''),'grupo')}
-      ${kpi('Concentração top 5','conc',pp(conc),'<div class="sub">'+porForn.length+' fornecedores no mês</div>',conc>=60?C.red:conc>=45?C.amber:C.green,'conc')}
+      ${kpi('Concentração top 5','conc',pp(conc),'<div class="sub">'+baseConc.length+' fornecedores'+(corteConc>=31?' no mês':' até o dia '+corteConc)+'</div>',conc>=60?C.red:conc>=45?C.amber:C.green,'conc')}
       ${kpi('Não classificado','alert',naoCat>0.5?brl0(naoCat):'R$ 0',naoCat>0.5?'<div class="sub down">precisa classificar</div>':'<div class="sub up">tudo classificado</div>',naoCat>0.5?C.red:C.green,'naocat')}
     </div>
 
@@ -308,7 +330,7 @@ function renderMes(anoMes){
     <div class="section-title">Recorrente vs pontual</div>
     <div class="card">
       <h3>Quanto é gasto fixo e quanto é eventual</h3>
-      <div class="hint">Recorrente = fornecedor presente na maioria dos últimos 6 meses (baseline que sempre pesa)</div>
+      <div class="hint" id="hintRec">Recorrente = fornecedor presente na maioria dos últimos meses (baseline que sempre pesa)</div>
       <div id="recorrencia"></div>
     </div>
 
@@ -330,8 +352,28 @@ function renderMes(anoMes){
   document.getElementById('main').innerHTML=html;
 
   drawComposicao(porGrupo,total);
-  carregarRanking(anoMes);
-  drawRecorrencia(rows,anoMes,idx,total);
+  if(RK){
+    const corte=RK.length?RK[0].corte:31;
+    const janela=RK.length?RK[0].mesesJanela:0;
+    const hint=document.getElementById('hintRanking');
+    if(hint)hint.textContent=corte>=31
+      ? 'Top 15 fornecedores por gasto · comparado com a média dos últimos 6 meses'
+      : 'Top 15 fornecedores por gasto · até o dia '+corte+', comparado com a média dos últimos 6 meses no mesmo ponto do mês';
+    const hintV=document.getElementById('hintVaz');
+    if(hintV)hintV.textContent=corte>=31
+      ? 'Fornecedores que destoaram da própria média, ou que apareceram grandes pela primeira vez'
+      : 'Comparação até o dia '+corte+', contra o mesmo ponto dos meses anteriores';
+    const hintR=document.getElementById('hintRec');
+    if(hintR)hintR.textContent='Recorrente = fornecedor presente na maioria dos últimos '+(janela+1)+' meses (baseline que sempre pesa) · folha e diárias contam como uma linha';
+    drawRanking(RK);
+    drawVazamentos(RK);
+    drawRecorrencia(RK);
+  }else{
+    const msg='<div class="erro">Não foi possível carregar o ranking de fornecedores. '+esc(rk.error?(rk.error.message||''):'')+'</div>';
+    ['ranking','vazamentos','recorrencia'].forEach(id=>{
+      const el=document.getElementById(id); if(el)el.innerHTML=msg;
+    });
+  }
   drawEvolucao();
   drawDetalhe(rows,total);
 }
@@ -346,47 +388,14 @@ function drawComposicao(porGrupo,total){
   document.getElementById('compTbl').innerHTML='<table class="tbl">'+tbl+'</table>';
 }
 
-// A media por fornecedor saiu daqui: agora vem da RPC listar_ranking_fornecedor,
-// que corta os dois lados no mesmo dia do mes. FORN_HIST segue em uso apenas
-// pela analise de recorrencia, que so olha presenca do fornecedor por mes.
+// A media e a presenca mensal por fornecedor sairam daqui: as duas vem da RPC
+// listar_ranking_fornecedor, que colapsa folha/diarias numa linha e corta os
+// dois lados da comparacao no mesmo dia do mes.
 
-// Ranking e vazamentos vem da RPC: ela corta o mes corrente no ultimo dia
-// com dado e compara com a media dos meses anteriores ate o MESMO dia do
-// mes. Sem tendencia — projetar despesa pela curva de vendas inflava todo
-// gasto fixo, que e pago uma vez e nao cresce com o avanco do mes.
-async function carregarRanking(anoMes){
-  const rk=document.getElementById('ranking'),vz=document.getElementById('vazamentos');
-  if(rk)rk.innerHTML='<div class="vazio">Carregando…</div>';
-  if(vz)vz.innerHTML='<div class="vazio">Carregando…</div>';
-  const {data,error}=await q(()=>sb.rpc('listar_ranking_fornecedor',{p_ano_mes:anoMes}));
-  // o usuario pode ter trocado de mes enquanto a chamada voltava
-  if(document.getElementById('mesSel').value!==anoMes)return;
-  if(error){
-    if(rk)rk.innerHTML='<div class="erro">Não foi possível carregar o ranking. '+esc(error.message||'')+'</div>';
-    if(vz)vz.innerHTML='';
-    return;
-  }
-  const rows=(data||[]).map(r=>({
-    fornecedor:r.fornecedor, grupo:r.grupo||'',
-    valor:Number(r.valor)||0, lanc:Number(r.lancamentos)||0,
-    media:r.media==null?null:Number(r.media),
-    mesesBase:Number(r.meses_base)||0,
-    pessoas:r.pessoas==null?null:Number(r.pessoas),
-    corte:Number(r.dia_corte)||31
-  }));
-  const corte=rows.length?rows[0].corte:31;
-  const hint=document.getElementById('hintRanking');
-  if(hint)hint.textContent=corte>=31
-    ? 'Top 15 fornecedores por gasto · comparado com a média dos últimos 6 meses'
-    : 'Top 15 fornecedores por gasto · até o dia '+corte+', comparado com a média dos últimos 6 meses no mesmo ponto do mês';
-  const hintV=document.getElementById('hintVaz');
-  if(hintV)hintV.textContent=corte>=31
-    ? 'Fornecedores que destoaram da própria média, ou que apareceram grandes pela primeira vez'
-    : 'Comparação até o dia '+corte+', contra o mesmo ponto dos meses anteriores';
-  drawRanking(rows);
-  drawVazamentos(rows);
-}
-
+// Os quatro blocos abaixo consomem o mesmo retorno da RPC: ela corta o mes
+// corrente no ultimo dia com dado e compara com a media dos meses anteriores
+// ate o MESMO dia. Sem tendencia — projetar despesa pela curva de vendas
+// inflava todo gasto fixo, que e pago uma vez e nao cresce com o mes.
 function drawRanking(rows){
   const alvo=document.getElementById('ranking');
   const top=rows.slice(0,15);
@@ -438,15 +447,18 @@ function drawVazamentos(rows){
   document.getElementById('vazamentos').innerHTML=h;
 }
 
-function drawRecorrencia(rows,anoMes,idx,total){
-  // janela dos ultimos 6 meses (inclui o selecionado)
-  const janela=MESES_LISTA.slice(Math.max(0,idx-5),idx+1);
-  const minPresenca=Math.max(2,Math.ceil(janela.length*0.6));
-  const porForn=[...aggBy(rows,r=>r.fornecedor).entries()].map(([f,v])=>({fornecedor:f,valor:v.valor}));
+function drawRecorrencia(rows){
+  if(!rows.length){document.getElementById('recorrencia').innerHTML='<div class="vazio">Sem fornecedores no mês.</div>';return;}
+  // Janela = meses anteriores com gasto + o mes corrente. `mesesPresente`
+  // conta o mes CHEIO de proposito: recorrencia pergunta "aparece todo
+  // mes?", que e estrutural. Com o corte, quem sempre cobra no fim do mes
+  // seria classificado como pontual.
+  const janela=rows[0].mesesJanela+1;
+  const minPresenca=Math.max(2,Math.ceil(janela*0.6));
+  const total=rows.reduce((s,r)=>s+r.valor,0);
   let recTotal=0,ponTotal=0;const recList=[],ponList=[];
-  porForn.forEach(f=>{
-    const h=FORN_HIST.get(f.fornecedor);
-    let presenca=0;janela.forEach(am=>{if(h&&h.has(am))presenca++;});
+  rows.forEach(f=>{
+    const presenca=f.mesesPresente+1; // +1 = o mes corrente, onde ele esta
     if(presenca>=minPresenca){recTotal+=f.valor;recList.push(f);}
     else{ponTotal+=f.valor;ponList.push(f);}
   });

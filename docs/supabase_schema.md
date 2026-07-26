@@ -210,9 +210,26 @@ no repositório.
   útil e não deve ficar exposto no painel. As demais categorias de PESSOAL
   seguem individuais de propósito — iFood Benefícios, Plano Dentário, Fardamento
   e Endomarketing são fornecedores de verdade.
+- A RPC serve **quatro** blocos de `despesas.html`: ranking, vazamentos, KPI de
+  concentração e "Recorrente vs pontual". Todos na mesma base, para não
+  discordarem entre si.
+- Três contadores, cada um com um propósito — não confundir:
+  - `meses_base` — meses anteriores com gasto **até o corte**. É o divisor da
+    média, então aqui o corte tem que valer.
+  - `meses_presente` — meses anteriores com gasto no **mês cheio**, sem corte. É
+    o dado da recorrência, que pergunta "aparece todo mês?" (estrutural). Com o
+    corte, quem sempre cobra no fim do mês seria classificado como pontual.
+  - `meses_janela` — quantos meses da janela têm algum gasto; denominador do
+    limiar de presença, que se adapta quando o histórico é curto.
+- Colapsar a folha mudou dois números de forma relevante, e para melhor:
+  concentração top 5 de 35,2% para **67,5%** (a folha entrava picotada em 33
+  pessoas e nunca chegava ao top 5) e recorrente de 86,9% para **97%** (19
+  pessoas com menos de 4 meses de casa carregavam R$ 15,2 mil classificados como
+  gasto pontual).
 - Limitação assumida: boleto que muda de dia entre meses gera variação falsa
   enquanto o mês não fecha; corrige-se sozinho no fechamento.
-- Criados em `20260778000000_ranking_fornecedor_mesmo_periodo.sql`.
+- Criados em `20260778000000_ranking_fornecedor_mesmo_periodo.sql`; colunas de
+  recorrência em `20260779000000_ranking_alinha_concentracao_e_recorrencia.sql`.
 
 ### app_classificacoes_recentes e RPCs de classificação
 - Tipo: view protegida e funções `SECURITY DEFINER`

@@ -672,6 +672,50 @@ pessoas; nenhum CPF mascarado no top 15; mês fechado retorna corte 31.
 **Fica pendente, não é bug:** o KPI "Concentração top 5" e o bloco "Recorrente vs
 pontual" ainda leem a `mv_despesa_mensal` sem colapsar folha e sem corte. Não
 contradizem o ranking (medem outra coisa), mas se alguém quiser coerência total
-esses dois também precisariam mudar.
+esses dois também precisariam mudar. *(Resolvido logo abaixo, na 20260779000000.)*
+
+— Claude
+
+## 2026-07-26 · Claude — concentração e recorrência na mesma base do ranking
+
+**Arquivos:** migration `20260779000000_ranking_alinha_concentracao_e_recorrencia.sql`,
+`despesas.html`.
+
+Fechando a pendência que a 20260778000000 deixou. Os dois blocos que ainda liam
+a `mv_despesa_mensal` estavam **medindo errado**, não só desalinhados — e a
+correção mexeu bastante nos números:
+
+**Concentração top 5: 35,2% → 67,5%** (jul/2026). A folha entrava picotada em 33
+pessoas, então o maior gasto da casa nunca chegava ao top 5 e o KPI **subestimava
+pela metade** a dependência de poucos fornecedores. O contador também caiu de 95
+para 63, porque pessoa física deixou de ser contada como fornecedor.
+
+**Recorrente: 86,9% → 97%.** A causa é precisa: **19 pessoas com menos de 4 meses
+de casa carregavam R$ 15.251,04** que era classificado como "gasto pontual".
+Contratar alguém novo não torna a folha um gasto eventual. Com a folha
+colapsada, esse valor vai para recorrente, que é onde sempre pertenceu.
+
+**A RPC ganhou duas colunas** e agora serve os quatro blocos:
+- `meses_presente` — meses anteriores com gasto, **sem** o corte de dia. É o dado
+  da recorrência, que pergunta "aparece todo mês?" — questão estrutural, não de
+  ritmo. Com o corte, quem sempre cobra no fim do mês viraria "pontual".
+- `meses_janela` — meses da janela que têm algum gasto, denominador do limiar de
+  presença (adapta quando o histórico é curto).
+
+`meses_base` continua contando **com** corte, porque é o divisor da média — ali o
+corte tem que valer. O corte saiu do `where` e virou `filter` nas agregações, de
+modo que a mesma passada responde as duas perguntas sem ler a MV duas vezes.
+Custo inalterado: **184 ms**.
+
+**No front-end**, `renderMes` virou `async` e busca a RPC **antes** de desenhar,
+com um contador de sequência (`RENDER_SEQ`) para descartar resposta de mês
+antigo se o usuário trocar o seletor no meio. Se a RPC falhar, a concentração cai
+para a base mensal antiga em vez de zerar o KPI. `FORN_HIST` foi removido — não
+tinha mais leitor.
+
+**Verificado (transação revertida):** invariante `meses_presente >= meses_base`
+vale para todos os fornecedores nos dois meses testados; folha aparece em 1º
+lugar com presença 6/6 e classificada como recorrente; mês fechado (mai/2026)
+retorna corte 31 e mantém o comportamento histórico.
 
 — Claude
