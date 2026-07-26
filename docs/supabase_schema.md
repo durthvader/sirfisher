@@ -353,7 +353,19 @@ no repositório.
     já existiam como Recebível de Cartão e o insert `where not exists` da
     20260765000000 as ignorou; Pix enviados para contas da própria empresa
     entravam na DRE como despesa do grupo RECEITAS (14 débitos, R$ 43.926,95).
-    `HEMILEALEXANDRESILVA` continua como Folha Salarial por decisão pendente.
+- A conta Inter era da empresa, mas registrada no CNPJ da titular. A separação
+  correta é pelo documento da contraparte, e o `de_para` já a reproduz sem
+  ajuste adicional: os lançamentos da conta chegam com o nome prefixado pelo
+  CNPJ (`35220527 HEMILE ALEXANDRE SILVA`, documento no formato
+  `##.###.###/####-##`) e a chave `35220527HEMILEALEXANDRESILVA` os mapeia para
+  Transferencia entre Contas; os pagamentos à pessoa física chegam sem prefixo
+  e com CPF mascarado (`***.###.###-**`), e a chave `HEMILEALEXANDRESILVA`
+  mantém Folha Salarial. Conferido: os dois grupos não se misturam — 9
+  lançamentos no CNPJ (R$ 28.000 de crédito e o aporte inicial de R$ 100) e os
+  demais no CPF. Confirmação independente: o extrato da Inter só tem três tipos
+  de entrada (Vendas Crédito e Débito da Fundopay, mais os R$ 100 iniciais),
+  ou seja, a conta nunca recebeu transferência das outras contas do grupo,
+  então os débitos para o CPF não podem ter ido para ela.
 
 ### Histórico de caixa unificado nas telas
 - Desde `20260764000000_caixa_historico_usa_saldo_diario.sql`, a curva

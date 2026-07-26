@@ -337,20 +337,33 @@ Recebível de Cartão e faziam Pix enviados entrarem na DRE como despesa do grup
 RECEITAS — corrigidas para Transferencia entre Contas (14 débitos,
 R$ 43.926,95). Nenhum crédito foi afetado por essa correção.
 
+**Hemile CNPJ x CPF — resolvido, sem necessidade de correção.** A conta Inter
+era da empresa, mas registrada no CNPJ da titular. O usuário confirmou a regra:
+movimentação no CNPJ é a conta Inter (transferência entre contas), no CPF é
+folha salarial. Os dados já separam isso sozinhos, porque o banco prefixa o
+nome com o CNPJ: `35220527 HEMILE ALEXANDRE SILVA` traz documento
+`##.###.###/####-##` e cai na chave `35220527HEMILEALEXANDRESILVA` ->
+Transferencia entre Contas (9 lançamentos: R$ 28.000 de crédito e o aporte
+inicial de R$ 100); `HEMILE ALEXANDRE SILVA` traz CPF mascarado
+`***.###.###-**` e cai em `HEMILEALEXANDRESILVA` -> Folha Salarial. Os grupos
+não se misturam. Confirmação independente: o extrato da Inter só tem três tipos
+de entrada (Vendas Crédito, Vendas Débito e os R$ 100 iniciais) — a conta nunca
+recebeu transferência das outras contas, então os débitos para o CPF não foram
+para ela. **Não reclassificar esses lançamentos.**
+
 **Pendências para quem pegar depois:**
-- `HEMILEALEXANDRESILVA` no `de_para` continua como Folha Salarial. São 155
-  débitos no histórico (R$ 147.152,40, 2021-2025) e 13 na Stone em 2026
-  (R$ 28.652,83). Pode ser salário legítimo da titular ou aporte na conta
-  Inter; não dá para decidir sem o usuário. A chave
-  `35220527HEMILEALEXANDRESILVA` (formato dos Pix vindos da Inter) já é
-  transferência.
 - 144 débitos da Inter (R$ 27.486,61) ficaram como exceção para classificação
   manual em `classificar_excecoes.html` — fornecedores que o `de_para` não
   conhece.
-- Faltam R$ 28.000 de Pix da Inter (ago-nov/2025) para "Sir Fisher Comercio de
-  Alimentos": não estão em nenhuma fonte do sistema. A conta de destino provável
-  é o BNB, cujo histórico termina em 07/07/2025. Se aparecer extrato BNB desse
-  período, esses créditos entram e o `de_para` já os classifica como
-  transferência.
+- Faltam R$ 26.000 em 6 saídas da Inter sem par em nenhuma fonte, depois do
+  cruzamento com o BB de 2025 já importado (janela de +/- 3 dias):
+  11/08/2025 R$ 5.000, 13/08/2025 R$ 3.000, 03/11/2025 R$ 5.000,
+  05/11/2025 R$ 5.000 e 10/11/2025 R$ 5.000 para "Sir Fisher Comercio de
+  Alimentos"; e 08/10/2025 R$ 3.000 para "Bs Instituicao de Pagamento". Este
+  último existe em `raw_bs_cash` como DEPOSITO, mas fica fora do
+  `fato_financeiro` pelo corte de 2026-01-01 do BS Cash — não é dado ausente.
+  Os outros cinco (R$ 23.000) provavelmente foram para o BNB, cujo histórico
+  termina em 07/07/2025; o `de_para` já os classificaria como transferência se
+  o extrato aparecer. O usuário vai conferir os destinos no app do Inter.
 
 — Claude
