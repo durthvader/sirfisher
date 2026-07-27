@@ -9,6 +9,7 @@ from importacao_core import (
     abrir_csv_validado,
     adicionar_rejeicao,
     atualizar_painel,
+    avisar_outros_estabelecimentos,
     campo,
     criar_parser,
     executar_com_saida,
@@ -132,6 +133,7 @@ def resumo(registros):
     print(f"  STONE IDs únicos:    {len(ids)}")
     print(f"  duplicatas internas: {len(registros) - len(ids)}")
     print(f"  status:              {dict(Counter(item['ultimo_status'] for item in registros))}")
+    avisar_outros_estabelecimentos(registros)
 
 
 def gravar(registros, periodo):

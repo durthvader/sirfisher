@@ -344,9 +344,34 @@ no repositório.
   se propaga. Nota de equivalência: `tendencia_mes` pode não ter linha, então
   o join é `left join lateral ... on true` — um `cross join` apagaria as linhas.
 
+### stone_estabelecimento — o painel é de UMA unidade
+- Tipo: tabela de mapeamento (`stonecode` → `unidade`)
+- **O grupo tem três casas com stonecodes distintos:** `770398216` Praia (a
+  unidade do painel), `140366173` Imprensa e `916046432` PUB. O `173835323` é um
+  segundo código da **própria Praia** (e-commerce / link de pagamento) — provado
+  por aparecer dentro dos arquivos exportados da Praia.
+- **O relatório da Stone é por estabelecimento.** Importar o arquivo da casa
+  errada mistura o faturamento: aconteceu em 28/06/2026 e R$ 25.135,94 de
+  Imprensa e PUB contaram como Praia entre dez/2025 e mai/2026.
+- **Filtrar por stonecode não basta:** as linhas de **Pix QRcode não trazem
+  stonecode**, só as de cartão. A resolução usa o **número de série do
+  terminal** — conferido que cada série pertence a um único stonecode e nenhuma
+  migrou entre unidades, então a série identifica a unidade também no Pix.
+- O filtro em `recebimento_stone_net` **exclui o que se sabe ser de outra
+  unidade**, em vez de incluir só o que se sabe ser Praia. Assim um terminal novo
+  da Praia conta desde o primeiro dia, mesmo antes de entrar nesta tabela.
+- Os importadores `02_` e `03_` avisam quando o arquivo traz outro
+  estabelecimento. A lista canônica é esta tabela; `STONECODES_PAINEL` em
+  `importacao_core.py` existe só para o aviso rodar em `--dry-run`, sem banco.
+- Criada em `20260781000000`; e-commerce registrado em `20260782000000`.
+
 ### raw_fundopay_vendas / venda_diaria
 - `venda_diaria` é a base do faturamento (planejamento, vendas.html, metas,
   tendência, peso do dia e, por `projecao_venda_diaria`, a projeção de caixa).
+- O braço da Stone lê o **`recebimento_stone_net`**, não a tabela crua: é ali que
+  moram, num lugar só, o líquido de cancelamento e o filtro de unidade. As duas
+  expressões eram idênticas e duplicadas — foi assim que os dois caminhos do
+  faturamento divergiram na 20260777000000.
 - Reúne **quatro canais**, sempre pela **data da venda** e pelo **valor bruto**:
   `raw_stone_vendas` (líquido de cancelamento), `venda_especie` (sangrias
   registradas à mão), `raw_fundopay_vendas` (maquininha paralela usada de

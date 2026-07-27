@@ -21,6 +21,13 @@ from typing import Callable, Iterable, Iterator, Mapping, Sequence
 UNIDADE_PADRAO = "PRAIA"
 UNIDADES_SUPORTADAS = frozenset({UNIDADE_PADRAO})
 LIMITE_REJEICOES_EXIBIDAS = 12
+# Estabelecimentos Stone da unidade do painel: a maquininha do balcao e o
+# codigo de e-commerce / link de pagamento. Imprensa (140366173) e PUB
+# (916046432) sao outras casas: em 28/06/2026 os arquivos delas foram
+# importados por engano e R$ 25.135,94 contaram como faturamento da Praia.
+# A lista canonica vive em public.stone_estabelecimento; aqui fica so o
+# necessario para o aviso funcionar em --dry-run, sem acesso ao banco.
+STONECODES_PAINEL = frozenset({"770398216", "173835323"})
 _IDENTIFICADOR_SQL = re.compile(r"^[a-z_][a-z0-9_]*$")
 _CONFLITO_SQL = re.compile(r"^\([a-z0-9_, ]+\)$")
 
@@ -118,6 +125,35 @@ def validar_unidade(valor: str) -> str:
         permitidas = ", ".join(sorted(UNIDADES_SUPORTADAS))
         raise ValidacaoErro(f"unidade inválida; valores permitidos: {permitidas}")
     return unidade
+
+
+def avisar_outros_estabelecimentos(registros: Sequence[Mapping[str, object]]) -> None:
+    """Mostra os stonecodes do arquivo e avisa se houver outra unidade.
+
+    O relatório da Stone é por estabelecimento, e as três casas do grupo têm
+    stonecodes distintos. Importar o arquivo errado mistura o faturamento —
+    as views já filtram por unidade, mas o aviso evita a carga silenciosa.
+    """
+    from collections import Counter
+
+    codigos = Counter(
+        (str(item.get("stonecode") or "").strip() or "(sem stonecode / Pix)")
+        for item in registros
+    )
+    print(f"  stonecodes:          {dict(codigos)}")
+    outros = {
+        codigo: qtd
+        for codigo, qtd in codigos.items()
+        if codigo not in STONECODES_PAINEL and codigo != "(sem stonecode / Pix)"
+    }
+    if not outros:
+        return
+    print()
+    print("  *** ATENÇÃO: o arquivo tem estabelecimento de outra unidade ***")
+    for codigo, qtd in sorted(outros.items()):
+        print(f"      stonecode {codigo}: {qtd} linha(s)")
+    print("      O painel é da PRAIA (" + ", ".join(sorted(STONECODES_PAINEL)) + ").")
+    print("      Confira se é o arquivo certo antes de gravar.")
 
 
 def campo(row: Mapping[str, object], chave: str) -> str | None:

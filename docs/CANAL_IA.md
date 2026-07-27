@@ -779,3 +779,64 @@ linhas novas, 109 excluídas):
   não pediu.
 
 — Claude
+
+## 2026-07-26 · Claude — faturamento conta só a Praia (3 unidades misturadas)
+
+**Arquivos:** migrations `20260781000000_faturamento_apenas_da_praia.sql` e
+`20260782000000_stonecode_ecommerce_e_da_praia.sql`,
+`scripts/importacao/importacao_core.py`, `02_…` e `03_importar_*_stone.py`.
+**Dados apagados em produção com autorização explícita.**
+
+**Eu errei antes e o usuário achou a causa.** Eu havia concluído que faltavam
+R$ 64.382,70 de faturamento e pedido a ele os relatórios de vendas de dez/2025.
+Ele mandou o arquivo e apontou o que eu não sabia: **os stonecodes são unidades
+diferentes** — 770398216 é a Praia (o painel), 140366173 é a Imprensa e
+916046432 é o PUB. O arquivo que ele mandou era idêntico ao que já estava no
+banco (2.216 IDs, 0 novos), o que confirmou que nada faltava.
+
+**O problema era o oposto.** Em 28/06/2026 (03:13) uma sessão de importação
+subiu os relatórios de Imprensa e PUB junto com o da Praia. Como o
+`venda_diaria` não tinha noção de estabelecimento, **R$ 25.135,94 de vendas de
+outras casas contaram como faturamento da Praia** entre dez/2025 e mai/2026 —
+até 3,6% do mês (jan/2026: −R$ 7.497,17).
+
+**A pegadinha:** filtrar por stonecode não bastava. As linhas de **Pix QRcode
+não trazem stonecode** no relatório da Stone, só as de cartão — 111 transações
+escapariam. A saída foi o **número de série do terminal**: conferi que cada série
+pertence a um único stonecode e nenhuma migrou entre unidades, então a série
+identifica a unidade também no Pix.
+
+**Decisões de projeto:**
+- O filtro **exclui o que se sabe ser de outra casa**, em vez de incluir só o que
+  se sabe ser Praia. Assim um terminal novo da Praia conta desde o primeiro dia,
+  mesmo antes de entrar no mapa `stone_estabelecimento`.
+- `venda_diaria` parou de repetir o cálculo do líquido de cancelamento e passou a
+  ler o `recebimento_stone_net`. As expressões eram idênticas; agora o filtro
+  vale para os dois caminhos do faturamento **por construção** — era exatamente
+  assim que os dois divergiam na 20260777000000.
+- O stonecode **173835323** (1 venda, R$ 1.500) ficou de fora da exclusão porque
+  a unidade não estava confirmada. Depois o aviso do importador provou que ele
+  **é da Praia**: aparece dentro dos arquivos exportados da própria Praia, tanto
+  vendas quanto recebíveis. É o código de e-commerce / link de pagamento.
+  Registrado como PRAIA na 20260782000000.
+
+**Exclusão (918 vendas + 1.564 recebíveis de Imprensa e PUB):** a prova de que o
+filtro estava certo foi a invariante — **o faturamento ficou idêntico em todos os
+meses depois de apagar**, porque a view já não contava aquelas linhas. Os 7
+cancelamentos e o `fato_financeiro` também ficaram intactos. Órfãos da
+Conciliação caíram de 1.804 para **1.044**.
+
+**Não foi afetado:** caixa e DRE (`raw_stone_extrato` tem uma conta só, a Stone
+da Praia — o dinheiro das outras casas nunca passou por ali) e os cancelamentos
+(todos do 770398216).
+
+**Prevenção:** os dois importadores da Stone agora listam os stonecodes do
+arquivo e **avisam** quando há estabelecimento de outra unidade. A lista canônica
+é a tabela `stone_estabelecimento`; o `STONECODES_PAINEL` no
+`importacao_core.py` existe só para o aviso funcionar em `--dry-run`, sem banco.
+
+**Lição:** antes de concluir que falta dado, verificar se o que está lá é
+mesmo da unidade do painel. Passei perto de pedir importações que teriam
+**dobrado** a contaminação.
+
+— Claude
