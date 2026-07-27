@@ -766,6 +766,28 @@ no repositório.
 - `raw_stone_extrato` / `raw_stone_vendas` / `raw_stone_recebiveis` → destino da
   carga, tanto pelo `importar.html` quanto pelos scripts de `scripts/importacao/`
 
+### importar_csv_stone — o segundo caminho de gravação
+- Tipo: função `SECURITY DEFINER`, usada por `importar.html`
+- **São dois caminhos de gravação, não um:** `scripts/importacao/*.py` e esta
+  função. Mexeu em restrição única, chave de dedup ou coluna obrigatória? Varra
+  os dois. Trocar a chave dos recebíveis sem atualizar aqui quebrou a tela com
+  *"there is no unique or exclusion constraint matching the ON CONFLICT
+  specification"* (corrigido em `20260783000000`).
+- Aplica as mesmas proteções do Python (`20260784000000`):
+  - **STONE ID em notação científica → rejeição.** Entra na lista de motivos e
+    vale a tolerância zero da função; nada é gravado. O padrão exige dígito
+    antes do `E`, senão pegaria todo ID de Pix.
+  - **Estabelecimento de outra unidade → aviso.** Devolve `estabelecimentos`
+    (contagem por stonecode) e `outras_unidades` (o que não é Praia, incluindo
+    stonecode não cadastrado). É aviso e não rejeição: o arquivo pode estar
+    íntegro e ser de outra casa, e as views já filtram por unidade.
+- **Limite de 20.000 linhas** por arquivo; acima disso levanta exceção pedindo o
+  script local. É a única diferença funcional entre os dois caminhos.
+- Ao alterar esta função, gere o `CREATE OR REPLACE` a partir de
+  `pg_get_functiondef` e substitua trechos âncora por script, abortando se algum
+  não casar exatamente uma vez — ela tem ~200 linhas e transcrever à mão convida
+  a diferença silenciosa.
+
 ### raw_stone_recebiveis — armadilhas da carga
 - **A chave única é `(stone_id, n_parcela, categoria)`**, não apenas as duas
   primeiras. A Stone emite **duas linhas com o mesmo STONE ID e número de

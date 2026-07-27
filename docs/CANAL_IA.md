@@ -840,3 +840,52 @@ mesmo da unidade do painel. Passei perto de pedir importações que teriam
 **dobrado** a contaminação.
 
 — Claude
+
+## 2026-07-26 · Claude — importação pela web: regressão e paridade
+
+**Arquivos:** migrations `20260783000000_importacao_web_recebiveis_com_categoria.sql`
+e `20260784000000_importacao_web_protecoes_do_python.sql`, `importar.html`.
+
+**Regressão minha.** A 20260780000000 trocou a restrição única de
+`raw_stone_recebiveis` para incluir `categoria`, e eu ajustei **só o importador
+Python**. A importação pela web tem outro caminho — a função
+`importar_csv_stone` — que ficou com o `on conflict (stone_id, n_parcela)` e
+passou a falhar com *"there is no unique or exclusion constraint matching the ON
+CONFLICT specification"*, parando o lote no arquivo de recebíveis. O mesmo
+descuido afetava o dry-run: a coluna NOVAS comparava só as duas colunas, então a
+linha de cancelamento aparecia como já importada.
+
+> **Há dois caminhos de gravação.** `scripts/importacao/*.py` e a função
+> `importar_csv_stone` (usada por `importar.html`). Mexeu em restrição única,
+> chave de dedup ou coluna obrigatória? Varra os dois.
+
+**Paridade.** O usuário informou que passará a usar **só a web**; o Python fica
+como exceção. As duas proteções criadas no mesmo dia estavam apenas no Python, o
+que fazia da web o caminho **menos** protegido — corrigido na 20260784000000:
+
+- **ID em notação científica → rejeição.** Arquivo corrompido pelo Excel não tem
+  decisão a tomar. Entra na lista de motivos e vale a tolerância zero que a
+  função já aplica; nada é gravado. O padrão exige **dígito antes do E**, senão
+  pegaria todo ID de Pix (que começa com `E` seguido de números).
+- **Estabelecimento de outra unidade → aviso.** O arquivo pode estar íntegro e
+  ser só de outra casa, e as views já filtram por unidade — quem decide é quem
+  está na tela. A RPC devolve `estabelecimentos` (sempre) e `outras_unidades`
+  (só o que destoa), e `importar.html` mostra uma linha âmbar sob o arquivo.
+  **Stonecode não cadastrado também aparece** — é o caso que pegaria uma unidade
+  nova entrando calada, exatamente o que aconteceu em 28/06.
+
+**Método que funcionou bem nas duas migrations:** gerar o `CREATE OR REPLACE` a
+partir de `pg_get_functiondef` e substituir trechos âncora por script,
+**abortando se algum não casar exatamente uma vez**. A função tem ~200 linhas;
+transcrever à mão convidaria a diferença silenciosa.
+
+**Verificado em transação revertida:** o erro da tela foi reproduzido com o
+arquivo real de jul/2026 e some depois da correção; arquivo legítimo da Praia
+não avisa; arquivo com Imprensa + stonecode desconhecido lista os dois; arquivo
+com ID científico é rejeitado com a mensagem explicando o motivo.
+
+**Diferença que sobra entre os dois caminhos:** a web tem limite de **20.000
+linhas** por arquivo (`importar_csv_stone` levanta exceção acima disso). Carga
+histórica grande ainda precisa do script local.
+
+— Claude
