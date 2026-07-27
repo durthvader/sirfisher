@@ -63,7 +63,16 @@ async function montarSeletor(){
   RESUMO_MENSAL=data||[];
   const meses=[...new Set(RESUMO_MENSAL.map(r=>r.ano_mes))].sort();
   if(!meses.length)throw new Error('Sem dados de conciliação carregados.');
-  ANO_MES_ATUAL=meses[meses.length-1];
+  // Abre no mes corrente, nao no ultimo com dados: a agenda de recebiveis da
+  // Stone se estende para o futuro, entao o ultimo mes e um mes que ainda nao
+  // aconteceu — e, por construcao, so pode conter orfaos (recebivel com venda
+  // e arquivado no mes da VENDA). Se o mes corrente nao tiver linha, cai no
+  // mes com dados mais proximo dele, para tras.
+  const hoje=new Date();
+  const mesCorrente=hoje.getFullYear()+'-'+String(hoje.getMonth()+1).padStart(2,'0');
+  const passados=meses.filter(am=>am<=mesCorrente);
+  ANO_MES_ATUAL=meses.includes(mesCorrente)?mesCorrente
+    :(passados.length?passados[passados.length-1]:meses[meses.length-1]);
   const sel=document.getElementById('anoMesSel');
   sel.innerHTML=meses.slice().reverse().map(am=>`<option value="${am}">${esc(nomeMes(am))}</option>`).join('');
   sel.value=ANO_MES_ATUAL;
