@@ -271,6 +271,21 @@ no repositório.
   - `cmv_perc`
   - `pessoal_perc`
 
+### app_gerente_dre_cascata_perc
+- Tipo: view protegida de leitura
+- Uso: `gerente.html`
+- Propósito: expõe a cascata DRE realizada somente em percentuais e, em
+  colunas separadas, os percentuais projetados de resultado operacional e
+  líquido. A cascata permanece realizada; a projeção usa a mesma equação de
+  fechamento de `index.html` e `dre.html`.
+- Segurança: `security_barrier = true`, `security_invoker = false`, gate para
+  `admin`, `socio` e `gerente`, com `select` apenas para `authenticated`.
+- Colunas adicionais criadas em
+  `20260785000000_gerente_resultado_realizado_projetado.sql`:
+  - `resultado_operacional_projetado_perc`
+  - `resultado_liquido_projetado_perc`
+  - `em_projecao`
+
 ### painel_resumo_mensal
 - Tipo: painel / view agregada
 - Uso: `index.html`, `vendas.html`
@@ -814,4 +829,3 @@ no repositório.
 - O front-end autenticado usa views `app_*` e RPCs protegidas; tabelas internas
   não são expostas para leitura anônima.
 - Esse documento não altera o banco, apenas descreve o schema usado pelo app.
-

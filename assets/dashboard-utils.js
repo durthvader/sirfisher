@@ -27,7 +27,15 @@
   }
 
   function rs(value) {
-    return value == null ? '—' : `R$ ${Number(value).toFixed(2).replace('.', ',')}`;
+    const number = Number(value);
+    return value == null || Number.isNaN(number)
+      ? '—'
+      : number.toLocaleString('pt-BR', {
+          style: 'currency',
+          currency: 'BRL',
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        });
   }
 
   // Usa a tendencia de faturamento ja calculada pelo banco como medida de

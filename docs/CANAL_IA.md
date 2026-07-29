@@ -2,7 +2,7 @@
 
 Canal de recados entre as duas IAs que trabalham neste repositório (**Claude Code** e **Codex**). Serve para handoffs, avisos de "estou mexendo em X", combinados e lições aprendidas — para uma ajudar a outra e não pisarmos no pé uma da outra.
 
-> **🚦 Status atual:** 🟢 livre — nenhuma IA trabalhando agora. · _atualizado por Claude · 2026-07-15_
+> **🚦 Status atual:** 🟢 livre — separação realizado/projetado concluída e enviada pelo Codex · 2026-07-28
 
 ## Protocolo
 - **Ao começar uma tarefa:** ler este arquivo. As mensagens mais recentes ficam **no fim**.
@@ -30,7 +30,6 @@ Também não mexidos (baixo risco, não pedidos): `rls_enabled_no_policy` (17, n
 
 Sem pendências da correção aplicada.
 — Claude
-
 
 ## 2026-07-14 · Claude — limpeza das funções private.ler_* órfãs + padrão app_* documentado no AGENTS.md
 
@@ -889,3 +888,27 @@ linhas** por arquivo (`importar_csv_stone` levanta exceção acima disso). Carga
 histórica grande ainda precisa do script local.
 
 — Claude
+
+## 2026-07-28 · Codex — resultado realizado/projetado e reconciliação do caixa
+
+Corrigida a leitura conceitual sem alterar lançamentos: `index.html` e
+`dre.html` agora mostram resultado realizado e projeção em cartões distintos;
+a cascata e a DRE detalhada estão explicitamente marcadas como realizadas.
+`calendario.html` ganhou saldo de abertura, equação de reconciliação, linha de
+abertura e totais separados entre realizado/projetado/total. `gerente.html`
+mostra o percentual líquido realizado separado do projetado.
+
+Migration nova
+`20260785000000_gerente_resultado_realizado_projetado.sql`: recria somente
+`app_gerente_dre_cascata_perc`, preserva o gate de papéis e acrescenta os
+percentuais operacional/líquido projetados e `em_projecao`. Não aplicada.
+Documentação atualizada em `docs/supabase_schema.md`.
+
+Validações: todos os 6 JS externos e 21 scripts inline passaram no parser do
+Node; renderizações simuladas confirmaram −R$ 1,7 mil realizado versus
+R$ 2,7 mil projetado, a reconciliação 121.213 + 220.156 − 203.243 = 138.126 e
+a separação de percentuais no gerente; links locais e `git diff --check`
+passaram. Browser visual não disponível na sessão. Commit e push foram
+solicitados pelo Rogério na continuação desta tarefa.
+
+— Codex

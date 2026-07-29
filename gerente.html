@@ -51,7 +51,7 @@
 <script>
 const sb=SirFisherSupabase;
 const esc=SirFisherDOM.escapeHTML;
-const {brl,brl0,pct,rs}=SirFisherFormat;
+const {brl,pct,rs}=SirFisherFormat;
 const C={header:'#12313F',teal:'#00A6A6',amber:'#D6A84F',green:'#2E7D5B',red:'#C94C4C',muted:'#6B7280',border:'#E5E7EB'};
 const MESES=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 let CHARTS=[];
@@ -113,13 +113,20 @@ function render(cur,rowsHist,dias,gastos,horas,saldoVar,cascata){
 
   const varCaixa=saldoVar?N(saldoVar.variacao_perc):null;
   const corCaixa=varCaixa==null?C.muted:(varCaixa>=0?C.green:C.red);
+  const resultadoReal=cascata?N(cascata.resultado_liquido_perc):null;
+  const resultadoProj=cascata?N(cascata.resultado_liquido_projetado_perc):null;
+  const emProjecao=Boolean(cascata&&cascata.em_projecao);
+  const corResultadoReal=resultadoReal==null?C.muted:(resultadoReal>=0?C.green:C.red);
+  const corResultadoProj=resultadoProj==null?C.muted:(resultadoProj>=0?C.green:C.red);
 
   document.getElementById('main').innerHTML=`
-    <div class="page-intro"><div><h2>Painel do Gerente</h2><p>Resumo operacional de ${esc(nomeMes(cur.ano_mes))}: acompanhamento de meta, ritmo de vendas e movimento para organizar salão e cozinha.</p></div></div>
+    <div class="page-intro"><div><h2>Painel do Gerente</h2><p>Resumo operacional de ${esc(nomeMes(cur.ano_mes))}: realizado e projeção aparecem separados para não confundir o resultado já apurado com a estimativa de fechamento.</p></div></div>
     <div class="summary-grid">
-      <div class="summary-card"><div class="label">${esc(labelDia)}</div><div class="value">${brl0(vendaDia)}</div><div class="hint">${metaDia!=null?'Meta do dia: '+brl0(metaDia)+(percDia!=null?' · '+pct(percDia):''):'Sem meta definida para o dia'}</div></div>
+      <div class="summary-card"><div class="label">${esc(labelDia)}</div><div class="value" title="Valor exato: ${rs(vendaDia)}">${brl(vendaDia)}</div><div class="hint">${metaDia!=null?'Meta do dia: '+brl(metaDia)+(percDia!=null?' · '+pct(percDia):''):'Sem meta definida para o dia'}</div></div>
       <div class="summary-card"><div class="label">Ticket médio</div><div class="value">${rs(cur.ticket_medio)}</div><div class="hint">${(cur.qtd_vendas||0).toLocaleString('pt-BR')} vendas no mês</div></div>
       <div class="summary-card"><div class="label">Variação do caixa</div><div class="value" style="color:${corCaixa}">${varCaixa==null?'—':(varCaixa>=0?'▲ ':'▼ ')+pct(Math.abs(varCaixa))}</div><div class="hint">Fechamento projetado vs mês anterior</div></div>
+      <div class="summary-card"><div class="label">Resultado líquido realizado</div><div class="value" style="color:${corResultadoReal}">${pct(resultadoReal)}</div><div class="hint">DRE acumulada até o corte; é o resultado da cascata abaixo</div></div>
+      ${emProjecao?`<div class="summary-card"><div class="label">Resultado líquido projetado</div><div class="value" style="color:${corResultadoProj}">${pct(resultadoProj)}</div><div class="hint">Estimativa para o fechamento; não faz parte da cascata realizada</div></div>`:''}
     </div>
 
     <section class="panel"><div class="panel-head"><div><h3>Meta do mês</h3><div class="hint">Tendência de fechamento sobre a meta de ${brl(meta)}</div></div></div>
@@ -128,7 +135,7 @@ function render(cur,rowsHist,dias,gastos,horas,saldoVar,cascata){
       <div class="chart-wrap h-day"><canvas id="chartDia"></canvas></div>
     </section>
 
-    <section class="panel"><div class="panel-head"><div><h3>Cascata do resultado</h3><div class="hint">Cada linha em percentual da receita do mês, da receita ao resultado líquido.</div></div></div>
+    <section class="panel"><div class="panel-head"><div><h3>Cascata do resultado realizado</h3><div class="hint">Acumulada até o corte, em percentual da receita realizada. Não inclui a projeção de fechamento exibida acima.</div></div></div>
       <div class="chart-wrap h-cascata"><canvas id="chartCascata"></canvas></div>
       <div class="legenda">
         <span><i style="background:${C.header}"></i>Subtotal</span>

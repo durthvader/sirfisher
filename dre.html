@@ -24,6 +24,7 @@
   .alerta{background:#fbf3e0;border:1px solid #e6d6a8;border-radius:11px;padding:11px 13px;font-size:12px;color:#7a5e1e;margin-bottom:14px;display:flex;align-items:center;gap:9px;}
   .alerta svg{width:18px;height:18px;flex-shrink:0;}
   .alerta b{font-weight:700;}
+  .scenario-hint{margin:-7px 0 10px;}
   .proj-memoria{margin:-6px 0 18px;padding:9px 12px;border-left:3px solid var(--amber);background:#faf8f1;border-radius:0 7px 7px 0;line-height:1.5;}
   .kpi .value{font-size:23px;font-weight:700;line-height:1.1;letter-spacing:-.5px;}
   .h-wf{height:420px;}.h-marg{height:230px;}
@@ -95,14 +96,17 @@ const MESES=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agos
 let CHARTS=[],ROWS=[],RESUMO=[],DESP_FIXA=[],DESP_DIRETA=[],ULTIMA=null,CARGAS=[];
 
 const DESC={
-  rec:'Receita de vendas líquida de estornos. No mês em andamento, o KPI mostra a tendência de fechamento; a DRE detalhada permanece acumulada até o corte.',
-  mc:'Margem de contribuição. No mês em andamento, o valor é projetado pela curva de vendas, mantendo a margem observada até o corte.',
-  op:'Resultado operacional. No mês em andamento, soma ao realizado a receita futura esperada e desconta as despesas diretas e fixas ainda projetadas, usando as mesmas premissas do caixa.',
-  liq:'Resultado líquido. No mês em andamento, parte do resultado operacional projetado e mantém, sem extrapolar, os itens não operacionais já realizados.'
+  recReal:'Receita de vendas líquida de estornos, acumulada somente até o corte dos dados.',
+  recProj:'Receita estimada para o fechamento do mês pela tendência de vendas.',
+  mcReal:'Margem de contribuição já realizada: receita menos os custos variáveis acumulados até o corte.',
+  mcProj:'Margem de contribuição estimada pela curva de vendas, mantendo a margem observada até o corte.',
+  opReal:'Resultado operacional já realizado, sem receita nem despesa futura.',
+  opProj:'Resultado operacional estimado: realizado + receita futura − despesas diretas e fixas futuras, usando as mesmas premissas do caixa.',
+  liqReal:'Resultado líquido já apurado com os lançamentos acumulados até o corte.',
+  liqProj:'Resultado líquido estimado: resultado operacional projetado + itens abaixo da operação já realizados, sem extrapolá-los.'
 };
 
 function brl(v){if(v==null||isNaN(v))return '—';const a=Math.abs(v);if(a>=1e6)return 'R$ '+(v/1e6).toFixed(2).replace('.',',')+' mi';if(a>=1e3)return 'R$ '+(v/1e3).toFixed(1).replace('.',',')+' mil';return 'R$ '+v.toFixed(0);}
-function brl0(v){if(v==null||isNaN(v))return '—';const a=Math.abs(v);if(a>=1e6)return 'R$ '+(v/1e6).toFixed(1).replace('.',',')+' mi';if(a>=1e3)return 'R$ '+Math.round(v/1e3)+' mil';return 'R$ '+Math.round(v);}
 function brlK(v){if(v==null||isNaN(v))return '—';return 'R$ '+Math.round(v/1e3)+'k';}
 function rs(v){return v==null?'—':'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}
 function pp(v){return (v==null||isNaN(v))?'—':v.toFixed(1).replace('.',',')+'%';}
@@ -117,11 +121,16 @@ function subMarg(perc,prevPerc){
   if(prevPerc!=null){const dd=perc-prevPerc;d=' · <span class="'+(dd>=0?'up':'down')+'">'+(dd>=0?'+':'−')+Math.abs(dd).toFixed(1).replace('.',',')+'pp</span>';}
   return '<div class="sub">margem <b>'+pp(perc)+'</b>'+d+'</div>';
 }
-function kpi(label,iconKey,value,sub,color,descKey){
+function kpi(label,iconKey,value,sub,color,descKey,exactValue){
+  const exact=exactValue==null?'':' title="Valor exato: '+rs(exactValue)+'"';
   return '<div class="kpi"><span class="bar" style="background:'+color+'"></span>'+
     '<div class="label">'+ic(ICON[iconKey])+'<span class="txt">'+label+'</span>'+
     '<span class="kpi-info" data-desc="'+DESC[descKey]+'">i</span></div>'+
-    '<div class="value" style="color:'+(value.indexOf('-')===0?C.red:C.text)+'">'+value+'</div>'+(sub||'')+'</div>';
+    '<div class="value"'+exact+' style="color:'+(value.includes('-')?C.red:C.header)+'">'+value+'</div>'+(sub||'')+'</div>';
+}
+
+function subCenario(perc,label){
+  return '<div class="sub">margem <b>'+pp(perc)+'</b> · '+label+'</div>';
 }
 
 // seletor de periodo reutilizavel: dois selects dependentes (Ano + Mes)
@@ -197,6 +206,7 @@ function renderMes(anoMes){
     : N('resultado_operacional');
   const abaixoOperacional=N('nao_operacional')+N('contabil')+N('capex')+N('nao_categorizado');
   const resultadoLiqProj=trend.active?resultadoOpProj+abaixoOperacional:N('resultado_liquido');
+  const margemMcProj=receitaProj?T('margem_contribuicao')/receitaProj*100:null;
   const margemOpProj=receitaProj?resultadoOpProj/receitaProj*100:null;
   const margemLiqProj=receitaProj?resultadoLiqProj/receitaProj*100:null;
   const memoriaProj=trend.active
@@ -214,18 +224,30 @@ function renderMes(anoMes){
   const html=`
     <div class="section-title">Resultado de ${MESES[new Date(r.mes).getUTCMonth()]} ${new Date(r.mes).getUTCFullYear()}</div>
     ${alertaHtml}
+    <div class="section-title">${trend.active?'Realizado até o corte':'Realizado no mês encerrado'}</div>
+    <div class="hint scenario-hint">${trend.active?'Somente lançamentos já apurados; não inclui receita nem despesa futura.':'Valores finais do período selecionado.'}</div>
     <div class="kpis">
-      ${kpi(trend.label('Receita de vendas','Receita (tend.)'),'cash',brl0(T('receita')),deltaVal(T('receita'),P('receita')),C.header,'rec')}
-      ${kpi(trend.label('Margem de contribuição','Margem contrib. (tend.)'),'mc',brl0(T('margem_contribuicao')),subMarg(N('mc_perc'),P('mc_perc')),C.teal,'mc')}
-      ${kpi(trend.label('Resultado operacional','Result. operac. (proj.)'),'op',brl0(resultadoOpProj),subMarg(margemOpProj,P('margem_op_perc')),C.amber,'op')}
-      ${kpi(trend.label('Resultado líquido','Resultado líq. (proj.)'),'liq',brl0(resultadoLiqProj),subMarg(margemLiqProj,P('margem_liq_perc')),resultadoLiqProj>=0?C.green:C.red,'liq')}
+      ${kpi('Receita de vendas realizada','cash',brl(N('receita')),deltaVal(N('receita'),P('receita')),C.header,'recReal',N('receita'))}
+      ${kpi('Margem de contribuição realizada','mc',brl(N('margem_contribuicao')),subMarg(N('mc_perc'),P('mc_perc')),C.teal,'mcReal',N('margem_contribuicao'))}
+      ${kpi('Resultado operacional realizado','op',brl(N('resultado_operacional')),subMarg(N('margem_op_perc'),P('margem_op_perc')),N('resultado_operacional')>=0?C.green:C.red,'opReal',N('resultado_operacional'))}
+      ${kpi('Resultado líquido realizado','liq',brl(N('resultado_liquido')),subMarg(N('margem_liq_perc'),P('margem_liq_perc')),N('resultado_liquido')>=0?C.green:C.red,'liqReal',N('resultado_liquido'))}
     </div>
-    ${memoriaProj}
+    ${trend.active?`
+      <div class="section-title">Projeção de fechamento</div>
+      <div class="hint scenario-hint">Estimativa para o fim do mês; não é lucro já realizado.</div>
+      <div class="kpis">
+        ${kpi('Receita de vendas projetada','cash',brl(receitaProj),'<div class="sub">fechamento estimado pela tendência</div>',C.header,'recProj',receitaProj)}
+        ${kpi('Margem de contribuição projetada','mc',brl(T('margem_contribuicao')),subCenario(margemMcProj,'fechamento estimado'),C.teal,'mcProj',T('margem_contribuicao'))}
+        ${kpi('Resultado operacional projetado','op',brl(resultadoOpProj),subCenario(margemOpProj,'fechamento estimado'),resultadoOpProj>=0?C.green:C.red,'opProj',resultadoOpProj)}
+        ${kpi('Resultado líquido projetado','liq',brl(resultadoLiqProj),subCenario(margemLiqProj,'fechamento estimado'),resultadoLiqProj>=0?C.green:C.red,'liqProj',resultadoLiqProj)}
+      </div>
+      ${memoriaProj}
+    `:''}
 
-    <div class="section-title">Cascata do resultado</div>
+    <div class="section-title">Cascata realizada até o corte</div>
     <div class="card">
-      <h3>Da receita ao resultado líquido</h3>
-      <div class="hint">Valores realizados acumulados até o corte · cada barra mostra quanto soma (verde) ou consome (vermelho)</div>
+      <h3>Da receita ao resultado líquido realizado</h3>
+      <div class="hint">Não inclui a projeção de fechamento · cada barra mostra quanto soma (verde) ou consome (vermelho)</div>
       <div class="chart-wrap h-wf"><canvas id="wf"></canvas></div>
       <div class="legenda">
         <span><i style="background:${C.header}"></i>Subtotal</span>
@@ -235,8 +257,8 @@ function renderMes(anoMes){
     </div>
 
     <div class="card">
-      <h3>DRE detalhada</h3>
-      <div class="hint">Valores realizados acumulados até o corte e % sobre a receita</div>
+      <h3>DRE realizada até o corte</h3>
+      <div class="hint">Somente lançamentos já apurados e % sobre a receita realizada</div>
       <div id="dreTbl"></div>
     </div>
 
