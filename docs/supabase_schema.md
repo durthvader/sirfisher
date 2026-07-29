@@ -286,6 +286,22 @@ no repositório.
   - `resultado_liquido_projetado_perc`
   - `em_projecao`
 
+### app_gerente_saldo_variacao
+- Tipo: view protegida de leitura
+- Uso: `gerente.html`
+- Propósito: compara o saldo final do mês com o fechamento do mês anterior.
+  Meses fechados usam o último snapshot histórico; o mês aberto usa o saldo
+  projetado.
+- Segurança: mantém o padrão das views `app_*` e não expõe os saldos
+  absolutos. A bonificação permite inferir a variação em reais ao dividi-la
+  por 2%, risco aceito para atender ao card solicitado.
+- Colunas:
+  - `ano_mes`
+  - `variacao_perc`
+  - `previsao_bonificacao`:
+    `máximo(saldo_fim − saldo_anterior, 0) × 0,02`; queda do caixa resulta em
+    `R$ 0,00`.
+
 ### painel_resumo_mensal
 - Tipo: painel / view agregada
 - Uso: `index.html`, `vendas.html`

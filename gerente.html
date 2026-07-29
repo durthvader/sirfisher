@@ -78,7 +78,7 @@ async function carregar(){
       sb.from('app_gerente_gasto_grupo').select('grupo,participacao_perc').eq('ano_mes',mes),
       sb.from('app_gerente_movimento_hora').select('hora,qtd').eq('ano_mes',mes).order('hora',{ascending:true}),
       sb.from('app_gerente_ultima_carga').select('ultima'),
-      sb.from('app_gerente_saldo_variacao').select('ano_mes,variacao_perc').eq('ano_mes',mes).maybeSingle(),
+      sb.from('app_gerente_saldo_variacao').select('ano_mes,variacao_perc,previsao_bonificacao').eq('ano_mes',mes).maybeSingle(),
       sb.from('app_gerente_dre_cascata_perc').select('*').eq('ano_mes',mes).maybeSingle()
     ]);
     render(cur,rows,dia.data||[],gasto.data||[],hora.data||[],saldoVar.data||null,cascata.data||null);
@@ -113,20 +113,19 @@ function render(cur,rowsHist,dias,gastos,horas,saldoVar,cascata){
 
   const varCaixa=saldoVar?N(saldoVar.variacao_perc):null;
   const corCaixa=varCaixa==null?C.muted:(varCaixa>=0?C.green:C.red);
+  const bonificacao=saldoVar?N(saldoVar.previsao_bonificacao):null;
+  const corBonificacao=bonificacao==null||bonificacao===0?C.muted:(bonificacao>0?C.green:C.red);
   const resultadoReal=cascata?N(cascata.resultado_liquido_perc):null;
-  const resultadoProj=cascata?N(cascata.resultado_liquido_projetado_perc):null;
-  const emProjecao=Boolean(cascata&&cascata.em_projecao);
   const corResultadoReal=resultadoReal==null?C.muted:(resultadoReal>=0?C.green:C.red);
-  const corResultadoProj=resultadoProj==null?C.muted:(resultadoProj>=0?C.green:C.red);
 
   document.getElementById('main').innerHTML=`
-    <div class="page-intro"><div><h2>Painel do Gerente</h2><p>Resumo operacional de ${esc(nomeMes(cur.ano_mes))}: realizado e projeção aparecem separados para não confundir o resultado já apurado com a estimativa de fechamento.</p></div></div>
+    <div class="page-intro"><div><h2>Painel do Gerente</h2><p>Resumo operacional de ${esc(nomeMes(cur.ano_mes))}: acompanhamento de meta, caixa, resultado realizado e movimento para organizar salão e cozinha.</p></div></div>
     <div class="summary-grid">
       <div class="summary-card"><div class="label">${esc(labelDia)}</div><div class="value" title="Valor exato: ${rs(vendaDia)}">${brl(vendaDia)}</div><div class="hint">${metaDia!=null?'Meta do dia: '+brl(metaDia)+(percDia!=null?' · '+pct(percDia):''):'Sem meta definida para o dia'}</div></div>
       <div class="summary-card"><div class="label">Ticket médio</div><div class="value">${rs(cur.ticket_medio)}</div><div class="hint">${(cur.qtd_vendas||0).toLocaleString('pt-BR')} vendas no mês</div></div>
       <div class="summary-card"><div class="label">Variação do caixa</div><div class="value" style="color:${corCaixa}">${varCaixa==null?'—':(varCaixa>=0?'▲ ':'▼ ')+pct(Math.abs(varCaixa))}</div><div class="hint">Fechamento projetado vs mês anterior</div></div>
-      <div class="summary-card"><div class="label">Resultado líquido realizado</div><div class="value" style="color:${corResultadoReal}">${pct(resultadoReal)}</div><div class="hint">DRE acumulada até o corte; é o resultado da cascata abaixo</div></div>
-      ${emProjecao?`<div class="summary-card"><div class="label">Resultado líquido projetado</div><div class="value" style="color:${corResultadoProj}">${pct(resultadoProj)}</div><div class="hint">Estimativa para o fechamento; não faz parte da cascata realizada</div></div>`:''}
+      <div class="summary-card"><div class="label">Previsão de bonificação</div><div class="value" style="color:${corBonificacao}">${rs(bonificacao)}</div><div class="hint">2% da variação positiva do caixa em reais · mínimo R$ 0,00</div></div>
+      <div class="summary-card"><div class="label">Resultado líquido</div><div class="value" style="color:${corResultadoReal}">${pct(resultadoReal)}</div><div class="hint">Realizado até o corte · resultado da cascata abaixo</div></div>
     </div>
 
     <section class="panel"><div class="panel-head"><div><h3>Meta do mês</h3><div class="hint">Tendência de fechamento sobre a meta de ${brl(meta)}</div></div></div>

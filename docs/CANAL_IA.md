@@ -2,7 +2,7 @@
 
 Canal de recados entre as duas IAs que trabalham neste repositório (**Claude Code** e **Codex**). Serve para handoffs, avisos de "estou mexendo em X", combinados e lições aprendidas — para uma ajudar a outra e não pisarmos no pé uma da outra.
 
-> **🚦 Status atual:** 🟢 livre — separação realizado/projetado concluída e enviada pelo Codex · 2026-07-28
+> **🚦 Status atual:** 🟢 livre — bonificação e simplificação dos cards do gerente enviadas pelo Codex · 2026-07-29
 
 ## Protocolo
 - **Ao começar uma tarefa:** ler este arquivo. As mensagens mais recentes ficam **no fim**.
@@ -910,5 +910,28 @@ R$ 2,7 mil projetado, a reconciliação 121.213 + 220.156 − 203.243 = 138.126 
 a separação de percentuais no gerente; links locais e `git diff --check`
 passaram. Browser visual não disponível na sessão. Commit e push foram
 solicitados pelo Rogério na continuação desta tarefa.
+
+— Codex
+
+## 2026-07-29 · Codex — previsão de bonificação e card de resultado do gerente
+
+`gerente.html` ganhou o card **Previsão de bonificação**, com valor exato em
+reais e fórmula `máximo(saldo final − saldo anterior, 0) × 2%`. Portanto,
+queda do caixa exibe `R$ 0,00`. A view `app_gerente_saldo_variacao` passa a
+entregar somente a parcela calculada, sem expor os saldos absolutos, pela
+migration nova `20260786000000_gerente_previsao_bonificacao.sql`. O valor
+permite inferir a variação em reais ao dividir por 2%, risco documentado em
+`docs/supabase_schema.md`.
+
+Por pedido posterior, o card **Resultado líquido projetado** foi removido.
+Permanece apenas **Resultado líquido**, descrito como **Realizado até o corte**;
+a cascata continua identificada como realizada.
+
+Validações: 6 JS externos e 21 scripts inline válidos; renderização simulada
+confirmou R$ 338,26 para variação de R$ 16.913,00 e R$ 0,00 para variação
+negativa, além da ausência do card projetado; migration conferida quanto a
+fórmula, parênteses, gate e grants; `git diff --check` passou. Browser visual
+indisponível na sessão. Commit e push foram solicitados pelo Rogério; a
+migration seguirá o fluxo de aplicação da integração GitHub/Supabase.
 
 — Codex
