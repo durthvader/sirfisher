@@ -124,8 +124,8 @@ function render(cur,rowsHist,dias,gastos,horas,saldoVar,cascata){
       <div class="summary-card"><div class="label">${esc(labelDia)}</div><div class="value" title="Valor exato: ${rs(vendaDia)}">${brl(vendaDia)}</div><div class="hint">${metaDia!=null?'Meta do dia: '+brl(metaDia)+(percDia!=null?' · '+pct(percDia):''):'Sem meta definida para o dia'}</div></div>
       <div class="summary-card"><div class="label">Ticket médio</div><div class="value">${rs(cur.ticket_medio)}</div><div class="hint">${(cur.qtd_vendas||0).toLocaleString('pt-BR')} vendas no mês</div></div>
       <div class="summary-card"><div class="label">Variação do caixa</div><div class="value" style="color:${corCaixa}">${varCaixa==null?'—':(varCaixa>=0?'▲ ':'▼ ')+pct(Math.abs(varCaixa))}</div><div class="hint">Fechamento projetado vs mês anterior</div></div>
-      <div class="summary-card"><div class="label">Previsão de bonificação</div><div class="value" style="color:${corBonificacao}">${rs(bonificacao)}</div><div class="hint">2% da variação positiva do caixa em reais · mínimo R$ 0,00</div></div>
-      <div class="summary-card"><div class="label">Resultado líquido</div><div class="value" style="color:${corResultadoReal}">${pct(resultadoReal)}</div><div class="hint">Realizado até o corte · resultado da cascata abaixo</div></div>
+      <div class="summary-card"><div class="label">Previsão de bonificação</div><div class="value" style="color:${corBonificacao}">${rs(bonificacao)}</div></div>
+      <div class="summary-card"><div class="label">Resultado líquido</div><div class="value" style="color:${corResultadoReal}">${pct(resultadoReal)}</div><div class="hint">Realizado até o corte</div></div>
     </div>
 
     <section class="panel"><div class="panel-head"><div><h3>Meta do mês</h3><div class="hint">Tendência de fechamento sobre a meta de ${brl(meta)}</div></div></div>

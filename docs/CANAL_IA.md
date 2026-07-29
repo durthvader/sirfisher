@@ -935,3 +935,23 @@ indisponível na sessão. Commit e push foram solicitados pelo Rogério; a
 migration seguirá o fluxo de aplicação da integração GitHub/Supabase.
 
 — Codex
+
+## 2026-07-29 · Codex — textos dos cards do gerente
+
+Em `gerente.html`, removidos o subtítulo explicativo da **Previsão de
+bonificação** e a menção à cascata no subtítulo de **Resultado líquido**.
+Permanece apenas `Realizado até o corte` no segundo card. `git diff --check`
+passou; o Node não está instalado nesta máquina para repetir a validação de
+sintaxe inline. Alterações ainda não foram commitadas.
+
+— Codex
+
+## 2026-07-29 · Codex — cards de resultado da página inicial
+
+Em `index.html`, removido o card **Resultado líquido realizado** e as duas
+variáveis exclusivas dele. O card projetado passou a se chamar **Resultado
+líquido (tend.)** e sua descrição mantém apenas a margem, sem o texto
+"fechamento estimado". `git diff --check` passou. Alterações ainda não foram
+commitadas.
+
+— Codex

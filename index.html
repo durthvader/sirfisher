@@ -201,11 +201,9 @@ function renderMes(anoMes){
     ? D('resultado_operacional')+receitaFutura-despDiretaFutura-despFixaFutura
     : D('resultado_operacional');
   const abaixoOperacional=D('nao_operacional')+D('contabil')+D('capex')+D('nao_categorizado');
-  const resultadoRealizado=dre?D('resultado_liquido'):N(cur.resultado);
   const resultadoProjetado=dre
     ? (trend.active?resultadoOperacional+abaixoOperacional:D('resultado_liquido'))
     : trend.value(N(cur.resultado));
-  const margemResultadoReal=dre&&D('receita')?resultadoRealizado/D('receita')*100:null;
   const margemResultadoProj=receitaProj?resultadoProjetado/receitaProj*100:null;
   const lucroBruto=trend.value(N(cur.receita)-N(cur.cmv));
   const qtdVendas=trend.value(N(cur.qtd_vendas));
@@ -221,8 +219,7 @@ function renderMes(anoMes){
     <div class="kpis">
       ${kpi(trend.label('Faturamento','Faturamento (tend.)'),'cash',brl(trend.active?trend.projected:N(cur.faturamento)),deltaVal(trend.active?trend.projected:N(cur.faturamento),prev?N(prev.faturamento):null),C.header,'fat',trend.active?trend.projected:N(cur.faturamento))}
       ${kpi(trend.label('Lucro bruto','Lucro bruto (tend.)'),'margin',brl(lucroBruto),deltaPct(lucroBruto,prev?(N(prev.receita)-N(prev.cmv)):null,false),C.green,'lb',lucroBruto)}
-      ${kpi('Resultado líquido realizado','result',brl(resultadoRealizado),'<div class="sub">margem <b>'+pct(margemResultadoReal)+'</b> · '+(trend.active?'até o corte':'mês encerrado')+'</div>',resultadoRealizado>=0?C.green:C.red,'resReal',resultadoRealizado)}
-      ${trend.active?kpi('Resultado líquido projetado','result',brl(resultadoProjetado),'<div class="sub">margem <b>'+pct(margemResultadoProj)+'</b> · fechamento estimado</div>',resultadoProjetado>=0?C.green:C.red,'resProj',resultadoProjetado):''}
+      ${trend.active?kpi('Resultado líquido (tend.)','result',brl(resultadoProjetado),'<div class="sub">margem <b>'+pct(margemResultadoProj)+'</b></div>',resultadoProjetado>=0?C.green:C.red,'resProj',resultadoProjetado):''}
       ${kpi('Saldo em caixa','wallet',brl(sr?Number(sr.saldo_atual):null),(sr?deltaVal(Number(sr.saldo_atual),sr.saldo_comp!=null?Number(sr.saldo_comp):null):'<div class="sub">—</div>'),C.teal,'sal',sr?Number(sr.saldo_atual):null)}
       ${kpi('Saldo projetado','wallet',brl(salP?salP.v:null),(salP?deltaPct(salP.v,salPprev?salPprev.v:null,false):'<div class="sub">—</div>'),C.amber,'salp',salP?salP.v:null)}
       ${kpi(trend.label('Nº de vendas','Nº de vendas (tend.)'),'orders',(qtdVendas==null?'—':Math.round(qtdVendas).toLocaleString('pt-BR')),deltaPct(qtdVendas,prev?N(prev.qtd_vendas):null,false),C.teal,'nv')}
