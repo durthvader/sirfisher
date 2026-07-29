@@ -20,7 +20,7 @@
 <style>
   .chart-wrap{position:relative;}
   .h-day{height:230px;}.h-gasto{height:230px;}.h-hora{height:200px;}.h-cascata{height:340px;}.h-metahist{height:230px;}
-  .summary-card .hint{margin-top:4px;}
+  .summary-card .hint{font-size:10.8px;margin-top:5px;color:var(--muted);}
   .meta-top{display:flex;align-items:baseline;gap:10px;margin-bottom:14px;}
   .meta-pct{font-size:34px;font-weight:700;line-height:1;}
   .meta-diff{font-size:12px;font-weight:500;}
@@ -124,7 +124,7 @@ function render(cur,rowsHist,dias,gastos,horas,saldoVar,cascata){
       <div class="summary-card"><div class="label">${esc(labelDia)}</div><div class="value" title="Valor exato: ${rs(vendaDia)}">${brl(vendaDia)}</div><div class="hint">${metaDia!=null?'Meta do dia: '+brl(metaDia)+(percDia!=null?' · '+pct(percDia):''):'Sem meta definida para o dia'}</div></div>
       <div class="summary-card"><div class="label">Ticket médio</div><div class="value">${rs(cur.ticket_medio)}</div><div class="hint">${(cur.qtd_vendas||0).toLocaleString('pt-BR')} vendas no mês</div></div>
       <div class="summary-card"><div class="label">Variação do caixa</div><div class="value" style="color:${corCaixa}">${varCaixa==null?'—':(varCaixa>=0?'▲ ':'▼ ')+pct(Math.abs(varCaixa))}</div><div class="hint">Fechamento projetado vs mês anterior</div></div>
-      <div class="summary-card"><div class="label">Previsão de bonificação</div><div class="value" style="color:${corBonificacao}">${rs(bonificacao)}</div></div>
+      <div class="summary-card"><div class="label">Previsão de bonificação</div><div class="value" style="color:${corBonificacao}">${rs(bonificacao)}</div><div class="hint">sujeito a mudanças</div></div>
       <div class="summary-card"><div class="label">Resultado líquido</div><div class="value" style="color:${corResultadoReal}">${pct(resultadoReal)}</div><div class="hint">Realizado até o corte</div></div>
     </div>
 

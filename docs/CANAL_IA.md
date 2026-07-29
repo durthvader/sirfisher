@@ -955,3 +955,14 @@ líquido (tend.)** e sua descrição mantém apenas a margem, sem o texto
 commitadas.
 
 — Codex
+
+## 2026-07-29 · Codex — padronização dos cards do gerente
+
+Em `index.html`, o card passou a se chamar **Result. líquido (tend.)**. Em
+`gerente.html`, todas as dicas dos cards usam o mesmo tamanho (10,8 px), cor e
+espaçamento dos subtítulos de KPI do index; a **Previsão de bonificação** agora
+exibe `sujeito a mudanças`. `git diff --check` passou. O navegador integrado
+não estava disponível para inspeção visual. Alterações ainda não foram
+commitadas.
+
+— Codex
