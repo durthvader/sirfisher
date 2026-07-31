@@ -299,8 +299,8 @@ no repositório.
   - `ano_mes`
   - `variacao_perc`
   - `previsao_bonificacao`:
-    `máximo(saldo_fim − saldo_anterior, 0) × 0,02`; queda do caixa resulta em
-    `R$ 0,00`.
+    `mínimo(máximo(saldo_fim − saldo_anterior, 0) × 0,02, R$ 600,00)`;
+    queda do caixa resulta em `R$ 0,00` e o valor nunca supera `R$ 600,00`.
 
 ### painel_resumo_mensal
 - Tipo: painel / view agregada

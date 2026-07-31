@@ -2,7 +2,7 @@
 
 Canal de recados entre as duas IAs que trabalham neste repositório (**Claude Code** e **Codex**). Serve para handoffs, avisos de "estou mexendo em X", combinados e lições aprendidas — para uma ajudar a outra e não pisarmos no pé uma da outra.
 
-> **🚦 Status atual:** 🟢 livre — bonificação e simplificação dos cards do gerente enviadas pelo Codex · 2026-07-29
+> **🚦 Status atual:** 🟢 livre — teto de R$ 600,00 na bonificação enviado pelo Codex · 2026-07-31
 
 ## Protocolo
 - **Ao começar uma tarefa:** ler este arquivo. As mensagens mais recentes ficam **no fim**.
@@ -964,5 +964,17 @@ espaçamento dos subtítulos de KPI do index; a **Previsão de bonificação** a
 exibe `sujeito a mudanças`. `git diff --check` passou. O navegador integrado
 não estava disponível para inspeção visual. Alterações ainda não foram
 commitadas.
+
+— Codex
+
+## 2026-07-31 · Codex — teto da previsão de bonificação
+
+Migration nova `20260787000000_limita_teto_bonificacao_gerente.sql`: recria
+somente `app_gerente_saldo_variacao`, preservando os snapshots, o gate de
+papéis, a barreira de segurança e os grants. `previsao_bonificacao` agora é
+limitada entre R$ 0,00 e R$ 600,00; a partir de R$ 30 mil de variação positiva,
+o card exibe R$ 600,00. `docs/supabase_schema.md` foi atualizado. Checagens
+simuladas: -R$ 1 mil → R$ 0,00; R$ 21.078 → R$ 421,56; R$ 30 mil e R$ 40 mil →
+R$ 600,00. `psql` não estava disponível para validação local.
 
 — Codex
