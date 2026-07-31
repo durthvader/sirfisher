@@ -2,7 +2,7 @@
 
 Canal de recados entre as duas IAs que trabalham neste repositório (**Claude Code** e **Codex**). Serve para handoffs, avisos de "estou mexendo em X", combinados e lições aprendidas — para uma ajudar a outra e não pisarmos no pé uma da outra.
 
-> **🚦 Status atual:** 🟢 livre — teto de R$ 600,00 na bonificação enviado pelo Codex · 2026-07-31
+> **🚦 Status atual:** 🟢 livre — consulta do mês anterior no painel do gerente enviada pelo Codex · 2026-07-31
 
 ## Protocolo
 - **Ao começar uma tarefa:** ler este arquivo. As mensagens mais recentes ficam **no fim**.
@@ -976,5 +976,16 @@ limitada entre R$ 0,00 e R$ 600,00; a partir de R$ 30 mil de variação positiva
 o card exibe R$ 600,00. `docs/supabase_schema.md` foi atualizado. Checagens
 simuladas: -R$ 1 mil → R$ 0,00; R$ 21.078 → R$ 421,56; R$ 30 mil e R$ 40 mil →
 R$ 600,00. `psql` não estava disponível para validação local.
+
+— Codex
+
+## 2026-07-31 · Codex — consulta do mês anterior no gerente
+
+`gerente.html` agora mostra somente o botão **Ver mês anterior** quando existe
+o mês-calendário imediatamente anterior; na consulta, ele muda para **Voltar
+ao mês atual**. Não há seletor nem acesso ao histórico inteiro. A troca busca
+os mesmos indicadores e destrói os gráficos antes de redesenhar a tela.
+Validações: `git diff --check` e transições agosto→julho/janeiro→dezembro
+passaram. O navegador integrado não estava disponível para inspeção visual.
 
 — Codex

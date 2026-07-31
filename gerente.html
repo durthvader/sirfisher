@@ -36,7 +36,9 @@
   .legenda{display:flex;gap:16px;flex-wrap:wrap;font-size:11px;color:var(--muted);margin-top:8px;}
   .legenda span{display:flex;align-items:center;gap:6px;}
   .legenda i{width:14px;height:10px;border-radius:2px;display:inline-block;}
-  @media (max-width:430px){.summary-card .value{font-size:21px;}}
+  .gerente-intro{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;}
+  .gerente-intro .button{white-space:nowrap;}
+  @media (max-width:430px){.summary-card .value{font-size:21px;}.gerente-intro{flex-direction:column;}.gerente-intro .button{align-self:flex-start;}}
 </style>
 </head>
 <body>
@@ -55,9 +57,12 @@ const {brl,pct,rs}=SirFisherFormat;
 const C={header:'#12313F',teal:'#00A6A6',amber:'#D6A84F',green:'#2E7D5B',red:'#C94C4C',muted:'#6B7280',border:'#E5E7EB'};
 const MESES=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 let CHARTS=[];
+let rowsResumo=[];
+let mesAtualPainel=null;
 
 function hojeISO(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function nomeMes(anoMes){return MESES[+anoMes.slice(5,7)-1]+' de '+anoMes.slice(0,4);}
+function mesAnterior(anoMes){const ano=Number(anoMes.slice(0,4)),mes=Number(anoMes.slice(5,7));return mes===1?(ano-1)+'-12':ano+'-'+String(mes-1).padStart(2,'0');}
 function ddmm(iso){return iso.slice(8,10)+'/'+iso.slice(5,7);}
 function abrevK0(v){if(v==null||v===0)return '';if(Math.abs(v)>=1000)return Math.round(v/1000)+'K';return String(Math.round(v));}
 function al(pos){return pos>82?'translateX(-100%)':(pos<18?'translateX(0)':'translateX(-50%)');}
@@ -67,28 +72,42 @@ async function carregar(){
   try{
     const r=await sb.from('app_gerente_resumo_mensal').select('*').order('ano_mes',{ascending:true});
     if(r.error)throw r.error;
-    const rows=(r.data||[]).filter(x=>x.ano_mes);
-    if(!rows.length)throw new Error('Ainda não há dados carregados.');
+    rowsResumo=(r.data||[]).filter(x=>x.ano_mes);
+    if(!rowsResumo.length)throw new Error('Ainda não há dados carregados.');
     const mesAtual=hojeISO().slice(0,7);
-    const cur=rows.find(x=>x.ano_mes===mesAtual)||rows[rows.length-1];
-    const mes=cur.ano_mes;
+    mesAtualPainel=(rowsResumo.find(x=>x.ano_mes===mesAtual)||rowsResumo[rowsResumo.length-1]).ano_mes;
+    await trocarMes(mesAtualPainel);
 
-    const[dia,gasto,hora,uc,saldoVar,cascata]=await Promise.all([
-      sb.from('app_gerente_meta_diaria').select('dia,venda_dia,meta_dia').eq('mes',mes+'-01').order('dia',{ascending:true}),
-      sb.from('app_gerente_gasto_grupo').select('grupo,participacao_perc').eq('ano_mes',mes),
-      sb.from('app_gerente_movimento_hora').select('hora,qtd').eq('ano_mes',mes).order('hora',{ascending:true}),
-      sb.from('app_gerente_ultima_carga').select('ultima'),
-      sb.from('app_gerente_saldo_variacao').select('ano_mes,variacao_perc,previsao_bonificacao').eq('ano_mes',mes).maybeSingle(),
-      sb.from('app_gerente_dre_cascata_perc').select('*').eq('ano_mes',mes).maybeSingle()
-    ]);
-    render(cur,rows,dia.data||[],gasto.data||[],hora.data||[],saldoVar.data||null,cascata.data||null);
-
+    const uc=await sb.from('app_gerente_ultima_carga').select('ultima');
+    if(uc.error)throw uc.error;
     const ultima=(uc.data&&uc.data[0])?uc.data[0].ultima:null;
     if(ultima){
       const d=new Date(ultima);
       document.getElementById('rodapeAtt').textContent='Atualizado em '+String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
       document.getElementById('rodape').style.display='flex';
     }
+  }catch(e){main.innerHTML='<div class="erro">Não foi possível carregar o painel: '+esc(e.message||String(e))+'</div>';}
+}
+
+async function trocarMes(mes){
+  const main=document.getElementById('main');
+  const cur=rowsResumo.find(x=>x.ano_mes===mes);
+  if(!cur)return;
+  try{
+    CHARTS.forEach(chart=>chart.destroy());
+    CHARTS=[];
+    main.innerHTML='<div class="loading">Carregando painel…</div>';
+    const[dia,gasto,hora,saldoVar,cascata]=await Promise.all([
+      sb.from('app_gerente_meta_diaria').select('dia,venda_dia,meta_dia').eq('mes',mes+'-01').order('dia',{ascending:true}),
+      sb.from('app_gerente_gasto_grupo').select('grupo,participacao_perc').eq('ano_mes',mes),
+      sb.from('app_gerente_movimento_hora').select('hora,qtd').eq('ano_mes',mes).order('hora',{ascending:true}),
+      sb.from('app_gerente_saldo_variacao').select('ano_mes,variacao_perc,previsao_bonificacao').eq('ano_mes',mes).maybeSingle(),
+      sb.from('app_gerente_dre_cascata_perc').select('*').eq('ano_mes',mes).maybeSingle()
+    ]);
+    const respostas=[dia,gasto,hora,saldoVar,cascata];
+    const erro=respostas.find(x=>x.error);
+    if(erro)throw erro.error;
+    render(cur,rowsResumo,dia.data||[],gasto.data||[],hora.data||[],saldoVar.data||null,cascata.data||null);
   }catch(e){main.innerHTML='<div class="erro">Não foi possível carregar o painel: '+esc(e.message||String(e))+'</div>';}
 }
 
@@ -117,9 +136,15 @@ function render(cur,rowsHist,dias,gastos,horas,saldoVar,cascata){
   const corBonificacao=bonificacao==null||bonificacao===0?C.muted:(bonificacao>0?C.green:C.red);
   const resultadoReal=cascata?N(cascata.resultado_liquido_perc):null;
   const corResultadoReal=resultadoReal==null?C.muted:(resultadoReal>=0?C.green:C.red);
+  const anterior=mesAnterior(cur.ano_mes);
+  const podeVerAnterior=rowsHist.some(x=>x.ano_mes===anterior);
+  const vendoAnterior=cur.ano_mes!==mesAtualPainel;
+  const acaoMes=vendoAnterior
+    ?'<button type="button" class="button secondary" id="btnMesAtual">Voltar ao mês atual</button>'
+    :(podeVerAnterior?'<button type="button" class="button secondary" id="btnMesAnterior">Ver mês anterior</button>':'');
 
   document.getElementById('main').innerHTML=`
-    <div class="page-intro"><div><h2>Painel do Gerente</h2><p>Resumo operacional de ${esc(nomeMes(cur.ano_mes))}: acompanhamento de meta, caixa, resultado realizado e movimento para organizar salão e cozinha.</p></div></div>
+    <div class="page-intro gerente-intro"><div><h2>Painel do Gerente</h2><p>Resumo operacional de ${esc(nomeMes(cur.ano_mes))}: acompanhamento de meta, caixa, resultado realizado e movimento para organizar salão e cozinha.</p></div>${acaoMes}</div>
     <div class="summary-grid">
       <div class="summary-card"><div class="label">${esc(labelDia)}</div><div class="value" title="Valor exato: ${rs(vendaDia)}">${brl(vendaDia)}</div><div class="hint">${metaDia!=null?'Meta do dia: '+brl(metaDia)+(percDia!=null?' · '+pct(percDia):''):'Sem meta definida para o dia'}</div></div>
       <div class="summary-card"><div class="label">Ticket médio</div><div class="value">${rs(cur.ticket_medio)}</div><div class="hint">${(cur.qtd_vendas||0).toLocaleString('pt-BR')} vendas no mês</div></div>
@@ -152,8 +177,13 @@ function render(cur,rowsHist,dias,gastos,horas,saldoVar,cascata){
     </section>
 
     <section class="panel"><div class="panel-head"><div><h3>Atingimento de meta mês a mês</h3><div class="hint">Percentual da meta de faturamento atingido em cada mês.</div></div></div>
-      <div class="chart-wrap h-metahist"><canvas id="chartMetaHist"></canvas></div>
+    <div class="chart-wrap h-metahist"><canvas id="chartMetaHist"></canvas></div>
     </section>`;
+
+  const btnAnterior=document.getElementById('btnMesAnterior');
+  if(btnAnterior)btnAnterior.addEventListener('click',()=>trocarMes(anterior));
+  const btnAtual=document.getElementById('btnMesAtual');
+  if(btnAtual)btnAtual.addEventListener('click',()=>trocarMes(mesAtualPainel));
 
   drawBullet(realizado,proj,meta,percMeta,corMeta);
   drawDia(dias);
