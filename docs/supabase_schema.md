@@ -5,6 +5,22 @@ Este documento resume o schema público do Supabase usado pelo painel Sir Fisher
 App. O conteúdo acompanha os contratos do front-end e as migrations versionadas
 no repositório.
 
+## Autorização dos endpoints
+
+- O front-end usa `public.app_*` e RPCs, sem acesso anônimo aos dados
+  financeiros.
+- O padrão intencional das views continua
+  `security_barrier = true, security_invoker = false`, com `select` apenas para
+  `authenticated`.
+- Desde `20260788000000`, o gate das views, RPCs operacionais e policies
+  ligadas às páginas configuráveis consulta `public.pagina_permissao` no
+  servidor. O bloqueio de `assets/auth.js` é apenas a primeira camada.
+- `public.usuario_pode_acessar_alguma_pagina(text[])` atende endpoints
+  compartilhados. Admin continua irrestrito; os demais usuários precisam ter
+  perfil ativo e o papel liberado em ao menos uma página informada.
+- Endpoints administrativos (`usuarios.html`, `status.html` e
+  `permissoes.html`) continuam exclusivos de admin.
+
 ## Tabelas e views principais
 
 ### analise_individual
@@ -34,9 +50,11 @@ no repositório.
   - `natureza`
 
 ### ajuste_manual
-- Tipo: provável tabela de ajustes manuais
-- Uso: não há acesso direto via painel HTML, mas a página `analise_individual.html` faz `upsert` nesta tabela.
+- Tipo: tabela de ajustes manuais
+- Uso: `analise_individual.html`, por meio das RPCs de classificação
 - Propósito: registra classificações manuais que foram aplicadas a transações emergenciais.
+- Segurança: RLS de leitura e escrita consulta a permissão de
+  `analise_individual.html`; as RPCs repetem o gate antes de operar.
 - Colunas importantes:
   - `id`
   - `origem`
@@ -278,8 +296,9 @@ no repositório.
   colunas separadas, os percentuais projetados de resultado operacional e
   líquido. A cascata permanece realizada; a projeção usa a mesma equação de
   fechamento de `index.html` e `dre.html`.
-- Segurança: `security_barrier = true`, `security_invoker = false`, gate para
-  `admin`, `socio` e `gerente`, com `select` apenas para `authenticated`.
+- Segurança: `security_barrier = true`, `security_invoker = false`, gate
+  server-side da página `gerente.html`, com `select` apenas para
+  `authenticated`.
 - Colunas adicionais criadas em
   `20260785000000_gerente_resultado_realizado_projetado.sql`:
   - `resultado_operacional_projetado_perc`
@@ -395,6 +414,9 @@ no repositório.
   estabelecimento. A lista canônica é esta tabela; `STONECODES_PAINEL` em
   `importacao_core.py` existe só para o aviso rodar em `--dry-run`, sem banco.
 - Criada em `20260781000000`; e-commerce registrado em `20260782000000`.
+- RLS habilitado em `20260789000000`, sem policy para clientes. `anon`,
+  `authenticated` e `PUBLIC` não têm privilégios diretos; views e RPCs
+  proprietárias continuam usando o mapeamento internamente.
 
 ### raw_fundopay_vendas / venda_diaria
 - `venda_diaria` é a base do faturamento (planejamento, vendas.html, metas,

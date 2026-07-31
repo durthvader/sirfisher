@@ -27,9 +27,11 @@ três páginas administrativas permanecem exclusivas do admin.
 - `public.perfil_usuario`: vínculo entre `auth.users`, papel interno e situação
   ativa do usuário;
 - `public.pagina_permissao`: páginas liberadas para `socio` e `gerente`;
-- `public.papel_usuario_atual()` e `public.usuario_tem_papel(text[])`: funções
-  usadas pelas policies, funções e views;
-- funções `private.ler_*`: leituras privilegiadas com validação de papel e
+- `public.papel_usuario_atual()`, `public.usuario_tem_papel(text[])`,
+  `public.usuario_pode_acessar_pagina(text)` e
+  `public.usuario_pode_acessar_alguma_pagina(text[])`: funções usadas pelas
+  policies, funções e views;
+- funções `private.ler_*`: leituras privilegiadas com validação de acesso e
   `search_path` fixo;
 - views `public.app_*`: endpoints protegidos consumidos pelo front-end;
 - `public.definir_acesso_usuario(uuid, text, boolean)`: administração de papel
@@ -86,6 +88,15 @@ As migrations do repositório fecham o acesso anônimo, restringem
 endpoints necessários. Novas mudanças de schema ou autorização devem ser feitas
 em uma nova migration, sem editar nem reaplicar manualmente migrations antigas.
 
+A guarda de rota em `assets/auth.js` melhora a navegação, mas não é a fronteira
+de segurança. Desde `20260788000000`, as views `app_*`, RPCs operacionais e
+policies de escrita ligadas às páginas configuráveis também consultam
+`pagina_permissao` no servidor. Assim, remover uma página de um papel bloqueia
+tanto a tela quanto chamadas diretas à Data API. Quando um endpoint é realmente
+compartilhado, ele autoriza se ao menos uma das páginas consumidoras estiver
+liberada; operações que misturam tipos, como classificações, validam a página
+correspondente a cada tipo.
+
 ## Validação mínima
 
 - sem sessão: a página inicial exibe somente “Continuar com Google”;
@@ -99,4 +110,6 @@ em uma nova migration, sem editar nem reaplicar manualmente migrations antigas.
 - logout: remove a sessão e retorna à tela de login;
 - dashboards consultam somente endpoints protegidos `app_*`;
 - chamadas com papel `anon` aos endpoints financeiros falham;
+- após retirar uma página de um papel, chamadas diretas aos endpoints daquela
+  página também falham, mesmo com uma sessão autenticada ainda válida;
 - console do navegador: sem erros nos fluxos acima.

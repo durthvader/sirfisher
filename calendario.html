@@ -34,6 +34,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.108.2" integrity="sha384-JWEyvHh+lRf0sN/WWY+QTQwX+CyWqmNg4tkc8GQzAMEtR2wGNrCJlvnu1lHD1kDm" crossorigin="anonymous"></script>
 <script src="assets/supabase-client.js"></script>
 <script src="assets/auth.js"></script>
+<script src="assets/safe-dom.js"></script>
 <script src="assets/accessibility.js"></script>
 </head>
 <body>
@@ -47,6 +48,7 @@
 <div id="detailPopover" class="detail-popover" role="dialog" aria-live="polite"></div>
 <script>
 const sb=SirFisherSupabase;
+const esc=SirFisherDOM.escapeHTML;
 const DIAS=['','seg','ter','qua','qui','sex','sáb','dom'];
 const MOEDA=new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'});
 const NUMERO=new Intl.NumberFormat('pt-BR',{maximumFractionDigits:0});
@@ -113,7 +115,7 @@ function render(){
 function agendarFecharDetalhe(){clearTimeout(hoverTimer);hoverTimer=setTimeout(fecharDetalhe,300);}
 
 function moverMes(delta){const input=document.getElementById('mesSel');const [a,m]=input.value.split('-').map(Number);const d=new Date(a,m-1+delta,1);input.value=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;carregar();}
-function linha(rotulo,valor){return `<div class="detail-line"><span>${rotulo}</span><strong>${dinheiro(valor)}</strong></div>`;}
+function linha(rotulo,valor){return `<div class="detail-line"><span>${esc(rotulo)}</span><strong>${dinheiro(valor)}</strong></div>`;}
 
 function abrirDetalhe(event){event.stopPropagation();mostrarDetalhe(event.currentTarget);}
 

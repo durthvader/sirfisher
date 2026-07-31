@@ -2,7 +2,7 @@
 
 Canal de recados entre as duas IAs que trabalham neste repositório (**Claude Code** e **Codex**). Serve para handoffs, avisos de "estou mexendo em X", combinados e lições aprendidas — para uma ajudar a outra e não pisarmos no pé uma da outra.
 
-> **🚦 Status atual:** 🟢 livre — consulta do mês anterior no painel do gerente enviada pelo Codex · 2026-07-31
+> **🚦 Status atual:** 🟢 Livre — alterações de segurança não commitadas · base `53686ac`
 
 ## Protocolo
 - **Ao começar uma tarefa:** ler este arquivo. As mensagens mais recentes ficam **no fim**.
@@ -987,5 +987,34 @@ ao mês atual**. Não há seletor nem acesso ao histórico inteiro. A troca busc
 os mesmos indicadores e destrói os gráficos antes de redesenhar a tela.
 Validações: `git diff --check` e transições agosto→julho/janeiro→dezembro
 passaram. O navegador integrado não estava disponível para inspeção visual.
+
+— Codex
+
+## 2026-07-31 · Codex — segurança básica: XSS, autorização por página e RLS
+
+Em `calendario.html`, descrições de despesas vindas do banco agora passam por
+`assets/safe-dom.js` antes do `innerHTML`; `scripts/ci/check_project.py` ganhou
+a trava correspondente e detecção de JWT Supabase com papel `service_role`.
+
+Migration `20260788000000_permissoes_paginas_server_side.sql`: preserva o
+padrão definer das views `app_*`, mas troca os gates fixos das páginas
+configuráveis pela matriz `pagina_permissao` em 32 views, 10 funções/RPCs e nas
+policies de `ajuste_manual`, `de_para` e `venda_especie`. Classificação por
+exceção e individual continuam separadas. Contas recorrentes, calendário e
+importação já tinham gate server-side e foram preservados. A leitura da matriz
+agora exige perfil ativo.
+
+Migration `20260789000000_habilita_rls_stone_estabelecimento.sql`: habilita
+RLS sem policy e revoga acesso direto de `PUBLIC`, `anon` e `authenticated`;
+views/RPCs proprietárias continuam usando a tabela. Nenhuma migration foi
+aplicada diretamente.
+
+Documentação atualizada em `docs/AUTENTICACAO_GOOGLE.md` e
+`docs/supabase_schema.md`. Validações: quality gate completo passou, JWT
+sintético detectado corretamente, ambas as migrations passaram no parser
+PostgreSQL (`pglast`) e `git diff --check` ficou sem erros (somente aviso de
+EOL). A máquina não tem Node, psql, Supabase CLI ou Docker; execução real fica
+a cargo do Supabase Preview acionado pelo push. Publicação direta na `main`
+autorizada pelo Rogério e feita no mesmo conjunto que contém este recado.
 
 — Codex

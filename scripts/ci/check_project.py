@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import argparse
 import ast
+import base64
+import json
 import re
 import shutil
 import subprocess
@@ -22,10 +24,24 @@ SECRET_PATTERNS = {
     "database password in URL": re.compile(r"postgres(?:ql)?://[^:\s]+:[^@\s]+@", re.I),
     "service role assignment": re.compile(r"SUPABASE_SERVICE_ROLE_KEY\s*=\s*['\"][^'\"]+", re.I),
 }
+JWT_PATTERN = re.compile(
+    r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b"
+)
 
 
 def fail(message: str) -> None:
     raise AssertionError(message)
+
+
+def jwt_role(token: str) -> str | None:
+    try:
+        encoded = token.split(".", 2)[1]
+        encoded += "=" * (-len(encoded) % 4)
+        payload = json.loads(base64.urlsafe_b64decode(encoded))
+    except (IndexError, ValueError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    role = payload.get("role") if isinstance(payload, dict) else None
+    return role if isinstance(role, str) else None
 
 
 def repository_files() -> list[Path]:
@@ -140,6 +156,26 @@ def check_contracts() -> int:
     return len(references)
 
 
+def check_security_contracts() -> int:
+    calendar = (ROOT / "calendario.html").read_text(encoding="utf-8")
+    safe_dom_script = '<script src="assets/safe-dom.js"></script>'
+    if safe_dom_script not in calendar:
+        fail("Calendario sem o helper de escape HTML")
+    if calendar.index(safe_dom_script) > calendar.index("const esc=SirFisherDOM.escapeHTML;"):
+        fail("Calendario inicializa o escape HTML antes de carregar safe-dom.js")
+
+    line_match = re.search(
+        r"function\s+linha\s*\(rotulo\s*,\s*valor\s*\)\s*\{(?P<body>[^\r\n]*)",
+        calendar,
+    )
+    if not line_match:
+        fail("Funcao linha do calendario nao encontrada")
+    line_body = line_match.group("body")
+    if "${esc(rotulo)}" not in line_body or "${rotulo}" in line_body:
+        fail("Rotulo dinamico do calendario nao esta escapado")
+    return 1
+
+
 def check_secrets(files: list[Path]) -> int:
     findings: list[str] = []
     for path in files:
@@ -156,6 +192,8 @@ def check_secrets(files: list[Path]) -> int:
         for label, pattern in SECRET_PATTERNS.items():
             if pattern.search(content):
                 findings.append(f"{label}: {relative}")
+        if any(jwt_role(token) == "service_role" for token in JWT_PATTERN.findall(content)):
+            findings.append(f"Supabase service_role JWT: {relative}")
     if findings:
         fail("Possíveis segredos/dados sensíveis: " + ", ".join(findings))
     return len(files)
@@ -194,12 +232,14 @@ def main() -> int:
     page_count, assets = check_links()
     accessibility_count = check_accessibility()
     contract_count = check_contracts()
+    security_contract_count = check_security_contracts()
     secret_count = check_secrets(tracked)
     artifact_count = check_artifact(assets)
     print(
         "QUALITY_OK "
         f"python={python_count} js_external={js_external} js_inline={js_inline} "
-        f"pages={page_count} a11y={accessibility_count} contracts={contract_count} scanned={secret_count} "
+        f"pages={page_count} a11y={accessibility_count} contracts={contract_count} "
+        f"security_contracts={security_contract_count} scanned={secret_count} "
         f"artifact={artifact_count}"
     )
     return 0
