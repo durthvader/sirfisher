@@ -1164,4 +1164,10 @@ das RPCs `SECURITY DEFINER` são intencionais. Não há grant direto na tabela; 
 RPCs têm `search_path` fixo, recusam quem não possui acesso à página e precisam
 do privilégio elevado para manter as duas pontas atômicas.
 
+Correção de timeout em `20260808000000_conciliacao_estorno_assincrona.sql`:
+confirmar/desfazer não executa mais o refresh pesado dentro da RPC do navegador.
+A gravação atômica responde primeiro e agenda uma tarefa `somente_refresh` na
+fila/pg_cron existente; o worker atualiza o painel em segundo plano sem
+recalcular saldo. A view já mostra a decisão confirmada durante essa espera.
+
 — Codex

@@ -654,6 +654,13 @@ no repositório.
   permite atualizar as duas pontas atomicamente; ambas as funções verificam
   `usuario_pode_acessar_pagina('conciliacao_contabil.html')`, usam `search_path`
   fixo e não concedem execução a `anon`/`public`.
+- `20260808000000_conciliacao_estorno_assincrona.sql` remove o
+  `refresh materialized view` da transação do navegador. Confirmar/desfazer
+  grava a decisão e os dois ajustes rapidamente, acrescenta uma tarefa
+  `somente_refresh` à fila já processada pelo `pg_cron` e responde antes do
+  trabalho pesado. O worker pula o recálculo de saldo nesse tipo de tarefa e
+  executa apenas `refresh_painel()`. A view de detalhe sobrepõe categoria/status
+  da decisão ativa para a confirmação aparecer imediatamente.
 
 ### Histórico de caixa unificado nas telas
 - Desde `20260764000000_caixa_historico_usa_saldo_diario.sql`, a curva

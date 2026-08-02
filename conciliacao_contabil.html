@@ -179,7 +179,7 @@ async function executarAcao(row,acao,anoMes,button){
   button.closest('.decision-actions').querySelectorAll('button').forEach(item=>item.disabled=true);
   const {error}=await sb.rpc('decidir_conciliacao_contabil',{p_origem_a:row.origem,p_raw_id_a:row.raw_id,p_origem_b:row.par_origem,p_raw_id_b:row.par_raw_id,p_decisao:acao});
   if(error){toast('Não foi possível salvar: '+error.message,true);button.closest('.decision-actions').querySelectorAll('button').forEach(item=>item.disabled=false);return;}
-  toast(acao==='estorno_confirmado'?'Estorno confirmado nas duas pontas.':'Par retirado dos alertas.');
+  toast(acao==='estorno_confirmado'?'Estorno confirmado. Atualização do painel agendada.':'Par retirado dos alertas.');
   await atualizarResumo();
   await renderMes(anoMes);
 }
@@ -189,7 +189,7 @@ async function desfazerDecisao(item,anoMes,button){
   button.disabled=true;
   const {error}=await sb.rpc('desfazer_decisao_conciliacao_contabil',{p_decisao_id:item.id});
   if(error){toast('Não foi possível desfazer: '+error.message,true);button.disabled=false;return;}
-  toast('Decisão desfeita.');
+  toast('Decisão desfeita. Atualização do painel agendada.');
   await atualizarResumo();
   await renderMes(anoMes);
 }
