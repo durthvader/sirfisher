@@ -92,7 +92,7 @@ const DESC={
   fat:'No mês em andamento, mostra a projeção de fechamento com base no ritmo de vendas. Em meses fechados, mostra o realizado.',
   resReal:'Resultado líquido já apurado com os lançamentos acumulados até o corte dos dados. Não inclui receita nem despesa futura.',
   resProj:'Estimativa para o fechamento do mês: resultado operacional realizado + receita futura − despesas diretas e fixas futuras + itens abaixo da operação já realizados.',
-  lb:'No mês em andamento, mostra a tendência de fechamento da receita menos o CMV, mantendo a margem observada até o corte. Em meses fechados, mostra o realizado.',
+  lb:'No mês em andamento, mostra o faturamento projetado menos o CMV já realizado e a despesa direta futura. Em meses fechados, mostra o realizado.',
   mc:'Receita menos os custos que variam com a venda (insumo, taxa de cartão, imposto), em % da receita.',
   tk:'Valor médio por venda no cartão (faturamento ÷ nº de vendas).',
   nv:'Quantidade de transações no cartão no mês.',
@@ -193,7 +193,11 @@ function renderMes(anoMes){
   const D=k=>dre&&dre[k]!=null?Number(dre[k]):0;
   const somaProj=rows=>rows.filter(x=>x.dia&&x.dia.slice(0,7)===anoMes)
     .reduce((s,x)=>s+Math.abs(Number(x.valor)||0),0);
-  const receitaProj=trend.value(D('receita'));
+  // A receita projetada precisa usar a mesma base comercial que alimenta o
+  // faturamento. Aplicar o fator da venda bruta sobre a receita financeira
+  // ainda reconhecida distorce o primeiro dia do mês, quando os recebimentos
+  // e classificações da DRE naturalmente estão atrasados em relação às vendas.
+  const receitaProj=trend.active?trend.projected:D('receita');
   const receitaFutura=trend.active?Math.max(receitaProj-D('receita'),0):0;
   const despDiretaFutura=trend.active?somaProj(DESP_DIRETA):0;
   const despFixaFutura=trend.active?somaProj(DESP_FIXA):0;
@@ -205,7 +209,9 @@ function renderMes(anoMes){
     ? (trend.active?resultadoOperacional+abaixoOperacional:D('resultado_liquido'))
     : trend.value(N(cur.resultado));
   const margemResultadoProj=receitaProj?resultadoProjetado/receitaProj*100:null;
-  const lucroBruto=trend.value(N(cur.receita)-N(cur.cmv));
+  const lucroBruto=trend.active
+    ? D('margem_contribuicao')+receitaFutura-despDiretaFutura
+    : N(cur.receita)-N(cur.cmv);
   const qtdVendas=trend.value(N(cur.qtd_vendas));
   // saldo projetado (fim do mes selecionado) + variacao vs fechamento do mes anterior
   const salP=SALDO[anoMes]||null;

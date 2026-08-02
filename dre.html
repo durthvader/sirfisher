@@ -97,9 +97,9 @@ let CHARTS=[],ROWS=[],RESUMO=[],DESP_FIXA=[],DESP_DIRETA=[],ULTIMA=null,CARGAS=[
 
 const DESC={
   recReal:'Receita de vendas líquida de estornos, acumulada somente até o corte dos dados.',
-  recProj:'Receita estimada para o fechamento do mês pela tendência de vendas.',
+  recProj:'Receita estimada para o fechamento pela mesma tendência de faturamento bruto usada no Resumo.',
   mcReal:'Margem de contribuição já realizada: receita menos os custos variáveis acumulados até o corte.',
-  mcProj:'Margem de contribuição estimada pela curva de vendas, mantendo a margem observada até o corte.',
+  mcProj:'Margem de contribuição estimada: margem já realizada + receita futura − despesa direta futura.',
   opReal:'Resultado operacional já realizado, sem receita nem despesa futura.',
   opProj:'Resultado operacional estimado: realizado + receita futura − despesas diretas e fixas futuras, usando as mesmas premissas do caixa.',
   liqReal:'Resultado líquido já apurado com os lançamentos acumulados até o corte.',
@@ -193,20 +193,25 @@ function renderMes(anoMes){
   const N=k=>r[k]==null?0:Number(r[k]);
   const P=k=>prev&&prev[k]!=null?Number(prev[k]):null;
   const trend=SirFisherFormat.monthTrend(RESUMO,anoMes);
-  const T=k=>trend.value(N(k));
   const somaProj=(rows)=>rows
     .filter(x=>x.dia&&x.dia.slice(0,7)===anoMes)
     .reduce((s,x)=>s+Math.abs(Number(x.valor)||0),0);
-  const receitaProj=T('receita');
+  // Usa a projeção comercial como receita de fechamento. No começo do mês, a
+  // receita financeira reconhecida na DRE fica atrás das vendas e não pode ser
+  // a base da extrapolação sem derrubar artificialmente o resultado.
+  const receitaProj=trend.active?trend.projected:N('receita');
   const receitaFutura=trend.active?Math.max(receitaProj-N('receita'),0):0;
   const despDiretaFutura=trend.active?somaProj(DESP_DIRETA):0;
   const despFixaFutura=trend.active?somaProj(DESP_FIXA):0;
+  const margemContribProj=trend.active
+    ? N('margem_contribuicao')+receitaFutura-despDiretaFutura
+    : N('margem_contribuicao');
   const resultadoOpProj=trend.active
     ? N('resultado_operacional')+receitaFutura-despDiretaFutura-despFixaFutura
     : N('resultado_operacional');
   const abaixoOperacional=N('nao_operacional')+N('contabil')+N('capex')+N('nao_categorizado');
   const resultadoLiqProj=trend.active?resultadoOpProj+abaixoOperacional:N('resultado_liquido');
-  const margemMcProj=receitaProj?T('margem_contribuicao')/receitaProj*100:null;
+  const margemMcProj=receitaProj?margemContribProj/receitaProj*100:null;
   const margemOpProj=receitaProj?resultadoOpProj/receitaProj*100:null;
   const margemLiqProj=receitaProj?resultadoLiqProj/receitaProj*100:null;
   const memoriaProj=trend.active
@@ -237,7 +242,7 @@ function renderMes(anoMes){
       <div class="hint scenario-hint">Estimativa para o fim do mês; não é lucro já realizado.</div>
       <div class="kpis">
         ${kpi('Receita de vendas projetada','cash',brl(receitaProj),'<div class="sub">fechamento estimado pela tendência</div>',C.header,'recProj',receitaProj)}
-        ${kpi('Margem de contribuição projetada','mc',brl(T('margem_contribuicao')),subCenario(margemMcProj,'fechamento estimado'),C.teal,'mcProj',T('margem_contribuicao'))}
+        ${kpi('Margem de contribuição projetada','mc',brl(margemContribProj),subCenario(margemMcProj,'fechamento estimado'),C.teal,'mcProj',margemContribProj)}
         ${kpi('Resultado operacional projetado','op',brl(resultadoOpProj),subCenario(margemOpProj,'fechamento estimado'),resultadoOpProj>=0?C.green:C.red,'opProj',resultadoOpProj)}
         ${kpi('Resultado líquido projetado','liq',brl(resultadoLiqProj),subCenario(margemLiqProj,'fechamento estimado'),resultadoLiqProj>=0?C.green:C.red,'liqProj',resultadoLiqProj)}
       </div>

@@ -1171,3 +1171,20 @@ fila/pg_cron existente; o worker atualiza o painel em segundo plano sem
 recalcular saldo. A view já mostra a decisão confirmada durante essa espera.
 
 — Codex
+
+## 2026-08-02 · Codex — projeções de resultado e despesa usam a mesma base
+
+O Resumo e a DRE deixaram de extrapolar a receita financeira ainda incompleta
+no começo do mês. A receita de fechamento agora usa a mesma tendência de
+faturamento bruto; margem de contribuição e resultado descontam as projeções
+direta/fixa já usadas pelo Caixa. `despesas.html` substitui o multiplicador
+simples sobre o realizado por realizado + despesa direta futura + despesa fixa
+futura e exibe a memória das parcelas.
+
+Migration `20260809000000_despesas_acessa_projecoes.sql`: inclui
+`despesas.html` no gate das duas views `app_projecao_despesa_*`; não muda os
+valores calculados nem dados financeiros. JavaScript inline, estrutura da
+migration e `git diff --check` passaram. Navegador não estava conectado para
+QA visual; migration não foi aplicada diretamente e segue pelo fluxo GitHub.
+
+— Codex

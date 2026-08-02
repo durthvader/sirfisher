@@ -24,6 +24,7 @@
   .alerta{background:#fbf3e0;border:1px solid #e6d6a8;border-radius:11px;padding:11px 13px;font-size:12px;color:#7a5e1e;margin-bottom:14px;display:flex;align-items:center;gap:9px;}
   .alerta svg{width:18px;height:18px;flex-shrink:0;}
   .alerta b{font-weight:700;}
+  .proj-memoria{margin:-6px 0 18px;padding:9px 12px;border-left:3px solid var(--amber);background:#faf8f1;border-radius:0 7px 7px 0;line-height:1.5;}
   .kpi .value{font-size:23px;font-weight:700;line-height:1.1;letter-spacing:-.5px;}
   .h-comp{height:230px;}.h-evo{height:260px;}
   /* ranking / barras de fornecedor */
@@ -117,7 +118,7 @@ const GCOR={
 function corGrupo(g){return GCOR[g]||'#B0A99A';}
 function nomeGrupo(g){return g==='DESPESA DIRETA DE VENDA'?'Despesa direta (CMV)':g==='MARKETING E PUBLICIDADE'?'Marketing':(g.charAt(0)+g.slice(1).toLowerCase());}
 
-let CHARTS=[],ROWS=[],RESUMO=[],ULTIMA=null,CARGAS=[];
+let CHARTS=[],ROWS=[],RESUMO=[],DESP_FIXA=[],DESP_DIRETA=[],ULTIMA=null,CARGAS=[];
 let MESES_LISTA=[],POR_MES=new Map();
 
 // Limiares da concentração, calibrados na distribuição real de 18 meses com a
@@ -128,7 +129,7 @@ let MESES_LISTA=[],POR_MES=new Map();
 const CONC_AMBAR=60, CONC_VERMELHO=66;
 
 const DESC={
-  total:'Soma das despesas por competência. No mês em andamento, o KPI mostra uma tendência proporcional ao avanço da curva de vendas; os detalhamentos permanecem realizados.',
+  total:'Soma do realizado com as despesas diretas e fixas ainda projetadas para o mês, usando as mesmas premissas do Caixa e da DRE. Os detalhamentos permanecem realizados.',
   grupo:'Grupo DRE que mais consumiu no mês e sua fatia do total de despesas.',
   conc:'Fatia do gasto concentrada nos 5 maiores fornecedores. Folha e diárias contam como uma linha cada, não como uma pessoa cada. No mês aberto, compara só até o último dia com dado. Referência dos últimos 18 meses: mediana 55%, máximo 68% — acende âmbar a partir de 60% e vermelho a partir de 66%.',
   naocat:'Despesa do mês sem grupo/categoria definidos. É gasto sem rastreio — classifique para não virar vazamento invisível.'
@@ -213,14 +214,19 @@ function montarSeletorPeriodo(anoMesList,selecionado){
 async function main(){
   try{
     // historico completo, paginado (contorna o limite de 1000 linhas do PostgREST)
-    const [dd,res]=await Promise.all([
+    const [dd,res,df,dp]=await Promise.all([
       fetchPaginado(()=>sb.from('app_mv_despesa_mensal').select('*')
         .order('mes',{ascending:true}).order('grupo',{ascending:true}).order('categoria',{ascending:true}).order('fornecedor',{ascending:true})),
-      q(()=>sb.from('app_painel_resumo_mensal').select('ano_mes,faturamento,faturamento_proj').order('ano_mes',{ascending:true}))
+      q(()=>sb.from('app_painel_resumo_mensal').select('ano_mes,faturamento,faturamento_proj').order('ano_mes',{ascending:true})),
+      q(()=>sb.from('app_projecao_despesa_fixa').select('dia,valor')),
+      q(()=>sb.from('app_projecao_despesa_direta').select('dia,valor'))
     ]);
     if(dd.error)throw dd.error;
     if(res.error)throw res.error;
+    if(df.error)throw df.error;
+    if(dp.error)throw dp.error;
     ROWS=dd.data||[];RESUMO=res.data||[];
+    DESP_FIXA=df.data||[];DESP_DIRETA=dp.data||[];
     const [uc,cg]=await Promise.all([
       q(()=>sb.from('app_painel_ultima_carga').select('ultima')),
       q(()=>sb.from('app_painel_cargas').select('*'))
@@ -282,7 +288,16 @@ async function renderMes(anoMes){
   const total=rows.reduce((s,r)=>s+(Number(r.valor)||0),0);
   const totalPrev=prevRows.reduce((s,r)=>s+(Number(r.valor)||0),0);
   const trend=SirFisherFormat.monthTrend(RESUMO,anoMes);
-  const totalTrend=trend.value(total);
+  const somaProj=lista=>lista.filter(x=>x.dia&&x.dia.slice(0,7)===anoMes)
+    .reduce((s,x)=>s+Math.abs(Number(x.valor)||0),0);
+  const despDiretaFutura=trend.active?somaProj(DESP_DIRETA):0;
+  const despFixaFutura=trend.active?somaProj(DESP_FIXA):0;
+  const totalProjetado=total+despDiretaFutura+despFixaFutura;
+  const memoriaProj=trend.active
+    ? '<div class="hint proj-memoria"><b>Memória da despesa projetada:</b> '+brl(total)+' realizado + '
+      +brl(despDiretaFutura)+' despesa direta futura + '+brl(despFixaFutura)+' despesa fixa futura = <b>'
+      +brl(totalProjetado)+'</b></div>'
+    : '';
 
   // por grupo
   const porGrupo=[...aggBy(rows,r=>r.grupo).entries()].map(([g,v])=>({grupo:g,valor:v.valor})).sort((a,b)=>b.valor-a.valor);
@@ -306,11 +321,12 @@ async function renderMes(anoMes){
     <div class="section-title">Despesas de ${MESES[+mm-1]} ${ano}</div>
     ${alertaHtml}
     <div class="kpis">
-      ${kpi(trend.label('Despesa total','Despesa total (tend.)'),'out',brl0(totalTrend),deltaDesp(totalTrend,prevAm?totalPrev:null),C.header,'total')}
+      ${kpi(trend.label('Despesa total','Despesa total projetada'),'out',brl0(totalProjetado),deltaDesp(totalProjetado,prevAm?totalPrev:null),C.header,'total')}
       ${kpi('Maior grupo','pie',maior?esc(nomeGrupo(maior.grupo)):'—',maior?('<div class="sub"><b>'+brl(maior.valor)+'</b> · '+pp(maior.valor/total*100)+' do total</div>'):'',corGrupo(maior?maior.grupo:''),'grupo')}
       ${kpi('Concentração top 5','conc',pp(conc),'<div class="sub">'+baseConc.length+' fornecedores'+(corteConc>=31?' no mês':' até o dia '+corteConc)+'</div>',conc>=CONC_VERMELHO?C.red:conc>=CONC_AMBAR?C.amber:C.green,'conc')}
       ${kpi('Não classificado','alert',naoCat>0.5?brl0(naoCat):'R$ 0',naoCat>0.5?'<div class="sub down">precisa classificar</div>':'<div class="sub up">tudo classificado</div>',naoCat>0.5?C.red:C.green,'naocat')}
     </div>
+    ${memoriaProj}
 
     <div class="section-title">Composição</div>
     <div class="card">

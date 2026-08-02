@@ -124,7 +124,7 @@ no repositório.
 
 ### projecao_despesa_fixa
 - Tipo: painel / view agregada
-- Uso: `caixa.html`, `dre.html`
+- Uso: `caixa.html`, `dre.html`, `index.html`, `despesas.html`
 - Propósito: mostra projeção de despesas fixas por dia. Calcula a média mensal dos 3 meses fechados anteriores (débitos dos grupos DRE PESSOAL, INFRAESTRUTURA, MARKETING E PUBLICIDADE e IMPOSTOS em `fato_financeiro`), subtrai o realizado na mesma fonte e nos mesmos grupos e distribui o restante (nunca negativo) pelos dias do mês após o corte de caixa. Contas recorrentes ativas, do tipo despesa, marcadas para entrar nos totais, com média positiva e ainda sem pagamento na competência entram no vencimento como previsão explícita; seu valor reduz antes o colchão genérico para evitar dupla contagem. Meses futuros sem realizado projetam a média cheia. Redefinida em `20260760000000_previsao_contas_abertas_no_caixa.sql`.
 - Colunas importantes:
   - `dia`
@@ -132,7 +132,7 @@ no repositório.
 
 ### projecao_despesa_direta
 - Tipo: painel / view agregada
-- Uso: `caixa.html`, `dre.html`
+- Uso: `caixa.html`, `dre.html`, `index.html`, `despesas.html`
 - Propósito: mostra projeção de despesas diretas por dia.
 - Colunas importantes:
   - `dia`
@@ -266,7 +266,7 @@ no repositório.
 ### painel_dre_cascata
 - Tipo: painel / view agregada
 - Uso: `dre.html`
-- Propósito: fornece a cascata DRE mensal realizada com receita, CMV, despesas e resultado líquido. No mês aberto, `dre.html` calcula os KPIs projetados somando ao resultado operacional realizado a receita futura da curva de vendas e descontando as despesas diretas e fixas futuras das mesmas views usadas pelo caixa; itens abaixo da operação permanecem pelo realizado.
+- Propósito: fornece a cascata DRE mensal realizada com receita, CMV, despesas e resultado líquido. No mês aberto, `dre.html` usa como receita de fechamento a mesma tendência de faturamento bruto do Resumo; soma ao resultado operacional realizado a diferença entre essa projeção e a receita já reconhecida, desconta as despesas diretas e fixas futuras das mesmas views usadas pelo Caixa e mantém os itens abaixo da operação pelo realizado. Isso evita extrapolar a receita financeira ainda incompleta no começo do mês enquanto as despesas já usam a venda bruta e o mês cheio.
 - Colunas importantes:
   - `mes`
   - `ano_mes`
@@ -880,16 +880,16 @@ no repositório.
 - `painel_fluxo_caixa` → `caixa.html`
 - `recebimento_conhecido` → `caixa.html`
 - `recebimento_projetado` → `caixa.html`
-- `projecao_despesa_fixa` → `caixa.html`
-- `projecao_despesa_direta` → `caixa.html`
+- `projecao_despesa_fixa` → `caixa.html`, `dre.html`, `index.html`, `despesas.html`
+- `projecao_despesa_direta` → `caixa.html`, `dre.html`, `index.html`, `despesas.html`
 - `painel_ultima_carga` → `caixa.html`, `dre.html`, `index.html`, `vendas.html`
 - `painel_cargas` → `caixa.html`, `dre.html`, `index.html`, `vendas.html`
 - `painel_saldo_por_conta` → `caixa.html`
 - `excecoes` → `classificar_excecoes.html`
 - `de_para` → estado atual das regras criadas em `classificar_excecoes.html`
 - `app_classificacoes_recentes` → correção e desfazer nas duas páginas de classificação
-- `painel_dre_cascata` → `dre.html`
-- `painel_resumo_mensal` → `index.html`, `vendas.html`
+- `painel_dre_cascata` → `dre.html`, `index.html`
+- `painel_resumo_mensal` → `index.html`, `vendas.html`, `dre.html`, `despesas.html`
 - `painel_composicao_despesa` → `index.html`
 - `painel_margem_contribuicao` → `index.html`
 - `painel_diario` → `index.html`, `vendas.html`
