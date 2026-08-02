@@ -16,11 +16,15 @@ IMPORT_DIR = ROOT / "scripts" / "importacao"
 sys.path.insert(0, str(IMPORT_DIR))
 
 CASES = [
-    ("01_importar_extrato_stone.py", ",", "utf-8-sig", {"Movimentação": "Crédito", "Valor": "10,00", "Saldo antes": "0,00", "Saldo depois": "10,00", "Data": "01/07/2026 10:00"}),
-    ("02_importar_vendas_stone.py", ";", "utf-8-sig", {"DATA DA VENDA": "01/07/2026 10:00", "STONE ID": "teste-1", "VALOR BRUTO": "10,00", "VALOR LIQUIDO": "9,50"}),
-    ("03_importar_recebiveis_stone.py", ";", "utf-8-sig", {"DATA DA VENDA": "01/07/2026 10:00", "DATA DE VENCIMENTO": "02/07/2026", "DATA DE VENCIMENTO ORIGINAL": "02/07/2026", "STONE ID": "teste-1", "QTD DE PARCELAS": "1", "Nº DA PARCELA": "1", "VALOR BRUTO": "10,00", "VALOR LÍQUIDO": "9,50"}),
-    ("04_importar_bb.py", ",", "latin-1", {"Data": "01/07/2026", "Lançamento": "Pix recebido", "Valor": "10,00"}),
-    ("13_importar_historico.py", ",", "utf-8-sig", {"seq": "1", "empresa": "Stone", "valor": "10.00", "saldo_antes": "0.00", "saldo_depois": "10.00", "data_iso": "2026-07-01 10:00:00"}),
+    ("01_importar_extrato_stone.py", ",", "utf-8-sig", [{"Movimentação": "Crédito", "Valor": "10,00", "Saldo antes": "0,00", "Saldo depois": "10,00", "Data": "01/07/2026 10:00"}]),
+    ("02_importar_vendas_stone.py", ";", "utf-8-sig", [{"DATA DA VENDA": "01/07/2026 10:00", "STONE ID": "teste-1", "VALOR BRUTO": "10,00", "VALOR LIQUIDO": "9,50"}]),
+    ("03_importar_recebiveis_stone.py", ";", "utf-8-sig", [{"DATA DA VENDA": "01/07/2026 10:00", "DATA DE VENCIMENTO": "02/07/2026", "DATA DE VENCIMENTO ORIGINAL": "02/07/2026", "STONE ID": "teste-1", "QTD DE PARCELAS": "1", "Nº DA PARCELA": "1", "VALOR BRUTO": "10,00", "VALOR LÍQUIDO": "9,50"}]),
+    ("04_importar_bb.py", ",", "latin-1", [
+        {"Data": "01/07/2026", "Lançamento": "Saldo Anterior", "Valor": "100,00"},
+        {"Data": "01/07/2026", "Lançamento": "Pix recebido", "Valor": "10,00"},
+        {"Data": "01/07/2026", "Lançamento": "S A L D O", "Valor": "110,00"},
+    ]),
+    ("13_importar_historico.py", ",", "utf-8-sig", [{"seq": "1", "empresa": "Stone", "valor": "10.00", "saldo_antes": "0.00", "saldo_depois": "10.00", "data_iso": "2026-07-01 10:00:00"}]),
 ]
 
 
@@ -32,19 +36,24 @@ def load_module(path: Path, index: int):
     return module
 
 
+def write_csv(path: Path, module, delimiter: str, encoding: str, values_list) -> None:
+    headers = sorted(module.CABECALHOS)
+    with path.open("w", encoding=encoding, newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=headers, delimiter=delimiter)
+        writer.writeheader()
+        for values in values_list:
+            row = {key: "" for key in headers}
+            row.update(values)
+            writer.writerow(row)
+
+
 def main() -> int:
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = Path(tmp)
-        for index, (script, delimiter, encoding, values) in enumerate(CASES):
+        for index, (script, delimiter, encoding, values_list) in enumerate(CASES):
             module = load_module(IMPORT_DIR / script, index)
-            headers = sorted(module.CABECALHOS)
-            row = {key: "" for key in headers}
-            row.update(values)
             csv_path = tmp_path / f"case-{index}.csv"
-            with csv_path.open("w", encoding=encoding, newline="") as handle:
-                writer = csv.DictWriter(handle, fieldnames=headers, delimiter=delimiter)
-                writer.writeheader()
-                writer.writerow(row)
+            write_csv(csv_path, module, delimiter, encoding, values_list)
             result = subprocess.run(
                 [sys.executable, str(IMPORT_DIR / script), str(csv_path), "--dry-run"],
                 capture_output=True,
@@ -63,7 +72,24 @@ def main() -> int:
         if result.returncode != 2:
             raise AssertionError(f"CSV inválido deveria retornar 2, retornou {result.returncode}")
 
-    print(f"IMPORT_TESTS_OK dry_runs={len(CASES)} invalid_header=1")
+        bb_module = load_module(IMPORT_DIR / "04_importar_bb.py", len(CASES))
+        invalid_balance = tmp_path / "invalid-bb-balance.csv"
+        write_csv(invalid_balance, bb_module, ",", "latin-1", [
+            {"Data": "01/07/2026", "Lançamento": "Saldo Anterior", "Valor": "100,00"},
+            {"Data": "01/07/2026", "Lançamento": "Pix recebido", "Valor": "10,00"},
+            {"Data": "01/07/2026", "Lançamento": "S A L D O", "Valor": "108,00"},
+        ])
+        result = subprocess.run(
+            [sys.executable, str(IMPORT_DIR / "04_importar_bb.py"), str(invalid_balance), "--dry-run"],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 2 or "saldo final não confere" not in result.stdout:
+            raise AssertionError(
+                "Saldo BB divergente deveria ser rejeitado com a mensagem de reconciliação"
+            )
+
+    print(f"IMPORT_TESTS_OK dry_runs={len(CASES)} invalid_header=1 invalid_bb_balance=1")
     return 0
 
 

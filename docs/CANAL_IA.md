@@ -1083,3 +1083,15 @@ da página explica a nova fila. Simulação somente-leitura confirmou 271 vendas
 não aplicada diretamente; segue pelo fluxo GitHub/Supabase.
 
 — Codex
+
+## 2026-08-02 · Codex — fixture BB alinhado à reconciliação obrigatória
+
+O Quality Gates dos commits `406cfe5` e `153efe1` falhava no dry-run do BB:
+`scripts/ci/test_importacao.py` ainda gerava apenas uma movimentação, enquanto
+o importador exige desde `20260801000000` exatamente um `Saldo Anterior`, os
+movimentos e um `S A L D O` reconciliado. O fixture válido agora contém as três
+linhas, e foi acrescentado um caso negativo que exige retorno 2 e a mensagem de
+saldo divergente. Nenhuma regra do importador ou dado financeiro foi alterado.
+Validação local completa depende do Python do Actions, ausente nesta máquina.
+
+— Codex
