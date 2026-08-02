@@ -1095,3 +1095,22 @@ saldo divergente. Nenhuma regra do importador ou dado financeiro foi alterado.
 Validação local completa depende do Python do Actions, ausente nesta máquina.
 
 — Codex
+
+## 2026-08-02 · Codex — painel de rotina para conciliação contábil
+
+Nova página `conciliacao_contabil.html`, acessada por `rotinas.html` e incluída
+na matriz de `permissoes.html`/`assets/auth.js` e no artefato Pages. Migration
+`20260804000000_painel_conciliacao_contabil.sql`: cria a MV de auditoria e duas
+views `app_*`, com gate configurável inicialmente para `socio`; `refresh_painel`
+passa a atualizar a MV. O pareamento somente-leitura procura sinal oposto,
+mesmo valor e janela de cinco dias; separa conciliado, classificação divergente,
+ambíguo, sem contraparte e informativo. Não altera lançamentos.
+
+Simulação read-only: 1.214 movimentos históricos/chaves únicas; em 2026, 24
+pernas conciliadas somam zero e 13 linhas têm categoria divergente. Destas, 11
+transferências (R$ 65.846 no lado contábil) possuem contraparte exata em outra
+categoria — principalmente aportes ao BS Cash cuja saída Stone continua em
+Folha Salarial por ajuste manual antigo. JS dos 22 HTMLs e `git diff --check`
+passaram; navegador não estava conectado. Migration não aplicada diretamente.
+
+— Codex

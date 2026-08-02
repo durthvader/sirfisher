@@ -48,6 +48,7 @@ jobs:
             analise_individual.html \
             classificar_excecoes.html \
             conciliacao.html \
+            conciliacao_contabil.html \
             contas_recorrentes.html \
             importar.html \
             parametros.html \
@@ -85,6 +86,7 @@ jobs:
             calendario.html \
             classificar_excecoes.html \
             conciliacao.html \
+            conciliacao_contabil.html \
             contas_recorrentes.html \
             despesas.html \
             dre.html \

@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; upgrade-insecure-requests">
+<title>Sir Fisher · Conciliação contábil</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="assets/dashboard-common.css" rel="stylesheet">
+<link href="assets/product-pages.css" rel="stylesheet">
+<link href="assets/accessibility.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.108.2" integrity="sha384-JWEyvHh+lRf0sN/WWY+QTQwX+CyWqmNg4tkc8GQzAMEtR2wGNrCJlvnu1lHD1kDm" crossorigin="anonymous"></script>
+<script src="assets/supabase-client.js"></script>
+<script src="assets/auth.js"></script>
+<script src="assets/safe-dom.js"></script>
+<script src="assets/dashboard-utils.js"></script>
+<script src="assets/accessibility.js"></script>
+<style>
+  .head-meta{display:flex;align-items:center;gap:10px}
+  .explain-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:11px;margin-bottom:15px}
+  .explain-card{background:var(--card);border:1px solid var(--border);border-radius:11px;padding:13px}
+  .explain-card h3{font-size:12.5px;margin-bottom:5px}.explain-card p{font-size:11px;color:var(--muted);line-height:1.5}
+  .summary-card.alert .value{color:var(--red)}.summary-card.good .value{color:var(--green)}
+  .summary-card.warn .value{color:#80611c}.pair{font-size:10.5px;color:var(--muted);line-height:1.4;min-width:210px}
+  .row-value.positive{color:var(--green)}.row-value.negative{color:var(--red)}
+  .period-note{font-size:10.5px;color:var(--muted);margin-top:-10px;margin-bottom:15px}
+  @media(max-width:720px){.head-meta{align-items:flex-end;flex-direction:column}.data-table{min-width:980px}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="head-row"><div class="brand"><div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M2 12s3-6 10-6 10 6 10 6-3 6-10 6S2 12 2 12z"/><circle cx="9" cy="12" r="1" fill="#fff"/></svg></div><div><h1>Sir Fisher</h1><span>Painel de Gestão</span></div></div><div class="head-meta"><span class="periodo"><select id="anoMesSel"></select></span><div class="unidade">Rotina contábil</div></div></div>
+    <nav class="tabs"><a href="./">Visão Geral</a><a href="vendas.html">Faturamento</a><a href="caixa.html">Caixa</a><a href="dre.html">DRE</a><a href="despesas.html">Despesas</a><a href="conciliacao.html">Conciliação</a><a href="planejamento.html">Planejamento</a><a href="rotinas.html" class="routines active">Rotinas</a></nav>
+  </header>
+  <main id="main"><div class="loading">Auditando movimentos contábeis…</div></main>
+</div>
+<script>
+const sb=SirFisherSupabase;
+const esc=SirFisherDOM.escapeHTML;
+const {rs}=SirFisherFormat;
+const MESES=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const STATUS_ALERTA=new Set(['sem_contrapartida','ambiguo','classificacao_divergente']);
+let RESUMO=[];
+
+function nomeMes(anoMes){return MESES[Number(anoMes.slice(5,7))-1]+' de '+anoMes.slice(0,4);}
+function fmtData(value){return value?new Date(value+'T12:00:00').toLocaleDateString('pt-BR'):'—';}
+function origemLabel(value){return({stone_extrato:'Stone',bb:'BB',bs_cash:'BS Cash',inter:'Inter',historico:'Histórico'})[value]||value||'—';}
+function statusInfo(value){
+  if(value==='conciliado')return['Conciliado','ok'];
+  if(value==='classificacao_divergente')return['Classificação divergente','bad'];
+  if(value==='ambiguo')return['Mais de um candidato','warn'];
+  if(value==='sem_contrapartida')return['Sem contraparte','bad'];
+  return['Informativo','neutral'];
+}
+function soma(rows,field){return rows.reduce((total,row)=>total+Number(row[field]||0),0);}
+function linhaResumoMes(anoMes){return RESUMO.filter(row=>row.ano_mes===anoMes);}
+
+async function montarSeletor(){
+  const {data,error}=await sb.from('app_conciliacao_contabil_resumo_mensal').select('*');
+  if(error)throw error;
+  RESUMO=data||[];
+  const meses=[...new Set(RESUMO.map(row=>row.ano_mes))].sort();
+  if(!meses.length)throw new Error('Nenhum movimento contábil encontrado.');
+  const hoje=new Date();
+  const corrente=hoje.getFullYear()+'-'+String(hoje.getMonth()+1).padStart(2,'0');
+  const passados=meses.filter(mes=>mes<=corrente);
+  const selecionado=meses.includes(corrente)?corrente:(passados.at(-1)||meses.at(-1));
+  const seletor=document.getElementById('anoMesSel');
+  seletor.innerHTML=meses.slice().reverse().map(mes=>`<option value="${mes}">${esc(nomeMes(mes))}</option>`).join('');
+  seletor.value=selecionado;
+  seletor.onchange=()=>renderMes(seletor.value);
+  await renderMes(selecionado);
+}
+
+async function renderMes(anoMes){
+  const main=document.getElementById('main');
+  main.innerHTML='<div class="loading">Auditando '+esc(nomeMes(anoMes))+'…</div>';
+  const {data,error}=await sb.from('app_conciliacao_contabil').select('*')
+    .eq('ano_mes',anoMes).order('data_caixa',{ascending:false}).order('valor',{ascending:true}).limit(500);
+  if(error){main.innerHTML='<div class="erro">Não foi possível carregar a conciliação: '+esc(error.message)+'</div>';return;}
+  const rows=data||[];
+  const zera=rows.filter(row=>row.espera_zerar);
+  const conciliados=zera.filter(row=>row.status_conciliacao==='conciliado');
+  const alertas=zera.filter(row=>STATUS_ALERTA.has(row.status_conciliacao));
+  const informativos=rows.filter(row=>!row.espera_zerar);
+  const saldo=soma(zera,'valor');
+  const creditos=soma(zera.filter(row=>Number(row.valor)>0),'valor');
+  const debitos=soma(zera.filter(row=>Number(row.valor)<0),'valor');
+  const atualizado=rows[0]?.atualizado_em?new Date(rows[0].atualizado_em).toLocaleString('pt-BR'):'—';
+  const detalhes=rows.slice().sort((a,b)=>{
+    const prioridade=row=>STATUS_ALERTA.has(row.status_conciliacao)?0:(row.status_conciliacao==='conciliado'?1:2);
+    return prioridade(a)-prioridade(b)||Math.abs(Number(b.valor))-Math.abs(Number(a.valor));
+  });
+
+  main.innerHTML=`
+    <div class="page-intro"><div><h2>Conciliação contábil</h2><p>Confere movimentos que deveriam possuir uma perna oposta sem misturá-los com itens apenas informativos.</p></div><button id="reload" class="button secondary">Atualizar</button></div>
+    <div class="summary-grid">
+      <div class="summary-card"><div class="label">Créditos que devem zerar</div><div class="value">${rs(creditos)}</div></div>
+      <div class="summary-card"><div class="label">Débitos que devem zerar</div><div class="value">${rs(debitos)}</div></div>
+      <div class="summary-card ${Math.abs(saldo)<=0.01?'good':'alert'}"><div class="label">Saldo líquido esperado: zero</div><div class="value">${rs(saldo)}</div></div>
+      <div class="summary-card good"><div class="label">Movimentos conciliados</div><div class="value">${conciliados.length.toLocaleString('pt-BR')}</div></div>
+      <div class="summary-card ${alertas.length?'alert':'good'}"><div class="label">Precisam revisão</div><div class="value">${alertas.length.toLocaleString('pt-BR')}</div></div>
+      <div class="summary-card"><div class="label">Apenas informativos</div><div class="value">${informativos.length.toLocaleString('pt-BR')}</div></div>
+    </div>
+    <div class="period-note">Base atualizada em ${esc(atualizado)}. O pareamento usa mesmo valor absoluto e janela de até cinco dias.</div>
+    <div class="explain-grid">
+      <div class="explain-card"><h3>Devem zerar</h3><p>Transferências entre contas, pagamentos devolvidos e estornos precisam de uma entrada e uma saída equivalentes.</p></div>
+      <div class="explain-card"><h3>Classificação divergente</h3><p>A contraparte existe, mas está em outra categoria. É o principal indício de despesa ou receita contabilizada indevidamente.</p></div>
+      <div class="explain-card"><h3>Não precisam zerar aqui</h3><p>Faturas de cartão, depósito de dinheiro e antecipação são movimentos contábeis unilaterais neste conjunto de dados.</p></div>
+    </div>
+    <section class="panel"><div class="panel-head"><div><h3>Movimentos de ${esc(nomeMes(anoMes))}</h3><div class="hint">Alertas primeiro; até 500 registros no mês.</div></div><select id="statusFiltro" class="field"><option value="alertas">Somente alertas</option><option value="todos">Todos</option><option value="conciliados">Conciliados</option><option value="informativos">Informativos</option></select></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Data</th><th>Status</th><th>Conta</th><th>Categoria atual</th><th>Contraparte</th><th class="right">Valor</th><th>Possível par</th></tr></thead><tbody id="movimentosBody"></tbody></table></div></section>
+    <section class="panel"><div class="panel-head"><div><h3>Histórico mensal</h3><div class="hint">Saldo e quantidade de alertas dos movimentos que deveriam zerar.</div></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Mês</th><th class="right">Créditos</th><th class="right">Débitos</th><th class="right">Saldo</th><th class="right">Alertas</th></tr></thead><tbody>${[...new Set(RESUMO.map(row=>row.ano_mes))].sort().reverse().map(mes=>{const itens=linhaResumoMes(mes);const acionaveis=itens.filter(row=>STATUS_ALERTA.has(row.status_conciliacao));const cred=soma(itens.filter(row=>row.status_conciliacao!=='informativo'),'creditos');const deb=soma(itens.filter(row=>row.status_conciliacao!=='informativo'),'debitos');const liq=cred+deb;return`<tr><td>${esc(nomeMes(mes))}</td><td class="right">${rs(cred)}</td><td class="right">${rs(deb)}</td><td class="right" style="color:${Math.abs(liq)>.01?'var(--red)':'var(--green)'}">${rs(liq)}</td><td class="right">${soma(acionaveis,'qtd').toLocaleString('pt-BR')}</td></tr>`;}).join('')}</tbody></table></div></section>`;
+
+  const body=document.getElementById('movimentosBody');
+  function desenhar(filtro){
+    const filtrados=detalhes.filter(row=>filtro==='todos'||(filtro==='alertas'&&STATUS_ALERTA.has(row.status_conciliacao))||(filtro==='conciliados'&&row.status_conciliacao==='conciliado')||(filtro==='informativos'&&row.status_conciliacao==='informativo'));
+    body.innerHTML=filtrados.map(row=>{const[label,klass]=statusInfo(row.status_conciliacao);const par=row.par_origem?`${origemLabel(row.par_origem)} · ${fmtData(row.par_data)} · ${rs(row.par_valor)}<br>${esc(row.par_contraparte||'—')} · ${esc(row.par_categoria||'Sem categoria')}${Number(row.qtd_candidatos)>1?` · ${Number(row.qtd_candidatos)} candidatos`:''}`:'Nenhuma perna oposta encontrada';return`<tr><td>${fmtData(row.data_caixa)}</td><td><span class="status ${klass}">${esc(label)}</span></td><td>${esc(origemLabel(row.origem))}</td><td>${esc(row.categoria||'Sem categoria')}</td><td>${esc(row.contraparte_nome||row.fornecedor||'—')}</td><td class="right row-value ${Number(row.valor)>=0?'positive':'negative'}">${rs(row.valor)}</td><td class="pair">${par}</td></tr>`;}).join('')||'<tr><td colspan="7" class="empty">Nenhum movimento neste filtro.</td></tr>';
+  }
+  const filtro=document.getElementById('statusFiltro');
+  filtro.value=alertas.length?'alertas':'todos';
+  filtro.onchange=()=>desenhar(filtro.value);
+  document.getElementById('reload').onclick=()=>renderMes(anoMes);
+  desenhar(filtro.value);
+}
+
+(async()=>{const auth=await SirFisherAuth.requireRole(sb);if(!auth)return;try{await montarSeletor();}catch(error){document.getElementById('main').innerHTML='<div class="erro">Não foi possível carregar a rotina: '+esc(error.message||String(error))+'</div>';}})();
+</script>
+</body>
+</html>

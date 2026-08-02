@@ -599,6 +599,26 @@ no repositório.
   `Pix - Enviado`, `Pagamento de Boleto` (já virou Aluguel, Gás e Plano
   Dentário em casos distintos) e `Pagamento de Impostos`.
 
+### Conciliação contábil
+- A rotina `conciliacao_contabil.html` separa categorias que **devem possuir
+  uma perna oposta** (`Transferencia entre Contas`, `pagamento devolvido` e
+  `estornado`) de movimentos apenas informativos (`Cartão BB`, `cartão BNB`,
+  `Cartão BTG`, `Depósito Dinheiro`, `Antecipação de Receita` e
+  `ANALISAR INDIVIDUAL`). Portanto, não se espera que todo o universo de
+  natureza `Contabil` some zero.
+- `mv_conciliacao_contabil` procura uma transação de sinal oposto, mesmo valor
+  absoluto (tolerância de R$ 0,01) e distância máxima de cinco dias. O status é
+  `conciliado`, `classificacao_divergente`, `ambiguo`, `sem_contrapartida` ou
+  `informativo`. O pareamento é diagnóstico e nunca altera lançamentos.
+- `app_conciliacao_contabil` expõe o detalhe autorizado, sem documentos de
+  contraparte; `app_conciliacao_contabil_resumo_mensal` entrega os totais por
+  mês/status. Ambas usam o gate configurável de
+  `conciliacao_contabil.html`, inicialmente liberado apenas para `socio` (além
+  de `admin`, que sempre tem acesso).
+- A materialized view entra no ciclo de `refresh_painel()`. Isso evita refazer
+  o pareamento pesado a cada abertura da página; os dados são atualizados ao
+  fim das importações ou pelo comando administrativo de atualização do painel.
+
 ### Histórico de caixa unificado nas telas
 - Desde `20260764000000_caixa_historico_usa_saldo_diario.sql`, a curva
   realizada de `caixa.html`, os fechamentos de meses encerrados e o saldo de

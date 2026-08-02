@@ -23,6 +23,7 @@
     'classificar_excecoes.html',
     'venda_especie.html',
     'contas_recorrentes.html',
+    'conciliacao_contabil.html',
     'importar.html',
     'gerente.html'
   ]);
