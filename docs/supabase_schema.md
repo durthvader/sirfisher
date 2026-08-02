@@ -570,7 +570,12 @@ no repositório.
 ### Classificação automática por tipo de lançamento (fontes vivas)
 - O `fato_financeiro` classifica em duas etapas: primeiro o `de_para` pelo nome
   da contraparte, depois regras por **tipo de lançamento** específicas de cada
-  origem. O `de_para` sempre tem precedência.
+  origem. Em geral, o `de_para` tem precedência. A exceção documentada em
+  `20260802000000_credito_pix_nao_herda_pessoal.sql` são créditos `Pix` da
+  Stone cujo pagador está mapeado para o grupo `PESSOAL`: como o movimento é
+  uma venda recebida, a categoria é `PIX`/`RECEITAS`; débitos para a mesma
+  pessoa continuam seguindo o `de_para`. Transferências próprias, análise
+  individual e ajustes manuais preservam precedência.
 - As regras por tipo existem porque, em algumas fontes, o nome da contraparte é
   o cliente que pagou — e não um fornecedor recorrente. Sem elas, cada cliente
   novo vira uma exceção nova e a fila de `classificar_excecoes.html` cresce a
