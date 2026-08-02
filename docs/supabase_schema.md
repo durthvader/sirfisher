@@ -594,15 +594,15 @@ no repositório.
     lançamentos que o `de_para` já classificava assim no próprio BB)
   - `Tarifa Pix Recebido`, `Tarifa Pacote de Serviços`, `Cobrança de I.O.F.` e
     `Cobrança de Juros` → Tarifas Bancárias
-  - `Pix-Envio devolvido` e `Pix-Recebimento devolvido` → pagamento devolvido
+  - `Pix-Envio devolvido` e `Pix-Recebimento devolvido` → estornado
 - Ficam fora de propósito os tipos cuja categoria não é determinada pelo tipo:
   `Pix - Enviado`, `Pagamento de Boleto` (já virou Aluguel, Gás e Plano
   Dentário em casos distintos) e `Pagamento de Impostos`.
 
 ### Conciliação contábil
 - A rotina `conciliacao_contabil.html` separa categorias que **devem possuir
-  uma perna oposta** (`Transferencia entre Contas`, `pagamento devolvido` e
-  `estornado`) de movimentos apenas informativos (`Cartão BB`, `cartão BNB`,
+  uma perna oposta** (`Transferencia entre Contas` e `estornado`) de movimentos
+  apenas informativos (`Cartão BB`, `cartão BNB`,
   `Cartão BTG`, `Depósito Dinheiro`, `Antecipação de Receita` e
   `ANALISAR INDIVIDUAL`). Portanto, não se espera que todo o universo de
   natureza `Contabil` some zero.
@@ -630,6 +630,12 @@ no repositório.
 - A materialized view entra no ciclo de `refresh_painel()`. Isso evita refazer
   o pareamento pesado a cada abertura da página; os dados são atualizados ao
   fim das importações ou pelo comando administrativo de atualização do painel.
+- Desde `20260806000000_unifica_devolucao_como_estorno.sql`, pagamentos
+  devolvidos, cancelamentos e reversões usam somente a categoria canônica
+  `estornado`. A categoria antiga `pagamento devolvido` foi convertida nos
+  ajustes, regras e histórico, removida das opções do portal e deixou de ser
+  produzida pela classificação automática do BB. O efeito financeiro não
+  mudou: continua `CONTABIL`, fora da DRE e com expectativa de saldo zero.
 
 ### Histórico de caixa unificado nas telas
 - Desde `20260764000000_caixa_historico_usa_saldo_diario.sql`, a curva

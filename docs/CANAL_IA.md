@@ -1130,3 +1130,18 @@ pareamento. A regra continua somente diagnóstica: qualquer correção exige
 confirmação e ajuste manual posterior.
 
 — Codex
+
+## 2026-08-02 · Codex — categoria única para estornos e devoluções
+
+Por decisão do Rogério, `pagamento devolvido` deixa de ser uma categoria
+separada: pagamento devolvido, cancelamento e reversão passam a usar somente
+`estornado`. A migration `20260806000000_unifica_devolucao_como_estorno.sql`
+converte ajustes manuais, regras `de_para` e histórico, altera a classificação
+automática dos Pix devolvidos do BB, remove a opção redundante de
+`categoria_dre` e atualiza a MV da conciliação. O efeito financeiro não muda:
+continua `CONTABIL`, fora da DRE e esperado para zerar.
+
+Os textos de `conciliacao_contabil.html`, `rotinas.html` e a documentação foram
+alinhados. Migrations históricas não foram alteradas.
+
+— Codex
