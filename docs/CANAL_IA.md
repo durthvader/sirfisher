@@ -1159,4 +1159,9 @@ restaura os ajustes anteriores. A autorização usa a permissão configurável d
 ações, filtro de resolvidos e histórico mensal com responsável e botão para
 desfazer. Nenhuma classificação é aplicada sem confirmação explícita.
 
+Security Advisor: os avisos de RLS sem policy na tabela e execução autenticada
+das RPCs `SECURITY DEFINER` são intencionais. Não há grant direto na tabela; as
+RPCs têm `search_path` fixo, recusam quem não possui acesso à página e precisam
+do privilégio elevado para manter as duas pontas atômicas.
+
 — Codex

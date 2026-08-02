@@ -648,6 +648,12 @@ no repositório.
   não possui grants diretos; o acesso ocorre pelas RPCs e pela view protegida
   `app_conciliacao_contabil_decisoes`. As views de detalhe e resumo aplicam as
   decisões ativas aos status `estorno_confirmado` e `descartado`.
+- Os avisos do Security Advisor `rls_enabled_no_policy` para essa tabela e
+  `authenticated_security_definer_function_executable` para as duas RPCs são
+  intencionais. RLS sem policy nega acesso direto, enquanto `SECURITY DEFINER`
+  permite atualizar as duas pontas atomicamente; ambas as funções verificam
+  `usuario_pode_acessar_pagina('conciliacao_contabil.html')`, usam `search_path`
+  fixo e não concedem execução a `anon`/`public`.
 
 ### Histórico de caixa unificado nas telas
 - Desde `20260764000000_caixa_historico_usa_saldo_diario.sql`, a curva
