@@ -1145,3 +1145,18 @@ Os textos de `conciliacao_contabil.html`, `rotinas.html` e a documentação fora
 alinhados. Migrations históricas não foram alteradas.
 
 — Codex
+
+## 2026-08-02 · Codex — conciliação contábil com ações e desfazer
+
+A rotina deixou de ser somente leitura. A migration
+`20260807000000_acoes_conciliacao_contabil.sql` cria histórico protegido das
+decisões e duas RPCs transacionais: confirmar estorno grava `estornado` nas
+duas pontas; “não relacionados” encerra o alerta sem mudar categorias; desfazer
+restaura os ajustes anteriores. A autorização usa a permissão configurável de
+`conciliacao_contabil.html`, e a tabela de auditoria não tem acesso direto.
+
+`conciliacao_contabil.html` passou a mostrar cada par uma vez, oferece as duas
+ações, filtro de resolvidos e histórico mensal com responsável e botão para
+desfazer. Nenhuma classificação é aplicada sem confirmação explícita.
+
+— Codex

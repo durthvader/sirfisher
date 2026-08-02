@@ -636,6 +636,18 @@ no repositório.
   ajustes, regras e histórico, removida das opções do portal e deixou de ser
   produzida pela classificação automática do BB. O efeito financeiro não
   mudou: continua `CONTABIL`, fora da DRE e com expectativa de saldo zero.
+- Desde `20260807000000_acoes_conciliacao_contabil.sql`, a rotina deixou de ser
+  somente leitura. `decidir_conciliacao_contabil(...)` confirma as duas pontas
+  como `estornado` na mesma transação ou registra que o par não é relacionado.
+  `desfazer_decisao_conciliacao_contabil(bigint)` restaura os ajustes manuais
+  anteriores e impede desfazer silenciosamente se uma ponta tiver sido alterada
+  depois da confirmação. As duas RPCs usam o gate configurável da própria
+  página.
+- `conciliacao_contabil_decisao` mantém o histórico com usuário, data, pontas,
+  valores, categorias anteriores e estado ativo/desfeito. A tabela tem RLS e
+  não possui grants diretos; o acesso ocorre pelas RPCs e pela view protegida
+  `app_conciliacao_contabil_decisoes`. As views de detalhe e resumo aplicam as
+  decisões ativas aos status `estorno_confirmado` e `descartado`.
 
 ### Histórico de caixa unificado nas telas
 - Desde `20260764000000_caixa_historico_usa_saldo_diario.sql`, a curva
