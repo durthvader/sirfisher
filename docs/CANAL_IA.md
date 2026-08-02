@@ -1114,3 +1114,19 @@ Folha Salarial por ajuste manual antigo. JS dos 22 HTMLs e `git diff --check`
 passaram; navegador não estava conectado. Migration não aplicada diretamente.
 
 — Codex
+
+## 2026-08-02 · Codex — detecção de possíveis estornos na rotina contábil
+
+Migration `20260805000000_detecta_estornos_por_tempo_e_contraparte.sql` amplia
+a MV de conciliação sem reclassificar dados. Débito seguido de crédito do mesmo
+valor, na mesma conta e no mesmo dia, passa a aparecer como possível estorno:
+forte quando o par é único, há evidência de contraparte/texto e o intervalo é
+de até 60 minutos; provável quando falta horário ou o intervalo é maior; e
+análise quando há ambiguidade ou evidência insuficiente. Stone, BS Cash e
+histórico possuem horário; BB e Inter possuem somente data.
+
+`conciliacao_contabil.html` ganhou indicadores, filtro, horários e evidência do
+pareamento. A regra continua somente diagnóstica: qualquer correção exige
+confirmação e ajuste manual posterior.
+
+— Codex

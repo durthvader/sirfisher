@@ -610,6 +610,18 @@ no repositório.
   absoluto (tolerância de R$ 0,01) e distância máxima de cinco dias. O status é
   `conciliado`, `classificacao_divergente`, `ambiguo`, `sem_contrapartida` ou
   `informativo`. O pareamento é diagnóstico e nunca altera lançamentos.
+- Desde `20260805000000_detecta_estornos_por_tempo_e_contraparte.sql`, a mesma
+  MV também procura possíveis estornos entre categorias operacionais. A regra
+  exige débito seguido de crédito de mesmo valor, na mesma conta e no mesmo
+  dia. Par único com contraparte/documento ou texto bancário compatível recebe
+  `estorno_forte` quando ocorre em até 60 minutos e `estorno_provavel` nos
+  demais casos; coincidência ambígua ou sem evidência suficiente recebe
+  `estorno_analise`. A detecção apenas abre uma revisão e não cria
+  `ajuste_manual`.
+- Stone, BS Cash e a base histórica preservam `data_hora`. BB e Inter fornecem
+  apenas a data, por isso nunca recebem o nível forte. Nesses bancos, valor,
+  conta, data, contraparte e descrição sustentam somente o nível provável ou
+  de análise.
 - `app_conciliacao_contabil` expõe o detalhe autorizado, sem documentos de
   contraparte; `app_conciliacao_contabil_resumo_mensal` entrega os totais por
   mês/status. Ambas usam o gate configurável de

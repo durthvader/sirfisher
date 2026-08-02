@@ -41,21 +41,37 @@ const sb=SirFisherSupabase;
 const esc=SirFisherDOM.escapeHTML;
 const {rs}=SirFisherFormat;
 const MESES=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-const STATUS_ALERTA=new Set(['sem_contrapartida','ambiguo','classificacao_divergente']);
+const STATUS_ESTORNO=new Set(['estorno_forte','estorno_provavel','estorno_analise']);
+const STATUS_ALERTA=new Set(['sem_contrapartida','ambiguo','classificacao_divergente',...STATUS_ESTORNO]);
 let RESUMO=[];
 
 function nomeMes(anoMes){return MESES[Number(anoMes.slice(5,7))-1]+' de '+anoMes.slice(0,4);}
 function fmtData(value){return value?new Date(value+'T12:00:00').toLocaleDateString('pt-BR'):'—';}
+function fmtMomento(dataHora,data){
+  if(!dataHora)return fmtData(data)+' · horário indisponível';
+  return new Date(dataHora).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+}
 function origemLabel(value){return({stone_extrato:'Stone',bb:'BB',bs_cash:'BS Cash',inter:'Inter',historico:'Histórico'})[value]||value||'—';}
 function statusInfo(value){
   if(value==='conciliado')return['Conciliado','ok'];
   if(value==='classificacao_divergente')return['Classificação divergente','bad'];
   if(value==='ambiguo')return['Mais de um candidato','warn'];
   if(value==='sem_contrapartida')return['Sem contraparte','bad'];
+  if(value==='estorno_forte')return['Possível estorno · forte','info'];
+  if(value==='estorno_provavel')return['Possível estorno · provável','warn'];
+  if(value==='estorno_analise')return['Possível estorno · analisar','bad'];
   return['Informativo','neutral'];
 }
 function soma(rows,field){return rows.reduce((total,row)=>total+Number(row[field]||0),0);}
 function linhaResumoMes(anoMes){return RESUMO.filter(row=>row.ano_mes===anoMes);}
+function contarPares(rows,nivel){
+  const pares=new Set();
+  rows.filter(row=>row.nivel_reversao===nivel&&row.par_origem&&row.par_raw_id!==null).forEach(row=>{
+    const pontas=[`${row.origem}:${row.raw_id}`,`${row.par_origem}:${row.par_raw_id}`].sort();
+    pares.add(pontas.join('|'));
+  });
+  return pares.size;
+}
 
 async function montarSeletor(){
   const {data,error}=await sb.from('app_conciliacao_contabil_resumo_mensal').select('*');
@@ -85,6 +101,9 @@ async function renderMes(anoMes){
   const conciliados=zera.filter(row=>row.status_conciliacao==='conciliado');
   const alertas=zera.filter(row=>STATUS_ALERTA.has(row.status_conciliacao));
   const informativos=rows.filter(row=>!row.espera_zerar);
+  const estornosFortes=contarPares(rows,'forte');
+  const estornosProvaveis=contarPares(rows,'provavel');
+  const estornosAnalise=contarPares(rows,'analise');
   const saldo=soma(zera,'valor');
   const creditos=soma(zera.filter(row=>Number(row.valor)>0),'valor');
   const debitos=soma(zera.filter(row=>Number(row.valor)<0),'valor');
@@ -103,20 +122,24 @@ async function renderMes(anoMes){
       <div class="summary-card good"><div class="label">Movimentos conciliados</div><div class="value">${conciliados.length.toLocaleString('pt-BR')}</div></div>
       <div class="summary-card ${alertas.length?'alert':'good'}"><div class="label">Precisam revisão</div><div class="value">${alertas.length.toLocaleString('pt-BR')}</div></div>
       <div class="summary-card"><div class="label">Apenas informativos</div><div class="value">${informativos.length.toLocaleString('pt-BR')}</div></div>
+      <div class="summary-card good"><div class="label">Pares de estorno · forte</div><div class="value">${estornosFortes.toLocaleString('pt-BR')}</div></div>
+      <div class="summary-card warn"><div class="label">Pares de estorno · provável</div><div class="value">${estornosProvaveis.toLocaleString('pt-BR')}</div></div>
+      <div class="summary-card ${estornosAnalise?'alert':'good'}"><div class="label">Pares de estorno · analisar</div><div class="value">${estornosAnalise.toLocaleString('pt-BR')}</div></div>
     </div>
-    <div class="period-note">Base atualizada em ${esc(atualizado)}. O pareamento usa mesmo valor absoluto e janela de até cinco dias.</div>
+    <div class="period-note">Base atualizada em ${esc(atualizado)}. Transferências usam janela de até cinco dias; possíveis estornos usam mesma conta, mesmo valor e mesmo dia.</div>
     <div class="explain-grid">
       <div class="explain-card"><h3>Devem zerar</h3><p>Transferências entre contas, pagamentos devolvidos e estornos precisam de uma entrada e uma saída equivalentes.</p></div>
+      <div class="explain-card"><h3>Possível estorno</h3><p>Débito seguido de crédito do mesmo valor na mesma conta. Até 60 minutos com contraparte ou descrição compatível é indício forte; nenhum lançamento é reclassificado automaticamente.</p></div>
       <div class="explain-card"><h3>Classificação divergente</h3><p>A contraparte existe, mas está em outra categoria. É o principal indício de despesa ou receita contabilizada indevidamente.</p></div>
-      <div class="explain-card"><h3>Não precisam zerar aqui</h3><p>Faturas de cartão, depósito de dinheiro e antecipação são movimentos contábeis unilaterais neste conjunto de dados.</p></div>
+      <div class="explain-card"><h3>Limite dos extratos</h3><p>BB e Inter não fornecem horário; nesses bancos o painel usa data, valor, contraparte e descrição, mantendo o resultado como provável ou para análise.</p></div>
     </div>
-    <section class="panel"><div class="panel-head"><div><h3>Movimentos de ${esc(nomeMes(anoMes))}</h3><div class="hint">Alertas primeiro; até 500 registros no mês.</div></div><select id="statusFiltro" class="field"><option value="alertas">Somente alertas</option><option value="todos">Todos</option><option value="conciliados">Conciliados</option><option value="informativos">Informativos</option></select></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Data</th><th>Status</th><th>Conta</th><th>Categoria atual</th><th>Contraparte</th><th class="right">Valor</th><th>Possível par</th></tr></thead><tbody id="movimentosBody"></tbody></table></div></section>
+    <section class="panel"><div class="panel-head"><div><h3>Movimentos de ${esc(nomeMes(anoMes))}</h3><div class="hint">Alertas primeiro; até 500 registros no mês.</div></div><select id="statusFiltro" class="field"><option value="alertas">Somente alertas</option><option value="estornos">Possíveis estornos</option><option value="todos">Todos</option><option value="conciliados">Conciliados</option><option value="informativos">Informativos</option></select></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Data e hora</th><th>Status</th><th>Conta</th><th>Categoria atual</th><th>Contraparte</th><th class="right">Valor</th><th>Possível par / evidência</th></tr></thead><tbody id="movimentosBody"></tbody></table></div></section>
     <section class="panel"><div class="panel-head"><div><h3>Histórico mensal</h3><div class="hint">Saldo e quantidade de alertas dos movimentos que deveriam zerar.</div></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Mês</th><th class="right">Créditos</th><th class="right">Débitos</th><th class="right">Saldo</th><th class="right">Alertas</th></tr></thead><tbody>${[...new Set(RESUMO.map(row=>row.ano_mes))].sort().reverse().map(mes=>{const itens=linhaResumoMes(mes);const acionaveis=itens.filter(row=>STATUS_ALERTA.has(row.status_conciliacao));const cred=soma(itens.filter(row=>row.status_conciliacao!=='informativo'),'creditos');const deb=soma(itens.filter(row=>row.status_conciliacao!=='informativo'),'debitos');const liq=cred+deb;return`<tr><td>${esc(nomeMes(mes))}</td><td class="right">${rs(cred)}</td><td class="right">${rs(deb)}</td><td class="right" style="color:${Math.abs(liq)>.01?'var(--red)':'var(--green)'}">${rs(liq)}</td><td class="right">${soma(acionaveis,'qtd').toLocaleString('pt-BR')}</td></tr>`;}).join('')}</tbody></table></div></section>`;
 
   const body=document.getElementById('movimentosBody');
   function desenhar(filtro){
-    const filtrados=detalhes.filter(row=>filtro==='todos'||(filtro==='alertas'&&STATUS_ALERTA.has(row.status_conciliacao))||(filtro==='conciliados'&&row.status_conciliacao==='conciliado')||(filtro==='informativos'&&row.status_conciliacao==='informativo'));
-    body.innerHTML=filtrados.map(row=>{const[label,klass]=statusInfo(row.status_conciliacao);const par=row.par_origem?`${origemLabel(row.par_origem)} · ${fmtData(row.par_data)} · ${rs(row.par_valor)}<br>${esc(row.par_contraparte||'—')} · ${esc(row.par_categoria||'Sem categoria')}${Number(row.qtd_candidatos)>1?` · ${Number(row.qtd_candidatos)} candidatos`:''}`:'Nenhuma perna oposta encontrada';return`<tr><td>${fmtData(row.data_caixa)}</td><td><span class="status ${klass}">${esc(label)}</span></td><td>${esc(origemLabel(row.origem))}</td><td>${esc(row.categoria||'Sem categoria')}</td><td>${esc(row.contraparte_nome||row.fornecedor||'—')}</td><td class="right row-value ${Number(row.valor)>=0?'positive':'negative'}">${rs(row.valor)}</td><td class="pair">${par}</td></tr>`;}).join('')||'<tr><td colspan="7" class="empty">Nenhum movimento neste filtro.</td></tr>';
+    const filtrados=detalhes.filter(row=>filtro==='todos'||(filtro==='alertas'&&STATUS_ALERTA.has(row.status_conciliacao))||(filtro==='estornos'&&row.nivel_reversao)||(filtro==='conciliados'&&row.status_conciliacao==='conciliado')||(filtro==='informativos'&&row.status_conciliacao==='informativo'));
+    body.innerHTML=filtrados.map(row=>{const[label,klass]=statusInfo(row.status_conciliacao);const intervalo=row.minutos_intervalo===null||row.minutos_intervalo===undefined?'':` · ${Number(row.minutos_intervalo).toLocaleString('pt-BR')} min`;const evidencia=row.evidencia_reversao?`<br><strong>${esc(row.evidencia_reversao)}</strong>${intervalo}`:'';const par=row.par_origem?`${origemLabel(row.par_origem)} · ${fmtMomento(row.par_data_hora,row.par_data)} · ${rs(row.par_valor)}<br>${esc(row.par_contraparte||'—')} · ${esc(row.par_categoria||'Sem categoria')}${Number(row.qtd_candidatos)>1?` · ${Number(row.qtd_candidatos)} candidatos`:''}${evidencia}`:'Nenhuma perna oposta encontrada';return`<tr><td>${fmtMomento(row.data_hora,row.data_caixa)}</td><td><span class="status ${klass}">${esc(label)}</span></td><td>${esc(origemLabel(row.origem))}</td><td>${esc(row.categoria||'Sem categoria')}</td><td>${esc(row.contraparte_nome||row.fornecedor||'—')}</td><td class="right row-value ${Number(row.valor)>=0?'positive':'negative'}">${rs(row.valor)}</td><td class="pair">${par}</td></tr>`;}).join('')||'<tr><td colspan="7" class="empty">Nenhum movimento neste filtro.</td></tr>';
   }
   const filtro=document.getElementById('statusFiltro');
   filtro.value=alertas.length?'alertas':'todos';
