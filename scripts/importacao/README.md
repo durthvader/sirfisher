@@ -13,6 +13,18 @@
 > de `None` vira o literal `"None"` — o SQL reproduz isso com
 > `coalesce(campo, 'None')`. Se as duas pontas divergirem, o mesmo arquivo gera
 > hash diferente nos dois caminhos e duplica.
+>
+> **Exceção do Extrato BB:** `Aplicação Fundo BB` pode reaparecer numa
+> reexportação consolidada como `BB RF LP Selic`, inclusive com outro número
+> de documento. Para esses dois rótulos de débito, web e Python usam a mesma
+> identidade canônica por data e valor. A regra foi criada na migration
+> `20260801000000_bb_fundo_nao_duplica_reexportacao.sql`.
+> A mesma migration tornou obrigatória a reconciliação interna do arquivo:
+> `Saldo Anterior + movimentos = S A L D O`. Se faltar uma das duas linhas ou
+> a conta não fechar, nenhuma linha é gravada.
+> Na importação web, o saldo final também é comparado ao saldo BB que o painel
+> terá após incorporar somente as linhas realmente novas. Essa segunda prova
+> vale para períodos posteriores ao saldo-base cadastrado no sistema.
 
 ## Preparação
 

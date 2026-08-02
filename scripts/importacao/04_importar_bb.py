@@ -23,6 +23,7 @@ from importacao_core import (
 
 
 LINHAS_NAO_TRANSACAO = {"Saldo Anterior", "Saldo do dia", "S A L D O"}
+ROTULOS_FUNDO_BB = {"Aplicação Fundo BB", "BB RF LP Selic"}
 CABECALHOS = {"Data", "Lançamento", "Detalhes", "N° documento", "Valor", "Tipo Lançamento"}
 COLUNAS = [
     "conta_id", "data", "data_raw", "lancamento", "detalhes",
@@ -33,6 +34,9 @@ COLUNAS = [
 def ler_csv(caminho, opcoes):
     registros = []
     rejeicoes: list[Rejeicao] = []
+    saldos_anteriores = []
+    saldos_finais = []
+    total_movimentos = 0.0
     ignoradas = 0
     total = 0
     with abrir_csv_validado(
@@ -45,6 +49,11 @@ def ler_csv(caminho, opcoes):
             total += 1
             lancamento = campo(row, "Lançamento")
             if lancamento in LINHAS_NAO_TRANSACAO:
+                valor_saldo = parse_valor_brasileiro(campo(row, "Valor"))
+                if lancamento == "Saldo Anterior":
+                    saldos_anteriores.append(valor_saldo)
+                elif lancamento == "S A L D O":
+                    saldos_finais.append(valor_saldo)
                 ignoradas += 1
                 continue
 
@@ -63,9 +72,17 @@ def ler_csv(caminho, opcoes):
             if motivos:
                 continue
 
+            total_movimentos += valor
+
             numero_documento = campo(row, "N° documento")
             detalhes = campo(row, "Detalhes")
-            base = f"{data_raw}|{lancamento}|{numero_documento}|{valor_raw}|{detalhes}"
+            # O BB pode trocar o rótulo e o documento da mesma aplicação
+            # quando o lançamento provisório é consolidado dias depois.
+            # Para este produto, data + valor formam a identidade estável.
+            if lancamento in ROTULOS_FUNDO_BB and valor < 0:
+                base = f"{data.isoformat()}|FUNDO_BB_RF_LP_SELIC|{valor:.2f}"
+            else:
+                base = f"{data_raw}|{lancamento}|{numero_documento}|{valor_raw}|{detalhes}"
             registros.append({
                 "data": data,
                 "data_raw": data_raw,
@@ -76,6 +93,21 @@ def ler_csv(caminho, opcoes):
                 "tipo_lancamento": campo(row, "Tipo Lançamento"),
                 "dedup_hash": hashlib.md5(base.encode("utf-8")).hexdigest(),
             })
+
+    motivos_saldo = []
+    if len(saldos_anteriores) != 1 or len(saldos_finais) != 1:
+        motivos_saldo.append(
+            "extrato deve conter exatamente um Saldo Anterior e um S A L D O"
+        )
+    elif saldos_anteriores[0] is None or saldos_finais[0] is None:
+        motivos_saldo.append("saldo anterior ou saldo final inválido")
+    elif abs(
+        saldos_anteriores[0] + total_movimentos - saldos_finais[0]
+    ) > 0.01:
+        motivos_saldo.append(
+            "saldo final não confere com saldo anterior + movimentos"
+        )
+    adicionar_rejeicao(rejeicoes, 1, motivos_saldo)
 
     periodo = validar_leitura(
         registros=registros,

@@ -506,6 +506,20 @@ no repositório.
 - O mesmo padrão de corte foi aplicado ao braço `bb`: `raw_bb` só entra após o
   fim do histórico BB (16/07/2025), permitindo importar os extratos BB de
   jul-dez/2025 sem duplicar a quinzena já coberta.
+- Em `raw_bb`, os débitos `Aplicação Fundo BB` e `BB RF LP Selic` usam uma
+  identidade canônica por data e valor. O BB altera rótulo e documento quando
+  consolida a aplicação; usar o hash literal fazia uma reexportação contar o
+  mesmo movimento duas vezes. A correção e a limpeza pontual estão na migration
+  `20260801000000_bb_fundo_nao_duplica_reexportacao.sql`.
+- A mesma migration passou a validar cada extrato BB pela equação `Saldo
+  Anterior + movimentos = S A L D O`. As linhas de saldo continuam fora de
+  `fato_financeiro`, mas deixam de ser descartadas antes de comprovar a
+  integridade do arquivo; ausência, valor inválido ou diferença rejeitam a
+  carga inteira nos caminhos web e Python.
+- Na importação web, `private.parse_bb` ainda reconstrói o saldo BB pela mesma
+  âncora usada no painel, soma somente os hashes novos do arquivo e compara o
+  resultado ao `S A L D O` do extrato. A carga é rejeitada antes do `INSERT` se
+  o arquivo fechar internamente, mas divergir do saldo que o painel exibiria.
 - O `de_para` ganhou chaves de nome das contas do próprio grupo (Sir Fisher,
   Sirfisher, Sir Fisher Pub, Sir Fisher Imprensa, BS, Hemile/Inter), todas
   mapeando para Transferencia entre Contas, e 12 créditos históricos

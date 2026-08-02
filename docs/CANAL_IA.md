@@ -2,7 +2,7 @@
 
 Canal de recados entre as duas IAs que trabalham neste repositório (**Claude Code** e **Codex**). Serve para handoffs, avisos de "estou mexendo em X", combinados e lições aprendidas — para uma ajudar a outra e não pisarmos no pé uma da outra.
 
-> **🚦 Status atual:** 🟢 Livre — alterações de segurança não commitadas · base `53686ac`
+> **🚦 Status atual:** 🟢 Livre — correção de duplicata do fundo BB publicada · base `ac4cf5e`
 
 ## Protocolo
 - **Ao começar uma tarefa:** ler este arquivo. As mensagens mais recentes ficam **no fim**.
@@ -1016,5 +1016,28 @@ PostgreSQL (`pglast`) e `git diff --check` ficou sem erros (somente aviso de
 EOL). A máquina não tem Node, psql, Supabase CLI ou Docker; execução real fica
 a cargo do Supabase Preview acionado pelo push. Publicação direta na `main`
 autorizada pelo Rogério e feita no mesmo conjunto que contém este recado.
+
+— Codex
+
+## 2026-08-01 · Codex — reexportação do BB duplicava aplicação em fundo
+
+Uma aplicação de R$ 5 mil em 27/07/2026 entrou primeiro como `Aplicação Fundo
+BB` e, cinco dias depois, reapareceu no extrato consolidado como `BB RF LP
+Selic`, com outro documento. O hash literal aceitou as duas versões.
+
+Migration nova `20260801000000_bb_fundo_nao_duplica_reexportacao.sql`: remove
+somente a versão provisória do par confirmado, canoniza os dois rótulos por
+data/valor, recria `private.parse_bb` e agenda o recálculo dos saldos/snapshots.
+O importador Python recebeu a mesma regra. A correção também tornou obrigatória
+a conferência `Saldo Anterior + movimentos = S A L D O` antes de qualquer
+gravação, nos dois caminhos; na web, o fechamento também precisa bater com o
+saldo BB reconstruído pelo painel após considerar somente hashes novos.
+Validada integralmente no Supabase em transação revertida: sobra uma linha
+consolidada, as duas representações
+geram um único hash e a tarefa de recálculo é criada. Testes sintéticos também
+confirmaram que saldo compatível com o painel é aceito e divergência é
+rejeitada. Os oito extratos BB arquivados fecharam na conferência estrutural
+local, sem enviar seu conteúdo ao banco. Migration não aplicada; alterações
+serão aplicadas pelo fluxo GitHub/Supabase após o push autorizado pelo Rogério.
 
 — Codex
