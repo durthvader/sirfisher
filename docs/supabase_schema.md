@@ -568,14 +568,20 @@ no repositório.
   então os débitos para o CPF não podem ter ido para ela.
 
 ### Classificação automática por tipo de lançamento (fontes vivas)
-- O `fato_financeiro` classifica em duas etapas: primeiro o `de_para` pelo nome
-  da contraparte, depois regras por **tipo de lançamento** específicas de cada
-  origem. Em geral, o `de_para` tem precedência. A exceção documentada em
-  `20260802000000_credito_pix_nao_herda_pessoal.sql` são créditos `Pix` da
-  Stone cujo pagador está mapeado para o grupo `PESSOAL`: como o movimento é
-  uma venda recebida, a categoria é `PIX`/`RECEITAS`; débitos para a mesma
-  pessoa continuam seguindo o `de_para`. Transferências próprias, análise
-  individual e ajustes manuais preservam precedência.
+- O `fato_financeiro` classifica em duas etapas: primeiro encontra o `de_para`
+  pelo nome da contraparte e depois aplica regras por **tipo de lançamento**
+  específicas de cada origem. Em geral, o `de_para` tem precedência, com duas
+  exceções Stone documentadas em
+  `20260803000000_creditos_stone_por_tipo_e_analise.sql`:
+  - crédito `Transação` é venda e usa `Transação`/`RECEITAS`, mesmo quando o
+    pagador também possui categoria de despesa nos pagamentos;
+  - crédito `Pix` que herdaria uma categoria de natureza `Despesa` não é
+    adivinhado como venda nem mantido automaticamente como redução da despesa:
+    vai para `Análise individual`, onde pode ser marcado como receita,
+    devolução/reembolso, transferência ou entrada não operacional.
+  Transferências próprias, fornecedores explicitamente marcados para análise
+  individual e ajustes manuais preservam precedência. Débitos continuam
+  seguindo normalmente o `de_para`.
 - As regras por tipo existem porque, em algumas fontes, o nome da contraparte é
   o cliente que pagou — e não um fornecedor recorrente. Sem elas, cada cliente
   novo vira uma exceção nova e a fila de `classificar_excecoes.html` cresce a

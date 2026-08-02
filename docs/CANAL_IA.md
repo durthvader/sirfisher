@@ -1069,3 +1069,17 @@ classificação e `git diff --check`. Migration não aplicada diretamente; segue
 pelo fluxo GitHub/Supabase após o push.
 
 — Codex
+
+## 2026-08-02 · Codex — créditos Stone separados por tipo
+
+Migration `20260803000000_creditos_stone_por_tipo_e_analise.sql`: crédito Stone
+`Transação` agora vence o `de_para` e entra como `Transação`/`RECEITAS`; crédito
+`Pix` que herdaria categoria de natureza `Despesa` passa para análise individual.
+Transferências próprias, indicação explícita de análise e ajustes manuais seguem
+com precedência. `analise_individual.html` passou a oferecer também categorias
+de despesa para crédito Pix, permitindo registrar devolução/reembolso, e o texto
+da página explica a nova fila. Simulação somente-leitura confirmou 271 vendas
+(R$ 6.380,70) corrigidas e 12 Pix (R$ 23.549,42) enviados para análise. Migration
+não aplicada diretamente; segue pelo fluxo GitHub/Supabase.
+
+— Codex

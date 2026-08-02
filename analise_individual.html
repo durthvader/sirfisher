@@ -24,7 +24,7 @@
     <nav class="tabs"><a href="./">Visão Geral</a><a href="vendas.html">Faturamento</a><a href="caixa.html">Caixa</a><a href="dre.html">DRE</a><a href="despesas.html">Despesas</a><a href="conciliacao.html">Conciliação</a><a href="planejamento.html">Planejamento</a><a href="rotinas.html" class="routines">Rotinas</a></nav>
   </header>
   <main id="main">
-    <div class="page-intro"><div><h2>Análise individual</h2><p>Transações de fornecedores marcados como "analisar individual". Cada uma é classificada à parte. <b id="contador">—</b></p></div></div>
+    <div class="page-intro"><div><h2>Análise individual</h2><p>Lançamentos cuja natureza não pode ser decidida automaticamente, incluindo créditos Pix que podem ser venda, devolução ou transferência. Cada um é classificado à parte. <b id="contador">—</b></p></div></div>
     <div class="panel"><div id="content"><div class="loading">Carregando…</div></div></div>
     <div class="panel classification-panel">
       <div class="panel-head"><div><h3>Classificações recentes</h3><div class="hint">Corrija a categoria ou desfaça um ajuste por transação.</div></div></div>
@@ -99,11 +99,14 @@ function linha(tx, categorias){
   const el = document.createElement('div');
   el.className = 'op-row';
 
-  // Filtra as categorias pela natureza da transacao:
-  // Despesa -> Despesa + Contabil + Ambos ; Receita -> Receita + Contabil + Ambos
-  const permitidas = tx.natureza === 'Receita'
-    ? ['Receita', 'Contabil', 'Ambos']
-    : ['Despesa', 'Contabil', 'Ambos'];
+  // Crédito Pix pode ser venda, devolução de despesa, transferência ou entrada
+  // não operacional. Nesse caso, todas as naturezas precisam estar disponíveis.
+  const ehCreditoPix = tx.natureza === 'Receita' && tx.tipo === 'Pix';
+  const permitidas = ehCreditoPix
+    ? ['Receita', 'Despesa', 'Contabil', 'Ambos']
+    : tx.natureza === 'Receita'
+      ? ['Receita', 'Contabil', 'Ambos']
+      : ['Despesa', 'Contabil', 'Ambos'];
   const cats = categorias.filter(c => permitidas.includes(c.natureza));
   const opcoes = cats.map(c =>
     `<option value="${esc(c.categoria)}">${esc(c.categoria)} · ${esc(c.dre_grupo)}</option>`
