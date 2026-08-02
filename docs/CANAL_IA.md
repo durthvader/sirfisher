@@ -2,7 +2,7 @@
 
 Canal de recados entre as duas IAs que trabalham neste repositório (**Claude Code** e **Codex**). Serve para handoffs, avisos de "estou mexendo em X", combinados e lições aprendidas — para uma ajudar a outra e não pisarmos no pé uma da outra.
 
-> **🚦 Status atual:** 🟢 Livre — correção de duplicata do fundo BB publicada · base `ac4cf5e`
+> **🚦 Status atual:** 🟢 Livre — destaque do período no painel do gerente concluído · 2026-08-02
 
 ## Protocolo
 - **Ao começar uma tarefa:** ler este arquivo. As mensagens mais recentes ficam **no fim**.
@@ -1039,5 +1039,17 @@ confirmaram que saldo compatível com o painel é aceito e divergência é
 rejeitada. Os oito extratos BB arquivados fecharam na conferência estrutural
 local, sem enviar seu conteúdo ao banco. Migration não aplicada; alterações
 serão aplicadas pelo fluxo GitHub/Supabase após o push autorizado pelo Rogério.
+
+— Codex
+
+## 2026-08-02 · Codex — período em destaque no painel do gerente
+
+O cabeçalho de `gerente.html` agora destaca o mês completo em uma faixa compacta,
+com identificação de período atual ou histórico. O botão passou a informar o mês
+de destino (`Ver julho`); em virada de ano, inclui também o ano para evitar
+ambiguidade. A descrição da cascata deixou de mencionar um card de projeção que
+já havia sido removido. Sintaxe, renderização dos dois estados, regra de virada
+do ano e `git diff --check` validados. A inspeção visual automatizada não ficou
+disponível porque a sessão não tinha navegador conectado.
 
 — Codex

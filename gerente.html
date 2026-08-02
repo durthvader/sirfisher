@@ -37,6 +37,11 @@
   .legenda span{display:flex;align-items:center;gap:6px;}
   .legenda i{width:14px;height:10px;border-radius:2px;display:inline-block;}
   .gerente-intro{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;}
+  .gerente-periodo{display:inline-flex;align-items:center;gap:7px;flex-wrap:wrap;margin:7px 0 6px;padding:7px 9px;border:1px solid rgba(0,166,166,.22);border-radius:8px;background:#f4fbfa;}
+  .gerente-periodo-label{font-size:9px;font-weight:700;letter-spacing:.45px;text-transform:uppercase;color:var(--muted);}
+  .gerente-periodo strong{font-size:16px;line-height:1;color:var(--header);}
+  .gerente-periodo-status{padding:3px 6px;border-radius:999px;background:#dff3f0;color:#087b7b;font-size:8.5px;font-weight:700;letter-spacing:.35px;text-transform:uppercase;}
+  .gerente-periodo-status.historico{background:#eeeae0;color:#746440;}
   .gerente-intro .button{white-space:nowrap;}
   @media (max-width:430px){.summary-card .value{font-size:21px;}.gerente-intro{flex-direction:column;}.gerente-intro .button{align-self:flex-start;}}
 </style>
@@ -62,6 +67,7 @@ let mesAtualPainel=null;
 
 function hojeISO(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function nomeMes(anoMes){return MESES[+anoMes.slice(5,7)-1]+' de '+anoMes.slice(0,4);}
+function nomeMesBotao(anoMes,anoMesReferencia){const nome=MESES[+anoMes.slice(5,7)-1].toLocaleLowerCase('pt-BR');return anoMes.slice(0,4)===anoMesReferencia.slice(0,4)?nome:nome+' de '+anoMes.slice(0,4);}
 function mesAnterior(anoMes){const ano=Number(anoMes.slice(0,4)),mes=Number(anoMes.slice(5,7));return mes===1?(ano-1)+'-12':ano+'-'+String(mes-1).padStart(2,'0');}
 function ddmm(iso){return iso.slice(8,10)+'/'+iso.slice(5,7);}
 function abrevK0(v){if(v==null||v===0)return '';if(Math.abs(v)>=1000)return Math.round(v/1000)+'K';return String(Math.round(v));}
@@ -141,10 +147,10 @@ function render(cur,rowsHist,dias,gastos,horas,saldoVar,cascata){
   const vendoAnterior=cur.ano_mes!==mesAtualPainel;
   const acaoMes=vendoAnterior
     ?'<button type="button" class="button secondary" id="btnMesAtual">Voltar ao mês atual</button>'
-    :(podeVerAnterior?'<button type="button" class="button secondary" id="btnMesAnterior">Ver mês anterior</button>':'');
+    :(podeVerAnterior?'<button type="button" class="button secondary" id="btnMesAnterior" aria-label="Ver '+esc(nomeMes(anterior).toLocaleLowerCase('pt-BR'))+'">Ver '+esc(nomeMesBotao(anterior,cur.ano_mes))+'</button>':'');
 
   document.getElementById('main').innerHTML=`
-    <div class="page-intro gerente-intro"><div><h2>Painel do Gerente</h2><p>Resumo operacional de ${esc(nomeMes(cur.ano_mes))}: acompanhamento de meta, caixa, resultado realizado e movimento para organizar salão e cozinha.</p></div>${acaoMes}</div>
+    <div class="page-intro gerente-intro"><div><h2>Painel do Gerente</h2><div class="gerente-periodo" aria-label="Período exibido: ${esc(nomeMes(cur.ano_mes))}"><span class="gerente-periodo-label">Mês exibido</span><strong>${esc(nomeMes(cur.ano_mes))}</strong><span class="gerente-periodo-status${vendoAnterior?' historico':''}">${vendoAnterior?'Histórico':'Atual'}</span></div><p>Resumo operacional: acompanhamento de meta, caixa, resultado realizado e movimento para organizar salão e cozinha.</p></div>${acaoMes}</div>
     <div class="summary-grid">
       <div class="summary-card"><div class="label">${esc(labelDia)}</div><div class="value" title="Valor exato: ${rs(vendaDia)}">${brl(vendaDia)}</div><div class="hint">${metaDia!=null?'Meta do dia: '+brl(metaDia)+(percDia!=null?' · '+pct(percDia):''):'Sem meta definida para o dia'}</div></div>
       <div class="summary-card"><div class="label">Ticket médio</div><div class="value">${rs(cur.ticket_medio)}</div><div class="hint">${(cur.qtd_vendas||0).toLocaleString('pt-BR')} vendas no mês</div></div>
@@ -159,7 +165,7 @@ function render(cur,rowsHist,dias,gastos,horas,saldoVar,cascata){
       <div class="chart-wrap h-day"><canvas id="chartDia"></canvas></div>
     </section>
 
-    <section class="panel"><div class="panel-head"><div><h3>Cascata do resultado realizado</h3><div class="hint">Acumulada até o corte, em percentual da receita realizada. Não inclui a projeção de fechamento exibida acima.</div></div></div>
+    <section class="panel"><div class="panel-head"><div><h3>Cascata do resultado realizado</h3><div class="hint">Acumulada até o corte, em percentual da receita realizada. Não inclui projeção de fechamento.</div></div></div>
       <div class="chart-wrap h-cascata"><canvas id="chartCascata"></canvas></div>
       <div class="legenda">
         <span><i style="background:${C.header}"></i>Subtotal</span>
