@@ -38,8 +38,11 @@ três páginas administrativas permanecem exclusivas do admin.
   e situação do usuário;
 - `public.definir_permissao_pagina(text, text[])`: alteração das permissões de
   página;
-- policies de `ajuste_manual`, `de_para` e `venda_especie`: escrita restrita a
-  usuários autenticados e autorizados.
+- policies de `de_para` e `venda_especie`: escrita direta restrita a usuários
+  autenticados e autorizados;
+- `ajuste_manual`: leitura direta limitada por RLS e toda escrita centralizada
+  em RPCs `SECURITY DEFINER` que validam a página correspondente. Usuários
+  `authenticated` não possuem `INSERT`, `UPDATE` nem `DELETE` na tabela.
 
 ## Configuração do provedor Google
 
@@ -90,12 +93,13 @@ em uma nova migration, sem editar nem reaplicar manualmente migrations antigas.
 
 A guarda de rota em `assets/auth.js` melhora a navegação, mas não é a fronteira
 de segurança. Desde `20260788000000`, as views `app_*`, RPCs operacionais e
-policies de escrita ligadas às páginas configuráveis também consultam
+policies de escrita remanescentes ligadas às páginas configuráveis consultam
 `pagina_permissao` no servidor. Assim, remover uma página de um papel bloqueia
 tanto a tela quanto chamadas diretas à Data API. Quando um endpoint é realmente
 compartilhado, ele autoriza se ao menos uma das páginas consumidoras estiver
 liberada; operações que misturam tipos, como classificações, validam a página
-correspondente a cada tipo.
+correspondente a cada tipo. Desde `20260810000000`, as alterações de
+`ajuste_manual` são exclusivamente feitas pelas RPCs protegidas.
 
 ## Validação mínima
 

@@ -2,7 +2,7 @@
 
 Canal de recados entre as duas IAs que trabalham neste repositório (**Claude Code** e **Codex**). Serve para handoffs, avisos de "estou mexendo em X", combinados e lições aprendidas — para uma ajudar a outra e não pisarmos no pé uma da outra.
 
-> **🚦 Status atual:** 🟢 Livre — créditos PIX de venda separados de PESSOAL · 2026-08-02
+> **🚦 Status atual:** 🟢 Livre — revisão diária pronta, sem commit/push · 2026-08-03
 
 ## Protocolo
 - **Ao começar uma tarefa:** ler este arquivo. As mensagens mais recentes ficam **no fim**.
@@ -1186,5 +1186,33 @@ Migration `20260809000000_despesas_acessa_projecoes.sql`: inclui
 valores calculados nem dados financeiros. JavaScript inline, estrutura da
 migration e `git diff --check` passaram. Navegador não estava conectado para
 QA visual; migration não foi aplicada diretamente e segue pelo fluxo GitHub.
+
+— Codex
+
+## 2026-08-03 · Codex — revisão diária e auditável de transações
+
+Criada `transacoes_dia.html`, com seleção por data, totais, filtros locais,
+paginação completa e edição individual da categoria. A tela mostra a origem da
+classificação, restaura a regra vigente, mantém histórico com autor e desfazer,
+e abre diretamente a decisão correspondente quando a transação pertence a um
+estorno confirmado. A rotina entrou em navegação, permissões e deploy Pages;
+acesso inicial para `socio`.
+
+A migration `20260810000000_revisao_diaria_transacoes.sql` cria as views/RPCs
+protegidas e o histórico privado. Somente `ajuste_manual` muda; dados importados
+permanecem intactos. Escrita direta autenticada nessa tabela foi retirada. Uma
+garantia diferida preserva as duas pontas de estornos ativos, e a migration para
+com erro explícito se já houver decisão inconsistente — não corrige dado
+financeiro silenciosamente. `ANALISAR INDIVIDUAL` não pode ser gravada como
+categoria final nesta rotina; observações ficam privadas e só um token de
+concorrência chega ao navegador. O refresh dos painéis segue assíncrono e
+coalescido.
+
+Passaram `check_project.py`, parser SQL/PLpgSQL (51 statements), parse dos 23
+scripts inline e 6 externos em Node, testes de lógica/paginação (501 linhas em
+2 lotes), acessibilidade/contratos e `git diff --check`. O teste de importação
+também passou e os scripts não foram alterados. O navegador integrado não
+estava disponível para QA visual. Migration não aplicada diretamente; sem
+commit ou push.
 
 — Codex

@@ -42,7 +42,8 @@ no repositório.
 
 ### categoria_dre
 - Tipo: tabela de categorias DRE
-- Uso: alimenta `analise_individual.html` e `classificar_excecoes.html`
+- Uso: alimenta `analise_individual.html`, `classificar_excecoes.html` e
+  `transacoes_dia.html`
 - Propósito: define categorias e grupos DRE para classificação das transações.
 - Colunas importantes:
   - `categoria`
@@ -51,10 +52,14 @@ no repositório.
 
 ### ajuste_manual
 - Tipo: tabela de ajustes manuais
-- Uso: `analise_individual.html`, por meio das RPCs de classificação
+- Uso: `analise_individual.html` e `transacoes_dia.html`, por meio das RPCs de
+  classificação
 - Propósito: registra classificações manuais que foram aplicadas a transações emergenciais.
-- Segurança: RLS de leitura e escrita consulta a permissão de
-  `analise_individual.html`; as RPCs repetem o gate antes de operar.
+- Segurança: a leitura direta por RLS continua ligada a
+  `analise_individual.html`, mas `authenticated` não possui `INSERT`, `UPDATE`
+  nem `DELETE` direto. Todas as alterações passam por RPCs `SECURITY DEFINER`
+  com o gate da página correspondente; nenhuma das duas páginas recebe acesso
+  irrestrito à tabela.
 - Colunas importantes:
   - `id`
   - `origem`
@@ -254,7 +259,9 @@ no repositório.
 - Uso: `analise_individual.html` e `classificar_excecoes.html`
 - Propósito: listar o estado atual das classificações, corrigir categorias e
   desfazer regras ou ajustes sem criar uma tabela de histórico.
-- A view combina registros ativos de `de_para` e `ajuste_manual`.
+- A view combina registros ativos de `de_para` e `ajuste_manual`. Ajustes que
+  pertencem a um `estorno_confirmado` ativo ficam fora do ramo individual,
+  porque são gerenciados exclusivamente pela conciliação contábil.
 - RPCs disponíveis:
   - `classificar_excecao(text, text, text, text)`;
   - `classificar_transacao(text, bigint, text)`;
@@ -262,6 +269,43 @@ no repositório.
   - `desfazer_classificacao(text, bigint)`.
 - Todas validam o papel autenticado; correção e desfazer atuam sobre o estado
   atual e não preservam versões anteriores.
+
+### Revisão diária das classificações
+- Criada em `20260810000000_revisao_diaria_transacoes.sql` para
+  `transacoes_dia.html`.
+- `app_transacoes_dia` expõe os lançamentos de `fato_financeiro` por
+  `data_caixa`, com categoria final, grupo DRE, situação e origem da
+  classificação (`manual`, `automatica`, `base_historica` ou `pendente`). A
+  identidade continua sendo o par `(origem, raw_id)`. O documento da
+  contraparte não é exposto porque a rotina não o utiliza.
+- A edição altera somente `ajuste_manual`. Valor, data, contraparte,
+  movimentação e tabelas `raw_*` permanecem imutáveis. Restaurar remove o
+  override e volta para a regra/base vigente, que também pode resultar em uma
+  pendência.
+- `private.transacao_classificacao_historico` guarda autor, horário, categoria
+  final e estado completo do ajuste antes/depois. Não há acesso direto; a view
+  protegida `app_transacoes_dia_historico` exibe o histórico usando
+  `private.nome_exibicao_usuario(uuid)` e indica quando o desfazer ainda é
+  compatível com o estado atual.
+- RPCs `SECURITY DEFINER`, todas protegidas pela permissão configurável de
+  `transacoes_dia.html`:
+  - `salvar_classificacao_transacao_dia(...)`;
+  - `restaurar_classificacao_transacao_dia(...)`;
+  - `desfazer_classificacao_transacao_dia(bigint)`.
+- As RPCs usam comparação otimista de categoria, timestamp e observação para
+  recusar uma tela desatualizada; a observação não sai na Data API, somente um
+  token de comparação. `ANALISAR INDIVIDUAL` não é aceita como categoria final
+  nesta rotina. Mudanças seguidas compartilham uma tarefa `somente_refresh`
+  pendente; o worker atualiza as materialized views em segundo plano sem
+  recalcular saldo e sem segurar a resposta do navegador.
+- Uma ponta coberta por decisão ativa de `estorno_confirmado` fica bloqueada em
+  qualquer caminho de escrita. Constraint triggers diferidos validam no fim da
+  transação que ambas as pontas continuam como `estornado`, sem impedir que a
+  própria conciliação confirme ou desfaça as duas alterações atomicamente. A
+  decisão deve ser desfeita primeiro em `conciliacao_contabil.html`. Antes de
+  instalar os triggers, a migration valida as decisões já ativas e interrompe
+  com erro explícito se encontrar alguma inconsistência; não há correção
+  silenciosa de classificação financeira.
 
 ### painel_dre_cascata
 - Tipo: painel / view agregada
@@ -873,8 +917,12 @@ no repositório.
 
 ## Tabelas / views que alimentam os painéis HTML
 - `analise_individual` → `analise_individual.html`
-- `categoria_dre` → `analise_individual.html`, `classificar_excecoes.html`
-- `ajuste_manual` → estado atual dos ajustes feitos em `analise_individual.html`
+- `categoria_dre` → `analise_individual.html`, `classificar_excecoes.html`,
+  `transacoes_dia.html`
+- `ajuste_manual` → estado atual dos ajustes feitos em
+  `analise_individual.html` e `transacoes_dia.html`
+- `app_transacoes_dia` / `app_transacoes_dia_historico` → conferência e
+  histórico de `transacoes_dia.html`
 - `painel_saldo_atual` → `caixa.html`, `index.html`
 - `painel_saldo_fim_mes` → `caixa.html`, `index.html`
 - `painel_fluxo_caixa` → `caixa.html`

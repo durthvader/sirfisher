@@ -20,6 +20,7 @@
     'calendario.html',
     'rotinas.html',
     'analise_individual.html',
+    'transacoes_dia.html',
     'classificar_excecoes.html',
     'venda_especie.html',
     'contas_recorrentes.html',

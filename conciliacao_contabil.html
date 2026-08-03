@@ -27,6 +27,7 @@
   .decision-note{display:block;margin-top:5px;color:var(--muted)}
   .row-value.positive{color:var(--green)}.row-value.negative{color:var(--red)}
   .period-note{font-size:10.5px;color:var(--muted);margin-top:-10px;margin-bottom:15px}
+  .deep-link-target{outline:3px solid rgba(0,166,166,.35);outline-offset:-3px;background:#f2fbfb}
   @media(max-width:720px){.head-meta{align-items:flex-end;flex-direction:column}.data-table{min-width:980px}}
 </style>
 </head>
@@ -47,6 +48,11 @@ const MESES=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agos
 const STATUS_ESTORNO=new Set(['estorno_forte','estorno_provavel','estorno_analise']);
 const STATUS_RESOLVIDO=new Set(['estorno_confirmado','descartado']);
 const STATUS_ALERTA=new Set(['sem_contrapartida','ambiguo','classificacao_divergente',...STATUS_ESTORNO]);
+const FILTROS_VALIDOS=new Set(['alertas','estornos','resolvidos','todos','conciliados','informativos']);
+const query=new URLSearchParams(window.location.search);
+const requestedMonth=/^\d{4}-\d{2}$/.test(query.get('mes')||'')?query.get('mes'):null;
+const requestedFilter=FILTROS_VALIDOS.has(query.get('filtro'))?query.get('filtro'):null;
+const requestedDecision=/^\d+$/.test(query.get('decisao')||'')?query.get('decisao'):null;
 let RESUMO=[];
 
 function nomeMes(anoMes){return MESES[Number(anoMes.slice(5,7))-1]+' de '+anoMes.slice(0,4);}
@@ -93,25 +99,31 @@ async function montarSeletor(){
   const hoje=new Date();
   const corrente=hoje.getFullYear()+'-'+String(hoje.getMonth()+1).padStart(2,'0');
   const passados=meses.filter(mes=>mes<=corrente);
-  const selecionado=meses.includes(corrente)?corrente:(passados.at(-1)||meses.at(-1));
+  const padrao=meses.includes(corrente)?corrente:(passados.at(-1)||meses.at(-1));
+  const selecionado=requestedMonth&&meses.includes(requestedMonth)?requestedMonth:padrao;
   const seletor=document.getElementById('anoMesSel');
   seletor.innerHTML=meses.slice().reverse().map(mes=>`<option value="${mes}">${esc(nomeMes(mes))}</option>`).join('');
   seletor.value=selecionado;
   seletor.onchange=()=>renderMes(seletor.value);
-  await renderMes(selecionado);
+  await renderMes(selecionado,{filter:requestedFilter,decisionId:requestedDecision});
 }
 
-async function renderMes(anoMes){
+async function renderMes(anoMes,navigation){
   const main=document.getElementById('main');
   main.innerHTML='<div class="loading">Auditando '+esc(nomeMes(anoMes))+'…</div>';
-  const [movimentosResult,decisoesResult]=await Promise.all([
+  const targetQuery=navigation&&navigation.decisionId
+    ?sb.from('app_conciliacao_contabil_decisoes').select('*').eq('id',navigation.decisionId).maybeSingle()
+    :Promise.resolve({data:null,error:null});
+  const [movimentosResult,decisoesResult,targetResult]=await Promise.all([
     sb.from('app_conciliacao_contabil').select('*').eq('ano_mes',anoMes).order('data_caixa',{ascending:false}).order('valor',{ascending:true}).limit(500),
-    sb.from('app_conciliacao_contabil_decisoes').select('*').eq('ano_mes',anoMes).order('decidido_em',{ascending:false}).limit(50)
+    sb.from('app_conciliacao_contabil_decisoes').select('*').eq('ano_mes',anoMes).order('decidido_em',{ascending:false}).limit(50),
+    targetQuery
   ]);
-  const error=movimentosResult.error||decisoesResult.error;
+  const error=movimentosResult.error||decisoesResult.error||targetResult.error;
   if(error){main.innerHTML='<div class="erro">Não foi possível carregar a conciliação: '+esc(error.message)+'</div>';return;}
   const rows=movimentosResult.data||[];
-  const decisoes=decisoesResult.data||[];
+  const decisoes=[...(decisoesResult.data||[])];
+  if(targetResult.data&&targetResult.data.ano_mes===anoMes&&!decisoes.some(item=>String(item.id)===String(targetResult.data.id)))decisoes.push(targetResult.data);
   const zera=rows.filter(row=>row.espera_zerar);
   const conciliados=zera.filter(row=>row.status_conciliacao==='conciliado');
   const alertas=zera.filter(row=>STATUS_ALERTA.has(row.status_conciliacao));
@@ -131,6 +143,12 @@ async function renderMes(anoMes){
   const detalhes=[...avulsos,...pares.values()].sort((a,b)=>{
     return prioridade(a)-prioridade(b)||Math.abs(Number(b.valor))-Math.abs(Number(a.valor));
   });
+  const targetDecisionId=navigation&&navigation.decisionId?String(navigation.decisionId):null;
+  const decisoesHtml=decisoes.map((item,index)=>{
+    const focused=targetDecisionId===String(item.id);
+    const marker=focused?` id="decisao-${esc(String(item.id))}" class="deep-link-target" tabindex="-1"`:'';
+    return `<tr${marker}><td>${esc(new Date(item.decidido_em).toLocaleString('pt-BR'))}</td><td><span class="status ${item.ativa?'ok':'neutral'}">${esc(item.decisao==='estorno_confirmado'?'Estorno confirmado':'Não relacionados')}${item.ativa?'':' · desfeita'}</span></td><td>${esc(origemLabel(item.origem_a))} · ${fmtData(item.data_a)} · ${rs(item.valor_a)}<br>${esc(item.contraparte_a||'—')}</td><td>${esc(origemLabel(item.origem_b))} · ${fmtData(item.data_b)} · ${rs(item.valor_b)}<br>${esc(item.contraparte_b||'—')}</td><td>${esc(item.decidido_por_nome||'—')}</td><td>${item.ativa?`<button class="button danger history-undo" data-index="${index}" type="button">Desfazer</button>`:'—'}</td></tr>`;
+  }).join('')||'<tr><td colspan="6" class="empty">Nenhuma decisão neste mês.</td></tr>';
 
   main.innerHTML=`
     <div class="page-intro"><div><h2>Conciliação contábil</h2><p>Confira os pares e conclua cada caso como estorno ou como movimentos não relacionados.</p></div><button id="reload" class="button secondary">Atualizar</button></div>
@@ -155,7 +173,7 @@ async function renderMes(anoMes){
       <div class="explain-card"><h3>Limite dos extratos</h3><p>BB e Inter não fornecem horário; nesses bancos o painel usa data, valor, contraparte e descrição, mantendo o resultado como provável ou para análise.</p></div>
     </div>
     <section class="panel"><div class="panel-head"><div><h3>Movimentos de ${esc(nomeMes(anoMes))}</h3><div class="hint">Cada possível estorno aparece uma vez, com as duas pontas e as ações disponíveis.</div></div><select id="statusFiltro" class="field"><option value="alertas">Somente alertas</option><option value="estornos">Possíveis estornos</option><option value="resolvidos">Resolvidos</option><option value="todos">Todos</option><option value="conciliados">Conciliados</option><option value="informativos">Informativos</option></select></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Data e hora</th><th>Status</th><th>Conta</th><th>Categoria atual</th><th>Contraparte</th><th class="right">Valor</th><th>Possível par / decisão</th></tr></thead><tbody id="movimentosBody"></tbody></table></div></section>
-    <section class="panel"><div class="panel-head"><div><h3>Decisões do mês</h3><div class="hint">Histórico auditável; decisões ativas podem ser desfeitas.</div></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Quando</th><th>Decisão</th><th>Primeira ponta</th><th>Segunda ponta</th><th>Responsável</th><th>Ação</th></tr></thead><tbody id="decisoesBody">${decisoes.map((item,index)=>`<tr><td>${esc(new Date(item.decidido_em).toLocaleString('pt-BR'))}</td><td><span class="status ${item.ativa?'ok':'neutral'}">${esc(item.decisao==='estorno_confirmado'?'Estorno confirmado':'Não relacionados')}${item.ativa?'':' · desfeita'}</span></td><td>${esc(origemLabel(item.origem_a))} · ${fmtData(item.data_a)} · ${rs(item.valor_a)}<br>${esc(item.contraparte_a||'—')}</td><td>${esc(origemLabel(item.origem_b))} · ${fmtData(item.data_b)} · ${rs(item.valor_b)}<br>${esc(item.contraparte_b||'—')}</td><td>${esc(item.decidido_por_nome||'—')}</td><td>${item.ativa?`<button class="button danger history-undo" data-index="${index}" type="button">Desfazer</button>`:'—'}</td></tr>`).join('')||'<tr><td colspan="6" class="empty">Nenhuma decisão neste mês.</td></tr>'}</tbody></table></div></section>
+    <section class="panel"><div class="panel-head"><div><h3>Decisões do mês</h3><div class="hint">Histórico auditável; decisões ativas podem ser desfeitas.</div></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Quando</th><th>Decisão</th><th>Primeira ponta</th><th>Segunda ponta</th><th>Responsável</th><th>Ação</th></tr></thead><tbody id="decisoesBody">${decisoesHtml}</tbody></table></div></section>
     <section class="panel"><div class="panel-head"><div><h3>Histórico mensal</h3><div class="hint">Saldo e quantidade de alertas dos movimentos que deveriam zerar.</div></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Mês</th><th class="right">Créditos</th><th class="right">Débitos</th><th class="right">Saldo</th><th class="right">Alertas</th></tr></thead><tbody>${[...new Set(RESUMO.map(row=>row.ano_mes))].sort().reverse().map(mes=>{const itens=linhaResumoMes(mes);const acionaveis=itens.filter(row=>STATUS_ALERTA.has(row.status_conciliacao));const cred=soma(itens.filter(row=>row.status_conciliacao!=='informativo'),'creditos');const deb=soma(itens.filter(row=>row.status_conciliacao!=='informativo'),'debitos');const liq=cred+deb;return`<tr><td>${esc(nomeMes(mes))}</td><td class="right">${rs(cred)}</td><td class="right">${rs(deb)}</td><td class="right" style="color:${Math.abs(liq)>.01?'var(--red)':'var(--green)'}">${rs(liq)}</td><td class="right">${soma(acionaveis,'qtd').toLocaleString('pt-BR')}</td></tr>`;}).join('')}</tbody></table></div></section>`;
 
   const body=document.getElementById('movimentosBody');
@@ -165,11 +183,16 @@ async function renderMes(anoMes){
     body.querySelectorAll('.pair-action').forEach(button=>button.onclick=()=>executarAcao(filtrados[Number(button.dataset.index)],button.dataset.action,anoMes,button));
   }
   const filtro=document.getElementById('statusFiltro');
-  filtro.value=alertas.length?'alertas':'todos';
+  filtro.value=navigation&&FILTROS_VALIDOS.has(navigation.filter)?navigation.filter:(alertas.length?'alertas':'todos');
   filtro.onchange=()=>desenhar(filtro.value);
-  document.getElementById('reload').onclick=()=>renderMes(anoMes);
+  document.getElementById('reload').onclick=()=>renderMes(anoMes,navigation);
   document.querySelectorAll('.history-undo').forEach(button=>button.onclick=()=>desfazerDecisao(decisoes[Number(button.dataset.index)],anoMes,button));
   desenhar(filtro.value);
+  if(targetDecisionId){
+    const target=document.getElementById('decisao-'+targetDecisionId);
+    if(target){requestAnimationFrame(()=>{target.scrollIntoView({behavior:'smooth',block:'center'});target.focus({preventScroll:true});});}
+    else toast('A decisão indicada não foi encontrada neste mês.',true);
+  }
 }
 
 async function executarAcao(row,acao,anoMes,button){

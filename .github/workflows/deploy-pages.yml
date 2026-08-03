@@ -58,6 +58,7 @@ jobs:
             planejamento.html \
             rotinas.html \
             status.html \
+            transacoes_dia.html \
             usuarios.html \
             venda_especie.html \
             _site/
@@ -100,6 +101,7 @@ jobs:
             planejamento.html \
             rotinas.html \
             status.html \
+            transacoes_dia.html \
             usuarios.html \
             venda_especie.html \
             vendas.html)"
