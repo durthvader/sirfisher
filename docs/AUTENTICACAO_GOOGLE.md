@@ -38,8 +38,11 @@ três páginas administrativas permanecem exclusivas do admin.
   e situação do usuário;
 - `public.definir_permissao_pagina(text, text[])`: alteração das permissões de
   página;
-- policies de `de_para` e `venda_especie`: escrita direta restrita a usuários
-  autenticados e autorizados;
+- `de_para`: leitura pelo endpoint protegido e toda escrita centralizada em
+  RPCs `SECURITY DEFINER`; `authenticated` não possui `INSERT`, `UPDATE` nem
+  `DELETE` direto, para não contornar auditoria, prévia e controle otimista;
+- policies de `venda_especie`: escrita direta restrita a usuários autenticados
+  e autorizados;
 - `ajuste_manual`: leitura direta limitada por RLS e toda escrita centralizada
   em RPCs `SECURITY DEFINER` que validam a página correspondente. Usuários
   `authenticated` não possuem `INSERT`, `UPDATE` nem `DELETE` na tabela.
@@ -99,7 +102,10 @@ tanto a tela quanto chamadas diretas à Data API. Quando um endpoint é realment
 compartilhado, ele autoriza se ao menos uma das páginas consumidoras estiver
 liberada; operações que misturam tipos, como classificações, validam a página
 correspondente a cada tipo. Desde `20260810000000`, as alterações de
-`ajuste_manual` são exclusivamente feitas pelas RPCs protegidas.
+`ajuste_manual` são exclusivamente feitas pelas RPCs protegidas. Desde
+`20260811000000`, o mesmo vale para `de_para`: a fila de exceções e o
+`gerenciador_de_para.html` escrevem pelas RPCs auditadas, e cada endpoint do
+gerenciador confere no servidor a permissão configurável dessa página.
 
 ## Validação mínima
 

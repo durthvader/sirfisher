@@ -184,7 +184,9 @@ no repositório.
 
 ### de_para
 - Tipo: tabela de mapeamento
-- Uso: `classificar_excecoes.html` para inserir novas regras de classificação
+- Uso: `classificar_excecoes.html` para inserir novas regras e
+  `gerenciador_de_para.html` para procurar, editar, ativar, desativar e
+  restaurar regras existentes
 - Propósito: armazena categorias automáticas/manuais para fornecedores.
 - Colunas importantes:
   - `id`
@@ -205,6 +207,46 @@ no repositório.
   convenção ao criar regra nova: chaves diferentes do mesmo fornecedor continuam
   surgindo e, com grafias divergentes, o relatório volta a quebrar em várias
   linhas. Contas do próprio grupo seguem o padrão `Sir Fisher - <conta>`.
+- Desde `20260811000000`, `authenticated` não possui DML direto nem acesso à
+  sequence de `de_para`. Todas as mudanças passam pelas RPCs protegidas e pelo
+  trigger de auditoria. A chave `(chave_tipo, chave_valor)` fica imutável na
+  rotina; a remoção operacional é uma desativação, preservando a identidade e
+  o histórico.
+- A alteração é retroativa apenas nas fontes vivas usadas por
+  `fato_financeiro` e vale para importações futuras. `raw_historico` continua
+  congelado: `sincronizar_historico_de_para()` não é chamado automaticamente.
+  `ajuste_manual` mantém precedência sobre a categoria da regra.
+
+### Gerenciador De/Para
+- Criado em `20260811000000_gerenciador_de_para.sql` para
+  `gerenciador_de_para.html`, com permissão de página independente e seed
+  inicial para `socio`.
+- `app_gerenciador_de_para` expõe o estado atual e um token calculado sobre a
+  versão exata da regra. `listar_regras_de_para(...)` oferece busca server-side
+  por apelido, chave original/CNPJ ou categoria, filtros e paginação explícita.
+- `prever_alteracao_de_para(...)` faz duas leituras do `fato_financeiro`
+  canônico dentro da mesma transação. A função aplica a proposta em uma
+  subtransação e força seu rollback depois da segunda fotografia; assim a
+  prévia respeita CNPJ antes de nome, regras especiais por origem e tipo e
+  ajustes individuais, sem persistir a simulação nem duplicar o grande `CASE`
+  classificatório. O retorno separa classificações, rótulos, entradas, saídas,
+  período e transições.
+- `salvar_regra_de_para(...)` exige o mesmo token revisado na prévia, mantém a
+  chave imutável e altera somente apelido, categoria e situação. O apelido é
+  obrigatório para evitar fornecedor em branco nos relatórios. Conflitos de
+  edição concorrente falham sem sobrescrever o estado mais novo. A confirmação
+  recalcula a fotografia de impacto e também falha se lançamentos ou ajustes
+  mudaram depois da revisão feita pelo usuário.
+- `private.de_para_historico` recebe INSERT/UPDATE/DELETE por trigger, inclusive
+  quando a mudança nasce nas RPCs antigas de `classificar_excecoes.html`. A
+  view `app_gerenciador_de_para_historico` mostra os snapshots e libera
+  `desfazer_regra_de_para(bigint)` somente para o último evento ainda compatível.
+  Desfazer uma criação restaura exatamente a inexistência anterior da linha; é
+  a única exclusão física do fluxo e ocorre sob lock, vinculada ao evento
+  auditado. Alterações normais continuam usando ativação/desativação.
+- Salvar ou desfazer chama `private.agendar_refresh_classificacoes(date)`: a
+  mudança aparece imediatamente no fato normal e as materialized views são
+  atualizadas pela fila assíncrona já existente.
 
 ### mv_despesa_diaria / listar_ranking_fornecedor
 - Tipo: materialized view + função `SECURITY DEFINER`
@@ -257,8 +299,9 @@ no repositório.
 ### app_classificacoes_recentes e RPCs de classificação
 - Tipo: view protegida e funções `SECURITY DEFINER`
 - Uso: `analise_individual.html` e `classificar_excecoes.html`
-- Propósito: listar o estado atual das classificações, corrigir categorias e
-  desfazer regras ou ajustes sem criar uma tabela de histórico.
+- Propósito: listar o estado atual das classificações antigas. O ramo
+  individual continua sendo usado por `analise_individual.html`; a edição de
+  regras por fornecedor foi movida para `gerenciador_de_para.html`.
 - A view combina registros ativos de `de_para` e `ajuste_manual`. Ajustes que
   pertencem a um `estorno_confirmado` ativo ficam fora do ramo individual,
   porque são gerenciados exclusivamente pela conciliação contábil.
@@ -267,8 +310,11 @@ no repositório.
   - `classificar_transacao(text, bigint, text)`;
   - `corrigir_classificacao(text, bigint, text)`;
   - `desfazer_classificacao(text, bigint)`.
-- Todas validam o papel autenticado; correção e desfazer atuam sobre o estado
-  atual e não preservam versões anteriores.
+- Todas validam a permissão da página correspondente. Desde `20260811000000`,
+  alterações do ramo `excecao` entram em `private.de_para_historico` e desfazer
+  pela fila restaura apenas o evento do próprio usuário, criado nos últimos 10
+  minutos e ainda compatível. O gerenciador desfaz pelo ID exato do histórico;
+  o ramo individual mantém seu comportamento anterior.
 
 ### Revisão diária das classificações
 - Criada em `20260810000000_revisao_diaria_transacoes.sql` para
@@ -918,7 +964,7 @@ no repositório.
 ## Tabelas / views que alimentam os painéis HTML
 - `analise_individual` → `analise_individual.html`
 - `categoria_dre` → `analise_individual.html`, `classificar_excecoes.html`,
-  `transacoes_dia.html`
+  `transacoes_dia.html`, `gerenciador_de_para.html`
 - `ajuste_manual` → estado atual dos ajustes feitos em
   `analise_individual.html` e `transacoes_dia.html`
 - `app_transacoes_dia` / `app_transacoes_dia_historico` → conferência e
@@ -934,8 +980,13 @@ no repositório.
 - `painel_cargas` → `caixa.html`, `dre.html`, `index.html`, `vendas.html`
 - `painel_saldo_por_conta` → `caixa.html`
 - `excecoes` → `classificar_excecoes.html`
-- `de_para` → estado atual das regras criadas em `classificar_excecoes.html`
-- `app_classificacoes_recentes` → correção e desfazer nas duas páginas de classificação
+- `de_para` → estado atual das regras criadas em `classificar_excecoes.html` e
+  mantidas em `gerenciador_de_para.html`
+- `app_gerenciador_de_para` / `listar_regras_de_para(...)` → consulta das
+  regras em `gerenciador_de_para.html`
+- `app_gerenciador_de_para_historico` → histórico e desfazer do De/Para
+- `app_classificacoes_recentes` → histórico operacional da classificação
+  individual e compatibilidade com os fluxos antigos
 - `painel_dre_cascata` → `dre.html`, `index.html`
 - `painel_resumo_mensal` → `index.html`, `vendas.html`, `dre.html`, `despesas.html`
 - `painel_composicao_despesa` → `index.html`

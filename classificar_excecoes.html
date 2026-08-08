@@ -26,14 +26,14 @@
   <main id="main">
     <div class="page-intro"><div><h2>Classificar exceções</h2><p>Fornecedores novos no extrato que ainda não têm categoria. O primeiro campo é como o fornecedor aparece nos relatórios: troque pelo apelido ou pelo produto (Uber, Ambev, Coco) para agrupar os lançamentos — o nome do extrato continua guardado. <b id="contador">—</b></p></div></div>
     <div class="panel"><div id="content"><div class="loading">Carregando…</div></div></div>
-    <div class="panel classification-panel">
-      <div class="panel-head"><div><h3>Classificações recentes</h3><div class="hint">Corrija a categoria ou desfaça uma regra criada anteriormente.</div></div></div>
-      <div id="classificacoesRecentes"><div class="loading">Carregando…</div></div>
+    <div id="managerPanel" class="panel" hidden>
+      <div class="panel-head"><div><h3>Precisa alterar uma regra existente?</h3><div class="hint">Use o gerenciador para procurar fornecedor, revisar o impacto, editar a categoria ou desativar uma regra com histórico completo.</div></div><a class="button secondary" href="gerenciador_de_para.html">Abrir Gerenciador De/Para</a></div>
     </div>
+    <div id="classificationUndoState" hidden></div>
   </main>
 </div>
 
-<div class="toast" id="toast"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script>
 const sb=SirFisherSupabase;
@@ -200,17 +200,18 @@ function linha(exc, categorias){
   return el;
 }
 
-SirFisherAuth.requireRole(sb).then(ctx=>{
+SirFisherAuth.requireRole(sb).then(async ctx=>{
   if(!ctx)return;
-  carregar();
   SirFisherClassifications.init({
     sb,
-    targetId:'classificacoesRecentes',
+    targetId:'classificationUndoState',
     escape:esc,
     notify:toast,
     onChanged:carregar,
     filterType:'excecao'
   });
+  carregar();
+  if(await SirFisherAuth.pageAllowsRole(sb,'gerenciador_de_para.html',ctx.role))document.getElementById('managerPanel').hidden=false;
 });
 </script>
 </body>

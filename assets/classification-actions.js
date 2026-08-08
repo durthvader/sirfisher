@@ -158,6 +158,9 @@
       bar = document.createElement('div');
       bar.id = 'classificationUndo';
       bar.className = 'classification-undo';
+      bar.setAttribute('role', 'status');
+      bar.setAttribute('aria-live', 'polite');
+      bar.setAttribute('aria-atomic', 'true');
       document.body.appendChild(bar);
     }
     clearTimeout(undoTimer);

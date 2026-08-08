@@ -45,6 +45,7 @@ jobs:
             dre.html \
             despesas.html \
             gerente.html \
+            gerenciador_de_para.html \
             analise_individual.html \
             classificar_excecoes.html \
             conciliacao.html \
@@ -91,6 +92,7 @@ jobs:
             contas_recorrentes.html \
             despesas.html \
             dre.html \
+            gerenciador_de_para.html \
             gerente.html \
             importar.html \
             index.html \

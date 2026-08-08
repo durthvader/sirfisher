@@ -22,6 +22,7 @@
     'analise_individual.html',
     'transacoes_dia.html',
     'classificar_excecoes.html',
+    'gerenciador_de_para.html',
     'venda_especie.html',
     'contas_recorrentes.html',
     'conciliacao_contabil.html',
