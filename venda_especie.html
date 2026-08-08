@@ -39,6 +39,12 @@
     </div>
 
     <div class="panel">
+      <div class="panel-head"><div><h3>Conferência com o Banco do Brasil</h3><div class="hint" id="conferenciaHint">Compara o que foi marcado como depositado com os depósitos em dinheiro que entraram no extrato.</div></div></div>
+      <div class="conferencia-saldo" id="conferenciaSaldo"><div class="detalhe">Carregando…</div></div>
+      <div id="conferenciaLotes" class="op-list"></div>
+    </div>
+
+    <div class="panel">
       <div class="panel-head"><div><h3>Registrar data anterior</h3><div class="hint">Use quando a data desejada não aparecer mais na lista acima.</div></div></div>
       <div class="actions">
         <input type="date" id="novaData" class="field">
@@ -113,8 +119,176 @@ function atualizarResponsaveisRecolhido(recolhidos){
   el.innerHTML='Recolhido, pendente de depósito: '+partes.join(' · ');
 }
 
+const STATUS_CONFERENCIA={
+  conferido:{classe:'ok',rotulo:'Confere'},
+  falta_no_banco:{classe:'bad',rotulo:'Falta no banco'},
+  sobra_no_banco:{classe:'warn',rotulo:'Sobra no banco'},
+  sem_extrato:{classe:'neutral',rotulo:'Extrato ainda não importado'},
+  sem_lote:{classe:'warn',rotulo:'Depósito sem sangria marcada'}
+};
+
+// As datas da conferência vêm como 'YYYY-MM-DD'. new Date() nessa string
+// assume UTC e volta um dia no fuso do Brasil, por isso o parse manual.
+function fmtDia(iso){
+  return iso ? fmtDataLabel(iso).label : '—';
+}
+
+async function carregarConferencia(){
+  const [resumo,lotes,ajustes]=await Promise.all([
+    sb.from('app_conferencia_deposito_especie_resumo').select('*').maybeSingle(),
+    sb.from('app_conferencia_deposito_especie').select('*').order('data',{ascending:false}),
+    sb.from('app_conferencia_deposito_ajustes').select('*').is('desfeito_em',null)
+  ]);
+  const erro=resumo.error||lotes.error||ajustes.error;
+  if(erro){
+    document.getElementById('conferenciaSaldo').innerHTML='<div class="detalhe">Não foi possível carregar a conferência: '+esc(erro.message)+'</div>';
+    return;
+  }
+  renderResumoConferencia(resumo.data);
+  renderLotesConferencia(lotes.data||[],ajustes.data||[]);
+}
+
+function renderResumoConferencia(r){
+  const el=document.getElementById('conferenciaSaldo');
+  if(!r){
+    el.className='conferencia-saldo';
+    el.innerHTML='<div class="detalhe">Nenhum depósito no período conferido.</div>';
+    return;
+  }
+  const dif=Number(r.diferenca)||0;
+  const zerado=Math.abs(dif)<0.005;
+  el.className='conferencia-saldo '+(zerado?'ok':'alerta');
+  const partes=[
+    'Painel marcou <strong>'+esc(fmtMoeda(r.marcado_depositado))+'</strong>',
+    'banco recebeu <strong>'+esc(fmtMoeda(r.recebido_banco))+'</strong>'
+  ];
+  if(Number(r.ajustes_justificados)){
+    partes.push('justificado <strong>'+esc(fmtMoeda(r.ajustes_justificados))+'</strong>');
+  }
+  el.innerHTML=`
+    <div>
+      <div class="label">Diferença acumulada</div>
+      <div class="valor">${esc(fmtMoeda(dif))}</div>
+    </div>
+    <div class="detalhe">
+      ${partes.join(' · ')}.<br>
+      Conferido desde ${esc(fmtDia(r.desde))} · extrato importado até <strong>${esc(fmtDia(r.extrato_ate))}</strong>.
+    </div>`;
+}
+
+function renderLotesConferencia(lotes,ajustes){
+  const el=document.getElementById('conferenciaLotes');
+  el.innerHTML='';
+  if(!lotes.length){
+    el.innerHTML='<div class="conf-vazio">Nenhum lote de depósito no período conferido.</div>';
+    return;
+  }
+  const porData={};
+  ajustes.forEach(a=>{(porData[a.data]=porData[a.data]||[]).push(a);});
+  lotes.forEach(l=>el.appendChild(linhaConferencia(l,porData[l.data]||[])));
+}
+
+function linhaConferencia(lote,ajustes){
+  const el=document.createElement('div');
+  el.className='op-row';
+  const dif=Number(lote.diferenca)||0;
+  const zerado=Math.abs(dif)<0.005;
+  const st=STATUS_CONFERENCIA[lote.status]||STATUS_CONFERENCIA.conferido;
+  const lanc=`${lote.qtd_lancamentos} lançamento${lote.qtd_lancamentos===1?'':'s'} no extrato`;
+  const detalhe=lote.qtd_sangrias
+    ? `${lote.qtd_sangrias} sangria${lote.qtd_sangrias===1?'':'s'} · ${lanc}`
+    : `${lanc}, sem sangria marcada`;
+  const justificativas=ajustes.map(a=>`
+      <div class="conf-justificativa">
+        <span>Justificado <strong>${esc(fmtMoeda(a.valor))}</strong>: ${esc(a.motivo)}</span>
+        <span>— ${esc(a.criado_por_nome||'autor não registrado')}</span>
+        <button type="button" class="conf-desfazer" data-ajuste="${a.id}">desfazer</button>
+      </div>`).join('');
+
+  el.innerHTML=`
+    <div class="info">
+      <div class="nome">${esc(fmtDia(lote.data))}</div>
+      <div class="meta"><span>${esc(detalhe)}</span><span class="status ${st.classe}">${esc(st.rotulo)}</span></div>
+      ${justificativas}
+    </div>
+    <div class="direita">
+      <div class="conf-valores">
+        <span>Painel<strong>${esc(fmtMoeda(lote.marcado))}</strong></span>
+        <span>Banco<strong>${esc(fmtMoeda(lote.extrato))}</strong></span>
+        <span class="dif${zerado?' zero':''}">Diferença<strong>${esc(fmtMoeda(dif))}</strong></span>
+      </div>
+      ${zerado?'':'<button type="button" class="button secondary justificar">Justificar</button>'}
+    </div>`;
+
+  const btnJustificar=el.querySelector('button.justificar');
+  if(btnJustificar){
+    btnJustificar.addEventListener('click',()=>abrirJustificativa(el,lote,dif,btnJustificar));
+  }
+  el.querySelectorAll('.conf-desfazer').forEach(btn=>{
+    btn.addEventListener('click',()=>desfazerJustificativa(btn.dataset.ajuste,btn));
+  });
+
+  return el;
+}
+
+function abrirJustificativa(el,lote,dif,btnJustificar){
+  if(el.querySelector('.conf-form'))return;
+  btnJustificar.disabled=true;
+  const form=document.createElement('div');
+  form.className='conf-form';
+  form.innerHTML=`
+    <input type="text" maxlength="200" placeholder="Por que ${esc(fmtMoeda(Math.abs(dif)))} não bateu?">
+    <button type="button" class="button confirmar">Registrar</button>
+    <button type="button" class="button secondary cancelar">Cancelar</button>`;
+  el.appendChild(form);
+
+  const input=form.querySelector('input');
+  const confirmar=form.querySelector('button.confirmar');
+  const cancelar=form.querySelector('button.cancelar');
+  const fechar=()=>{form.remove();btnJustificar.disabled=false;};
+
+  cancelar.addEventListener('click',fechar);
+  input.addEventListener('keydown',e=>{
+    if(e.key==='Enter')confirmar.click();
+    if(e.key==='Escape')fechar();
+  });
+  confirmar.addEventListener('click',async()=>{
+    const motivo=(input.value||'').trim();
+    if(!motivo){toast('Descreva o motivo da diferença.',true);input.focus();return;}
+    confirmar.disabled=true;
+    cancelar.disabled=true;
+    const {error}=await sb.rpc('registrar_ajuste_conferencia_deposito',{
+      p_data:lote.data,
+      p_valor:dif,
+      p_motivo:motivo
+    });
+    if(error){
+      toast('Não registrou: '+error.message,true);
+      confirmar.disabled=false;
+      cancelar.disabled=false;
+      return;
+    }
+    toast('Diferença justificada.');
+    carregarConferencia();
+  });
+  input.focus();
+}
+
+async function desfazerJustificativa(id,btn){
+  btn.disabled=true;
+  const {error}=await sb.rpc('desfazer_ajuste_conferencia_deposito',{p_id:Number(id)});
+  if(error){
+    toast('Não desfez: '+error.message,true);
+    btn.disabled=false;
+    return;
+  }
+  toast('Justificativa desfeita.');
+  carregarConferencia();
+}
+
 async function carregar(){
   document.getElementById('novaData').value = hojeISO();
+  carregarConferencia();
 
   // últimos 14 dias (de hoje pra trás), unidade PRAIA
   const dias = [];

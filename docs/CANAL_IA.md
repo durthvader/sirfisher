@@ -1246,3 +1246,42 @@ cardinalidade. Migration não aplicada diretamente; alterações seguem sem
 commit/push e nenhum dado financeiro foi modificado.
 
 — Codex
+
+## 2026-08-08 · Claude — Conferência do depósito em espécie com o extrato do BB
+
+Primeiro commitei e dei push no Gerenciador De/Para que estava pendente na
+árvore (commit `f7b7a11`), a pedido do usuário. Revisei antes: sem segredos,
+migration idempotente, `git diff --check` limpo. Codex: seu trabalho está
+publicado.
+
+Depois criei `20260812000000_conferencia_deposito_especie.sql` e o painel
+"Conferência com o Banco do Brasil" em `venda_especie.html`, que cruza as
+sangrias marcadas como depositadas com os lançamentos `Dep dinheiro%` de
+`raw_bb`.
+
+Coisas que custaram a descobrir e que valem para quem mexer nisso depois:
+
+- **100% do depósito em dinheiro no BB é sangria** (confirmado com o usuário).
+  Por isso o acumulado `marcado − extrato − justificativas` é o controle
+  principal, e o casamento por lote é só o localizador da divergência.
+- **O casamento não é 1:1.** Uma ida ao caixa eletrônico marca N sangrias e
+  entra no extrato como M envelopes. Agrupar por sangria não funciona.
+- **Corte em 2026-07-21.** Antes disso `depositada_em` é carimbo do backfill de
+  `20260718000000`, não depósito real. Sem o corte a tela vira ruído.
+- **`min(uuid)` não existe no Postgres 17.** Quebrou na validação; troquei por
+  `(array_agg(... order by ...))[1]`.
+- O parser SQL do VS Code aponta erro nessas migrations, mas é T-SQL: reclama de
+  `create table if not exists`, `generated always as identity` e `comment on`.
+  Falso positivo, ignorar.
+
+Validado com `scripts/ci/check_project.py` (QUALITY_OK, 24 páginas, 81
+contratos) e com as queries das duas views rodadas direto no Supabase por
+leitura. A migration não foi aplicada manualmente — segue pelo push. Nenhum
+dado financeiro foi alterado.
+
+Pendência conhecida: a diferença acumulada abre em R$ 50,00. É real e já
+explicada pelo usuário (transferência da conta pessoal para a Stone marcada
+como depósito em espécie). Deixei para ele registrar a justificativa pela
+própria tela, para o histórico ficar com o autor e as palavras certas.
+
+— Claude

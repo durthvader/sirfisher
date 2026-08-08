@@ -834,6 +834,51 @@ no repositório.
   de `mv_saldo_caixa_diario_detalhado`, por job temporário e auto-removível. A
   ação não executa o refresh pesado do painel e não mantém cron permanente.
 
+### Conferência do depósito em espécie
+
+- Criada em `20260812000000_conferencia_deposito_especie.sql` para o painel
+  "Conferência com o Banco do Brasil" em `venda_especie.html`.
+- Regra de negócio confirmada com o usuário: **100% do dinheiro em espécie
+  recolhido no quiosque é depositado no BB**, então todo lançamento
+  `Dep dinheiro%` de `raw_bb` corresponde a sangria. É isso que torna o saldo
+  acumulado o controle mais forte — ele independe de acertar de qual dia veio
+  cada nota.
+- O casamento é **por lote, não 1:1 por sangria**: várias sangrias são marcadas
+  como depositadas na mesma sessão (uma ida ao caixa eletrônico) e o mesmo
+  dinheiro entra no extrato fatiado em vários envelopes, por causa do limite do
+  ATM. O lote é detectado por intervalo maior que 10 minutos entre marcações
+  consecutivas de `depositada_em`.
+- Cada lançamento do extrato entra em um único lote: o mais próximo dentro da
+  janela D−1 a D+2, resolvido por `distinct on` para não contar o mesmo
+  lançamento duas vezes. A janela cobre depósito noturno creditado no dia
+  seguinte e marcação feita alguns dias depois da ida ao banco.
+- **Data de corte `2026-07-21`** em todas as views: antes disso `depositada_em`
+  é carimbo do backfill de `20260718000000`, que preencheu o campo com a própria
+  data da sangria para fechar o ciclo dos registros antigos. Sem o corte a tela
+  mostraria centenas de divergências falsas e perderia a serventia de alarme.
+- `app_conferencia_deposito_especie_resumo` é o alarme: `marcado − extrato −
+  justificativas`. Também expõe `extrato_ate`, porque sem essa data um depósito
+  recente aparece como "não chegou no banco" quando o atrasado é o extrato.
+- `app_conferencia_deposito_especie` é o localizador, um registro por lote, com
+  status `conferido`, `falta_no_banco`, `sobra_no_banco`, `sem_extrato` e
+  `sem_lote`. O último marca dinheiro que entrou no BB sem sangria marcada.
+- `conferencia_deposito_ajuste` guarda as justificativas de divergência, com
+  motivo obrigatório, autor e momento. Sem essa válvula uma diferença explicada
+  ficaria no acumulado para sempre, o painel viveria vermelho e o alarme
+  deixaria de alarmar. Convenção de sinal: valor positivo explica marcado que
+  não entrou no BB; negativo explica entrada no BB sem sangria marcada.
+- Escrita apenas por `registrar_ajuste_conferencia_deposito(date, numeric, text)`
+  e `desfazer_ajuste_conferencia_deposito(bigint)`, ambas validando
+  `usuario_pode_acessar_pagina('venda_especie.html')`. A tabela tem RLS ligado
+  sem policy (nega tudo por padrão) e `authenticated` não possui DML direto.
+  Desfazer preserva a linha e registra quem desfez: nada de exclusão física em
+  trilha de auditoria.
+- `min(uuid)` não existe no Postgres 17; o responsável do lote sai de
+  `(array_agg(depositada_por order by depositada_em))[1]`.
+- A conferência é somente leitura sobre `venda_especie` e `raw_bb`: não altera
+  sangria, não gera lançamento financeiro e não dispara refresh de materialized
+  view.
+
 ### conta_recorrente / conta_recorrente_pagamento
 - Tipo: cadastro operacional e histórico mensal de contas recorrentes.
 - Uso: `contas_recorrentes.html`.
@@ -997,6 +1042,8 @@ no repositório.
 - `listar_calendario_financeiro(date)` → `calendario.html`
 - `listar_despesas_dia(date)` → `calendario.html`
 - `venda_especie` → `venda_especie.html`
+- `app_conferencia_deposito_especie`, `app_conferencia_deposito_especie_resumo`
+  e `app_conferencia_deposito_ajustes` → `venda_especie.html`
 - `conta_recorrente` / `conta_recorrente_pagamento` → `contas_recorrentes.html`
 - `app_contas_recorrentes_pagamentos` / `app_contas_recorrentes_totais` → histórico e gráfico de `contas_recorrentes.html`
 - `painel_recebimento_resumo` → `vendas.html`
