@@ -30,48 +30,56 @@ const sb=SirFisherSupabase;
 const ROTINAS=[
   {
     pagina:'classificar_excecoes.html',
+    tom:'tom-excecoes',
     icone:'<path d="M20.59 13.41 11 3.83A2 2 0 0 0 9.59 3.24H4a1 1 0 0 0-1 1v5.59a2 2 0 0 0 .59 1.41l9.58 9.59a2 2 0 0 0 2.83 0l4.59-4.59a2 2 0 0 0 0-2.83Z"/><circle cx="7.5" cy="7.5" r="1.2" fill="currentColor" stroke="none"/>',
     titulo:'Classificar exceções',
     texto:'Fornecedores novos no extrato que ainda não têm categoria definida.'
   },
   {
     pagina:'gerenciador_de_para.html',
+    tom:'tom-depara',
     icone:'<path d="M4 7h10M4 17h10"/><path d="m11 4 3 3-3 3M20 14l-3 3 3 3"/>',
     titulo:'Gerenciar De/Para',
     texto:'Pesquise regras por fornecedor, confira o impacto e altere categoria, apelido ou situação.'
   },
   {
     pagina:'analise_individual.html',
+    tom:'tom-analise',
     icone:'<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
     titulo:'Análise individual',
     texto:'Transações marcadas para análise separada, classificadas uma a uma.'
   },
   {
     pagina:'transacoes_dia.html',
+    tom:'tom-revisao',
     icone:'<path d="M8 6h13M8 12h13M8 18h13"/><path d="m3 6 1 1 2-2M3 12l1 1 2-2M3 18l1 1 2-2"/>',
     titulo:'Revisão diária',
     texto:'Confira todas as transações de uma data e ajuste classificações pontuais.'
   },
   {
     pagina:'venda_especie.html',
+    tom:'tom-especie',
     icone:'<path d="M2 7h20v10H2z"/><circle cx="12" cy="12" r="2.5"/>',
     titulo:'Venda em espécie',
     texto:'Lançamento diário do valor de vendas recebidas em dinheiro.'
   },
   {
     pagina:'contas_recorrentes.html',
+    tom:'tom-recorrentes',
     icone:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18M8 14h3M8 17h6"/>',
     titulo:'Contas recorrentes',
     texto:'Vencimentos, pagamentos, médias e histórico mensal das despesas recorrentes.'
   },
   {
     pagina:'conciliacao_contabil.html',
+    tom:'tom-conciliacao',
     icone:'<path d="M4 7h16M4 17h16"/><path d="m7 4-3 3 3 3M17 14l3 3-3 3"/>',
     titulo:'Conciliação contábil',
     texto:'Confere transferências e estornos que deveriam possuir uma perna oposta.'
   },
   {
     pagina:'importar.html',
+    tom:'tom-importar',
     icone:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5-5 5 5"/><path d="M12 5v13"/>',
     titulo:'Importar dados',
     texto:'Carrega os CSV da Stone pelo site, sem precisar dos scripts na máquina.'
@@ -88,7 +96,7 @@ const ROTINAS=[
   const main=document.getElementById('main');
   main.innerHTML=`
     <div class="page-intro"><div><h2>Rotinas</h2><p>Ferramentas do dia a dia da operação. Escolha uma rotina abaixo. Novas rotinas aparecem aqui conforme forem adicionadas.</p></div></div>
-    <div class="routine-grid">${permitidas.map(r=>`<a class="routine-card" data-pagina="${r.pagina}">
+    <div class="routine-grid">${permitidas.map(r=>`<a class="routine-card ${r.tom}" data-pagina="${r.pagina}">
         <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${r.icone}</svg></div>
         <h3>${r.titulo}</h3>
         <p>${r.texto}</p>

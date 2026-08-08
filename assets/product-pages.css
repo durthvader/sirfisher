@@ -47,9 +47,21 @@ header{background:var(--header);color:#fff;position:sticky;top:0;z-index:10}
 .muted{color:var(--muted)}
 .tabs a.routines{margin-left:auto;padding-left:16px;border-left:1px solid #21465a}
 .routine-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:15px}
-.routine-card{display:block;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px;text-decoration:none;color:var(--text);transition:border-color .15s,transform .15s}
-.routine-card:hover{border-color:var(--teal);transform:translateY(-1px)}
-.routine-card .icon{width:34px;height:34px;border-radius:9px;background:var(--teal);color:#fff;display:flex;align-items:center;justify-content:center;margin-bottom:12px}
+.routine-card{--tom:var(--teal);display:block;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px;text-decoration:none;color:var(--text);transition:border-color .15s,transform .15s}
+.routine-card:hover{border-color:var(--tom);transform:translateY(-1px)}
+.routine-card .icon{width:34px;height:34px;border-radius:9px;background:var(--tom);color:#fff;display:flex;align-items:center;justify-content:center;margin-bottom:12px}
+/* Cor por rotina, para bater o olho e achar. Famílias: as quatro rotinas de
+   classificação vão de teal a roxo, dinheiro em verde/âmbar, conferência em
+   laranja e importação no navy do cabeçalho. Todas passam de 3:1 contra o
+   traço branco do ícone (WCAG 1.4.11). */
+.routine-card.tom-excecoes{--tom:#0f7d8c}
+.routine-card.tom-depara{--tom:#2f6fb0}
+.routine-card.tom-analise{--tom:#5a5bc4}
+.routine-card.tom-revisao{--tom:#8146b3}
+.routine-card.tom-especie{--tom:#2e7d5b}
+.routine-card.tom-recorrentes{--tom:#a2701a}
+.routine-card.tom-conciliacao{--tom:#c0562a}
+.routine-card.tom-importar{--tom:#12313f}
 .routine-card .icon svg{width:18px;height:18px}
 .routine-card h3{font-size:14.5px;margin-bottom:4px}
 .routine-card p{font-size:11.5px;color:var(--muted);line-height:1.5}
