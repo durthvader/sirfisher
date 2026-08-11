@@ -2,7 +2,7 @@
 
 ## Entregas
 
-- `usuarios.html`: gestão de contas Google e papéis, exclusiva para admin;
+- `usuarios.html`: gestão de contas Google e papéis, exclusiva para `admin`;
 - `status.html`: cobertura, atraso e última importação das quatro fontes,
   exclusiva para admin;
 - `conciliacao.html`: conciliação Stone entre venda e recebível;
@@ -14,14 +14,14 @@
 
 E-mails continuam sendo propriedade de `auth.users`; não são duplicados em
 `perfil_usuario`. A leitura administrativa ocorre por função no schema
-`private`, com `search_path` fixo e validação do papel `gestor`.
+`private`, com `search_path` fixo e validação do papel `admin`.
 
 A escrita usa `public.definir_acesso_usuario()`. A função:
 
-- aceita somente os papéis `gestor` e `operador`;
-- exige que o chamador seja gestor ativo;
+- aceita somente os papéis `admin`, `socio` e `gerente`;
+- exige que o chamador seja admin ativo;
 - valida a existência do usuário no Supabase Auth;
-- impede desativar ou rebaixar o último gestor ativo;
+- impede desativar ou rebaixar o último admin ativo;
 - não exclui usuários nem históricos.
 
 ## Qualidade das cargas
@@ -68,6 +68,5 @@ A migration `20260703200000_fase5_qualidade_produto.sql` cria os endpoints:
 
 Todos os endpoints são negados a `PUBLIC` e `anon`; `authenticated` recebe
 somente os grants necessários. Desde a migration de 3 papéis, `app_usuarios_acesso`
-e `app_status_cargas` validam o papel `admin`; `app_conciliacao_stone_resumo`,
-`app_conciliacao_stone` e `app_painel_meta_real_mensal` validam `admin` ou
-`gestor`.
+e `app_status_cargas` validam o papel `admin`; os demais endpoints validam a
+permissão configurável da página, normalmente concedida a `admin` e `socio`.
