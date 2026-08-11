@@ -1511,4 +1511,10 @@ Na retomada, as migrations até `20260818050000` foram aplicadas. A
 somente esse terminador antes do `CREATE OR REPLACE VIEW`. A validação de
 igualdade da `fato_financeiro` permanece inalterada.
 
+A auditoria pós-deploy também detectou que o papel somente leitura do MCP não
+tinha `EXECUTE` nas novas auxiliares chamadas pelas views. A migration
+`20260818070000` restaura apenas `unidade_principal_nome()` e
+`parametro_valor(text, numeric)` para `supabase_read_only_user`, seguindo o
+mesmo padrão condicional da `20260740000000`, sem permissão de escrita.
+
 — Codex

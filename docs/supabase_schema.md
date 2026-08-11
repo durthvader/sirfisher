@@ -1147,6 +1147,9 @@ no repositório.
 - Antes de consolidar os vínculos existentes, a migration registra em
   `private.migracao_unidade_unica_backup_20260818` um snapshot privado dos IDs,
   unidades e contas que serão alterados, sem copiar valores financeiros.
+- O papel `supabase_read_only_user` recebe `EXECUTE` somente nas auxiliares
+  `unidade_principal_nome()` e `parametro_valor(text, numeric)`. Isso permite ao
+  conector MCP ler as views parametrizadas sem conceder qualquer escrita.
 
 ## Observações
 - O front-end autenticado usa views `app_*` e RPCs protegidas; tabelas internas
