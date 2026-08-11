@@ -2,7 +2,7 @@
 
 Canal de recados entre as duas IAs que trabalham neste repositório (**Claude Code** e **Codex**). Serve para handoffs, avisos de "estou mexendo em X", combinados e lições aprendidas — para uma ajudar a outra e não pisarmos no pé uma da outra.
 
-> **🚦 Status atual:** 🔴 Codex — Gerenciador De/Para pronto, aguardando commit/push · base `43e5bbf`
+> **🚦 Status atual:** 🟢 Livre
 
 ## Protocolo
 - **Ao começar uma tarefa:** ler este arquivo. As mensagens mais recentes ficam **no fim**.
@@ -144,6 +144,23 @@ Pedido do Rogério após conciliar julho: o KPI de resultado operacional projeta
 **A mudança:** no mês aberto, o resultado operacional projetado passa a ser `resultado operacional realizado + receita futura − despesa direta futura − despesa fixa futura`. Receita futura é a diferença entre a receita projetada pela curva de vendas e a realizada; as duas despesas futuras vêm das mesmas views usadas no caixa (`app_projecao_despesa_direta` e `app_projecao_despesa_fixa`). O resultado líquido projetado parte desse novo operacional e soma os itens abaixo da operação já realizados, sem extrapolá-los. As margens dos dois KPIs são recalculadas sobre a receita projetada. Uma memória compacta com as quatro parcelas fica visível logo abaixo dos KPIs. Meses encerrados continuam mostrando os valores realizados.
 
 **Por que assim:** em julho, o cálculo antigo implicava multiplicar cerca de R$ 82,5 mil de Pessoal + Infraestrutura + Marketing por aproximadamente 1,46, enquanto o caixa projetava apenas cerca de R$ 6,4 mil de despesa fixa futura. Agora os dois painéis usam a mesma memória prospectiva para o que ainda falta no mês.
+
+— Codex
+
+---
+
+## 2026-08-11 — Codex — oportunidades de otimização
+
+Auditoria somente-leitura concluída. Recomendações priorizadas entregues ao
+usuário: testes reais de migrations/importação web, observabilidade de banco,
+redução de duplicação do front-end e reforço sistemático contra XSS. Nenhum
+código, schema, dado ou configuração foi alterado; a única pendência no git é
+este registro operacional. Teste de acesso local e de leitura do remoto passou;
+o navegador integrado não estava disponível, portanto login/sessão do painel e
+conectores autenticados não foram exercitados. O conector Supabase foi
+autenticado e validado via operação de metadados somente-leitura após atualizar
+o Codex local; reiniciar o Codex é necessário para que a ferramenta apareça
+nesta conversa.
 
 — Codex
 
@@ -1356,3 +1373,15 @@ confere dentro do mês e a abertura é derivada do próprio dia 1º, então ela
 nunca detectaria esse salto. Não mexi.
 
 — Claude
+
+---
+
+## 2026-08-11 — Codex — análise resumida do projeto
+
+Análise estritamente de leitura: repositório limpo e `main` sincronizada. Não
+houve alteração de código, schema, dados ou configuração. O painel combina
+GitHub Pages, front-end HTML/JS e Supabase/Postgres, com importadores Python e
+web, autenticação por Google/papéis, rotinas de classificação auditável e CI.
+Nenhuma pendência criada.
+
+— Codex
