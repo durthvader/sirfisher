@@ -4,13 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; upgrade-insecure-requests">
-<title>Sir Fisher · Caixa</title>
+<title>Painel · Caixa</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
 <link href="assets/dashboard-common.css" rel="stylesheet">
 <link href="assets/accessibility.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.108.2" integrity="sha384-JWEyvHh+lRf0sN/WWY+QTQwX+CyWqmNg4tkc8GQzAMEtR2wGNrCJlvnu1lHD1kDm" crossorigin="anonymous"></script>
 <script src="assets/supabase-client.js"></script>
+<script src="assets/app-config.js"></script>
 <script src="assets/auth.js"></script>
 <script src="assets/safe-dom.js"></script>
 <script src="assets/accessibility.js"></script>
@@ -44,7 +45,7 @@
     <div class="head-row">
       <div class="brand">
         <div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-6 10-6 10 6 10 6-3 6-10 6S2 12 2 12z"/><circle cx="9" cy="12" r="1" fill="#fff"/></svg></div>
-        <div><h1>Sir Fisher</h1><span>Caixa &amp; Projeção</span></div>
+        <div><h1 data-app-nome>Painel</h1><span>Caixa &amp; Projeção</span></div>
       </div>
       <div class="head-meta"><span class="periodo"><select id="anoSel"></select><select id="mesSel"></select></span><div class="unidade">Caixa</div></div>
     </div>

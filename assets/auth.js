@@ -155,8 +155,12 @@
     return true;
   }
 
+  function appName() {
+    return window.SirFisherApp?.current()?.nome || 'esta empresa';
+  }
+
   function renderLogin(sb) {
-    const card = authCard('Acesso ao painel', 'Entre com uma conta Google previamente autorizada para o Sir Fisher.');
+    const card = authCard('Acesso ao painel', `Entre com uma conta Google previamente autorizada para ${appName()}.`);
     if (!card) return;
     const button = document.createElement('button');
     button.type = 'button';
@@ -196,7 +200,7 @@
   }
 
   function renderPending(sb) {
-    const card = authCard('Acesso aguardando liberação', 'A conta Google foi autenticada, mas ainda não recebeu um papel no Sir Fisher. Peça a um administrador para liberar seu acesso.');
+    const card = authCard('Acesso aguardando liberação', `A conta Google foi autenticada, mas ainda não recebeu um papel em ${appName()}. Peça a um administrador para liberar seu acesso.`);
     if (!card) return;
     const actions = document.createElement('div');
     actions.className = 'sf-auth-actions';
@@ -365,6 +369,7 @@
 
   async function requireRole(sb, options) {
     injectStyles();
+    if (window.SirFisherApp?.ready) await window.SirFisherApp.ready;
     const settings = options || {};
     const { data, error } = await sb.auth.getSession();
     const session = data?.session || null;

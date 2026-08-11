@@ -1106,6 +1106,20 @@ no repositório.
 - `admin_listar_historico_parametros(integer)` entrega o histórico apenas para
   administradores. A tabela privada não possui acesso direto pelo navegador.
 
+### Identidade da empresa
+
+- `configuracao_empresa` mantém uma única linha com o nome e o subtítulo
+  exibidos pelo painel. Somente essas duas colunas são públicas para leitura;
+  não há permissão direta de escrita pelo navegador.
+- `app_configuracao_empresa()` entrega a identidade antes do login, permitindo
+  personalizar inclusive as mensagens de autenticação.
+- `admin_obter_configuracao_empresa()` e
+  `admin_salvar_configuracao_empresa(text, text)` são restritas a
+  administradores. Mudanças efetivas são registradas em
+  `private.configuracao_empresa_historico`.
+- A migration `20260816000000` preserva a identidade atual como dado inicial.
+  Em uma implantação nova, o administrador a substitui em **Parâmetros gerais**.
+
 ## Observações
 - O front-end autenticado usa views `app_*` e RPCs protegidas; tabelas internas
   não são expostas para leitura anônima.

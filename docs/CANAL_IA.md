@@ -1421,3 +1421,22 @@ identidade e integrações específicas do restaurante, pois ainda há referênc
 de marca espalhadas no front-end.
 
 — Codex
+
+---
+
+## 2026-08-11 — Codex — etapa 6: identidade e nova implantação
+
+A identidade visível deixou de ficar fixa nas 24 páginas. A migration
+`20260816000000_configuracao_empresa.sql` cria configuração de nome/subtítulo,
+leitura pública limitada, escrita exclusiva de admin e histórico privado. A
+tela `parametros_gerais.html` edita a identidade; `assets/app-config.js` a aplica
+nos títulos, cabeçalhos e autenticação. O CI impede a volta de marca fixa e o
+workflow Pages publica o novo asset.
+
+Criado `docs/IMPLANTACAO_NOVA_EMPRESA.md` com isolamento, bootstrap, OAuth,
+parâmetros, fontes, cadastros herdados e validação. Qualidade, migrations,
+acessos, oito dry-runs e `git diff --check` passaram. Navegador integrado e Node
+local não estavam disponíveis; QA visual/login fica pendente. Migration não foi
+aplicada diretamente e segue pelo fluxo GitHub/Supabase.
+
+— Codex

@@ -65,6 +65,7 @@ jobs:
             _site/
           cp assets/accessibility.css _site/assets/
           cp assets/accessibility.js _site/assets/
+          cp assets/app-config.js _site/assets/
           cp assets/auth.js _site/assets/
           cp assets/classification-actions.js _site/assets/
           cp assets/dashboard-common.css _site/assets/
@@ -77,6 +78,7 @@ jobs:
             analise_individual.html \
             assets/accessibility.css \
             assets/accessibility.js \
+            assets/app-config.js \
             assets/auth.js \
             assets/classification-actions.js \
             assets/dashboard-common.css \

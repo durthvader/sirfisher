@@ -174,6 +174,14 @@ def check_security_contracts() -> int:
             fail(f"{page.name} permite unsafe-eval na Content Security Policy")
         if '<script src="assets/safe-dom.js"></script>' not in html:
             fail(f"{page.name} sem helper compartilhado de escape HTML")
+        app_config_script = '<script src="assets/app-config.js"></script>'
+        supabase_script = '<script src="assets/supabase-client.js"></script>'
+        if app_config_script not in html:
+            fail(f"{page.name} sem configuracao compartilhada da empresa")
+        if html.index(supabase_script) > html.index(app_config_script):
+            fail(f"{page.name} carrega a configuracao antes do cliente Supabase")
+        if re.search(r"<title>\s*Sir Fisher\b|<h1[^>]*>\s*Sir Fisher\s*</h1>", html, re.I):
+            fail(f"{page.name} possui identidade da empresa fixa no HTML")
 
     calendar = (ROOT / "calendario.html").read_text(encoding="utf-8")
     safe_dom_script = '<script src="assets/safe-dom.js"></script>'
