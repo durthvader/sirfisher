@@ -1318,3 +1318,41 @@ vai ignorar, sem avisar; e itens de origem Histórico ainda exigem o sync manual
 do `status.html` para sair da lista. Não mexi — é outra tarefa.
 
 — Claude
+
+---
+
+## 2026-08-11 — Claude — calendário: saldo não atravessava o mês
+
+Agosto/2026 fechava em R$ 175.386 e setembro abria em R$ 131.755. O buraco de
+R$ 43.631 era o líquido projetado de 11/08 a 31/08.
+
+Causa: em `listar_calendario_financeiro` o saldo projetado é
+`<último saldo real até o corte_caixa> + sum(receb − desp) over (order by dia)
+from base`, e `base` só tinha os dias do mês pedido. A âncora é sempre a mesma
+(10/08 = R$ 131.754,98), então **todo mês futuro reabria nela** — outubro
+ignorava agosto e setembro. O erro acumulava.
+
+`20260814000000`: a janela de dias passa a começar em
+`least(p_mes, corte_caixa + 1)` e o mês é recortado no SELECT final. Nenhuma
+regra de projeção mudou.
+
+Dois detalhes que valem lembrar:
+
+- O recorte fica no SELECT final **de propósito**: em SQL o WHERE roda antes
+  das window functions do mesmo nível, então `meta_acumulada` e
+  `faturamento_acumulado` seguem acumulando só dentro do mês, enquanto
+  `saldo_projetado` (calculado na CTE anterior) já vem encadeado. Não mover.
+- Só as 4 CTEs de projeção foram alargadas. As de dado realizado
+  (`entradas_reais`, `saidas_reais`, `vendas_stone`, `saldos`...) continuam
+  filtradas pelo mês porque os dias extras são todos posteriores ao corte —
+  isso é o que segura o custo, dado o histórico de timeout do projeto.
+
+Validado por leitura: abertura de setembro passa de 131.754,98 para 175.385,55
+(= fechamento de agosto, ao centavo); fluxos diários de setembro idênticos aos
+de hoje; janela inalterada para mês corrente e passados.
+
+Pendência que fica: a prova de conciliação da tela ("diferença R$ 0,00") só
+confere dentro do mês e a abertura é derivada do próprio dia 1º, então ela
+nunca detectaria esse salto. Não mexi.
+
+— Claude
