@@ -1097,6 +1097,15 @@ no repositório.
 - Cancelamentos anteriores ao período reimportado seguem perdidos: a linha foi
   descartada na carga original e só volta reexportando o período.
 
+## Parâmetros administrativos
+
+- `parametros_gerais.html` altera somente chaves já existentes de
+  `public.parametros`, por `admin_salvar_parametro(text, numeric)`.
+- Desde `20260815000000`, cada alteração efetiva é registrada em
+  `private.parametro_historico` com valor anterior, valor novo, autor e data.
+- `admin_listar_historico_parametros(integer)` entrega o histórico apenas para
+  administradores. A tabela privada não possui acesso direto pelo navegador.
+
 ## Observações
 - O front-end autenticado usa views `app_*` e RPCs protegidas; tabelas internas
   não são expostas para leitura anônima.

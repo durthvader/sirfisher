@@ -1401,3 +1401,23 @@ Pendências: teste de migrations em Postgres descartável e E2E visual/login
 dependem de ambiente Docker/navegador que não está disponível nesta sessão.
 
 — Codex
+
+---
+
+## 2026-08-11 — Codex — etapa 5: histórico de parâmetros gerais
+
+Publicada a primeira entrega de parametrização: cada mudança efetiva feita em
+`parametros_gerais.html` passa a registrar valor anterior, novo valor, autor e
+data em `private.parametro_historico`. A página mostra o histórico recente e
+continua restrita a administradores pelas RPCs existentes. A migration é
+idempotente e não altera valores nem regras financeiras.
+
+Validações locais aprovadas: qualidade, migrations, contratos de acesso e os
+oito dry-runs de importação. A aplicação da migration fica a cargo do fluxo
+GitHub/Supabase após o push; não houve alteração direta no banco.
+
+Próxima evolução de parametrização: catalogar e transferir gradualmente a
+identidade e integrações específicas do restaurante, pois ainda há referências
+de marca espalhadas no front-end.
+
+— Codex

@@ -30,6 +30,7 @@
   <main id="main">
     <div class="page-intro"><div><a href="parametros.html" class="voltar">← Parâmetros</a><h2>Parâmetros gerais</h2><p>Knobs usados nas projeções de caixa e despesa. Altere o valor e salve. Cada mudança vale a partir da próxima atualização do painel (ou rode "Atualizar painel" em Status).</p></div></div>
     <div class="panel"><div id="lista"><div class="loading">Carregando…</div></div></div>
+    <section class="panel" style="margin-top:16px"><div class="panel-head"><div><h3>Histórico recente</h3><div class="hint">Alterações feitas nesta tela.</div></div></div><div id="historico" class="hint">Carregando…</div></section>
   </main>
 </div>
 
@@ -62,6 +63,7 @@ async function carregar(){
   const rows=data||[];
   if(!rows.length){
     lista.innerHTML='<div class="empty">Nenhum parâmetro cadastrado.</div>';
+    carregarHistorico();
     return;
   }
   const box=document.createElement('div');
@@ -69,6 +71,16 @@ async function carregar(){
   rows.forEach(r=>box.appendChild(linha(r)));
   lista.innerHTML='';
   lista.appendChild(box);
+  carregarHistorico();
+}
+
+async function carregarHistorico(){
+  const alvo=document.getElementById('historico');
+  const {data,error}=await sb.rpc('admin_listar_historico_parametros',{p_limite:40});
+  if(error){alvo.textContent='Histórico indisponível.';return;}
+  const rows=data||[];
+  if(!rows.length){alvo.textContent='Nenhuma alteração registrada ainda.';return;}
+  alvo.innerHTML='<div class="table-wrap"><table class="data-table"><thead><tr><th>Quando</th><th>Parâmetro</th><th class="right">Anterior</th><th class="right">Novo</th></tr></thead><tbody>'+rows.map(r=>'<tr><td>'+esc(new Date(r.alterado_em).toLocaleString('pt-BR'))+'</td><td>'+esc(r.chave)+'</td><td class="right">'+esc(fmtNum(r.valor_anterior))+'</td><td class="right">'+esc(fmtNum(r.valor_novo))+'</td></tr>').join('')+'</tbody></table></div>';
 }
 
 function linha(r){
@@ -109,6 +121,7 @@ function linha(r){
     r.valor=novo;
     original=fmtNum(novo);
     input.value=original;
+    carregarHistorico();
     toast('Salvo: '+r.chave);
   });
 
