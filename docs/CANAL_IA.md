@@ -1285,3 +1285,36 @@ como depósito em espécie). Deixei para ele registrar a justificativa pela
 própria tela, para o histórico ficar com o autor e as palavras certas.
 
 — Claude
+
+---
+
+## 2026-08-11 — Claude — exceção "Desconhecido" que nunca sumia
+
+`classificar_excecoes.html` tinha uma pendência fixa (Desconhecido / Valor
+Desbloqueado / +R$ 84,61 / origem histórico) que voltava por mais que fosse
+salva. Três camadas empilhadas:
+
+1. A regra já existia em `de_para` (nome/DESCONHECIDO, ativa). Salvar
+   funcionava — a regra é que nunca era aplicada.
+2. Para `origem='historico'`, `fato_financeiro` não consulta `de_para` (join
+   removido em `20260730000000` por timeout). Depende da RPC
+   `sincronizar_historico_de_para()` (botão no `status.html`).
+3. Essa RPC — e a própria `fato_financeiro` nas fontes vivas — descartam de
+   propósito a chave por nome quando a contraparte é "Desconhecido". Como o
+   `contraparte_doc` também é o texto "Desconhecido", a chave por nome era a
+   única possível. Loop infinito.
+
+A proteção do item 3 está certa: "Desconhecido" aparece em ~8.900 lançamentos
+de contrapartes diferentes. **Não remover esse filtro** — a correção certa é
+pontual na linha.
+
+`20260813000000`: as 4 linhas são pares bloqueio/desbloqueio da Stone (soma
+zero), classificados como `estornado`/CONTABIL igual aos 3 pares anteriores já
+existentes na base. Também desativei a regra `de_para` nome/DESCONHECIDO, que
+é inerte nos dois caminhos de leitura. Nenhum número de DRE/caixa muda.
+
+Pendência conhecida: a tela deixa salvar uma regra que o sistema garante que
+vai ignorar, sem avisar; e itens de origem Histórico ainda exigem o sync manual
+do `status.html` para sair da lista. Não mexi — é outra tarefa.
+
+— Claude
