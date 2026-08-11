@@ -133,9 +133,9 @@ def gravar(registros, periodo):
         colunas=COLUNAS,
         conflito="(dedup_hash)",
         montar_linha=lambda item, _conta_id: [item[coluna] for coluna in COLUNAS],
-        conta_nome=None,
         fonte_log="Vendas Fundopay",
         periodo=periodo,
+        fonte_chave="fundopay",
     )
 
 

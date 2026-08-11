@@ -61,6 +61,8 @@
 <script>
 const sb=SirFisherSupabase;
 const esc = SirFisherDOM.escapeHTML;
+const unidade=()=>window.SirFisherApp.settings().unidadeCodigo;
+const toleranciaDeposito=()=>window.SirFisherApp.number('deposito_tolerancia_valor',0.01);
 
 const DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
 
@@ -157,7 +159,7 @@ function renderResumoConferencia(r){
     return;
   }
   const dif=Number(r.diferenca)||0;
-  const zerado=Math.abs(dif)<0.005;
+  const zerado=Math.abs(dif)<=toleranciaDeposito();
   el.className='conferencia-saldo '+(zerado?'ok':'alerta');
   const partes=[
     'Painel marcou <strong>'+esc(fmtMoeda(r.marcado_depositado))+'</strong>',
@@ -193,7 +195,7 @@ function linhaConferencia(lote,ajustes){
   const el=document.createElement('div');
   el.className='op-row';
   const dif=Number(lote.diferenca)||0;
-  const zerado=Math.abs(dif)<0.005;
+  const zerado=Math.abs(dif)<=toleranciaDeposito();
   const st=STATUS_CONFERENCIA[lote.status]||STATUS_CONFERENCIA.conferido;
   const lanc=`${lote.qtd_lancamentos} lançamento${lote.qtd_lancamentos===1?'':'s'} no extrato`;
   const detalhe=lote.qtd_sangrias
@@ -291,7 +293,7 @@ async function carregar(){
   document.getElementById('novaData').value = hojeISO();
   carregarConferencia();
 
-  // últimos 14 dias (de hoje pra trás), unidade PRAIA
+  // Últimos 14 dias e pendências da unidade principal configurada.
   const dias = [];
   const base = new Date();
   for (let i=0; i<14; i++){
@@ -301,8 +303,8 @@ async function carregar(){
   }
 
   const [recentes, pendentes] = await Promise.all([
-    sb.from('app_venda_especie_controle').select('*').eq('unidade','PRAIA').in('data',dias),
-    sb.from('app_venda_especie_controle').select('*').eq('unidade','PRAIA')
+    sb.from('app_venda_especie_controle').select('*').eq('unidade',unidade()).in('data',dias),
+    sb.from('app_venda_especie_controle').select('*').eq('unidade',unidade())
       .is('depositada_em',null)
   ]);
   const error=recentes.error||pendentes.error;
@@ -411,7 +413,7 @@ async function salvar(dataISO, valorStr, el, btn){
 
   const { error } = await sb.rpc('salvar_sangria',{
     p_data:dataISO,
-    p_unidade:'PRAIA',
+    p_unidade:unidade(),
     p_valor:valor
   });
 
@@ -435,7 +437,7 @@ document.getElementById('btnNovo').addEventListener('click', async () => {
   btn.disabled = true;
   const { error } = await sb.rpc('salvar_sangria',{
     p_data:data,
-    p_unidade:'PRAIA',
+    p_unidade:unidade(),
     p_valor:valor
   });
   btn.disabled = false;
@@ -446,7 +448,7 @@ document.getElementById('btnNovo').addEventListener('click', async () => {
   carregar();
 });
 
-SirFisherAuth.requireRole(sb).then(ctx=>{if(ctx)carregar();});
+(async()=>{await window.SirFisherApp.ready;const ctx=await SirFisherAuth.requireRole(sb);if(ctx)carregar();})();
 </script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-"""Infraestrutura compartilhada dos importadores do Sir Fisher.
+"""Infraestrutura compartilhada dos importadores do painel financeiro.
 
 Este módulo não executa importações ao ser carregado. Dependências de banco são
 importadas somente quando uma gravação real é solicitada, permitindo validar
@@ -18,16 +18,7 @@ from pathlib import Path
 from typing import Callable, Iterable, Iterator, Mapping, Sequence
 
 
-UNIDADE_PADRAO = "PRAIA"
-UNIDADES_SUPORTADAS = frozenset({UNIDADE_PADRAO})
 LIMITE_REJEICOES_EXIBIDAS = 12
-# Estabelecimentos Stone da unidade do painel: a maquininha do balcao e o
-# codigo de e-commerce / link de pagamento. Imprensa (140366173) e PUB
-# (916046432) sao outras casas: em 28/06/2026 os arquivos delas foram
-# importados por engano e R$ 25.135,94 contaram como faturamento da Praia.
-# A lista canonica vive em public.stone_estabelecimento; aqui fica so o
-# necessario para o aviso funcionar em --dry-run, sem acesso ao banco.
-STONECODES_PAINEL = frozenset({"770398216", "173835323"})
 _IDENTIFICADOR_SQL = re.compile(r"^[a-z_][a-z0-9_]*$")
 _CONFLITO_SQL = re.compile(r"^\([a-z0-9_, ]+\)$")
 
@@ -50,7 +41,6 @@ class ErroOperacional(ImportacaoErro):
 class OpcoesImportacao:
     arquivo: Path
     dry_run: bool
-    unidade: str
     periodo_inicio: date | None
     periodo_fim: date | None
 
@@ -78,11 +68,6 @@ def criar_parser(descricao: str, *, arquivo_nargs: str | None = None) -> argpars
         help="valida e resume o CSV sem acessar o banco",
     )
     parser.add_argument(
-        "--unidade",
-        default=os.environ.get("SIRFISHER_UNIDADE", UNIDADE_PADRAO),
-        help=f"unidade operacional (padrão: {UNIDADE_PADRAO})",
-    )
-    parser.add_argument(
         "--periodo-inicio",
         type=_data_iso,
         help="menor data esperada no formato AAAA-MM-DD",
@@ -100,13 +85,11 @@ def ler_opcoes(parser: argparse.ArgumentParser, argv: Sequence[str] | None = Non
 
 
 def opcoes_de_args(parser: argparse.ArgumentParser, args: argparse.Namespace) -> OpcoesImportacao:
-    unidade = validar_unidade(args.unidade)
     if args.periodo_inicio and args.periodo_fim and args.periodo_inicio > args.periodo_fim:
         parser.error("--periodo-inicio não pode ser posterior a --periodo-fim")
     return OpcoesImportacao(
         arquivo=args.arquivo,
         dry_run=args.dry_run,
-        unidade=unidade,
         periodo_inicio=args.periodo_inicio,
         periodo_fim=args.periodo_fim,
     )
@@ -119,21 +102,8 @@ def _data_iso(valor: str) -> date:
         raise argparse.ArgumentTypeError("use o formato AAAA-MM-DD") from exc
 
 
-def validar_unidade(valor: str) -> str:
-    unidade = (valor or "").strip().upper()
-    if unidade not in UNIDADES_SUPORTADAS:
-        permitidas = ", ".join(sorted(UNIDADES_SUPORTADAS))
-        raise ValidacaoErro(f"unidade inválida; valores permitidos: {permitidas}")
-    return unidade
-
-
-def avisar_outros_estabelecimentos(registros: Sequence[Mapping[str, object]]) -> None:
-    """Mostra os stonecodes do arquivo e avisa se houver outra unidade.
-
-    O relatório da Stone é por estabelecimento, e as três casas do grupo têm
-    stonecodes distintos. Importar o arquivo errado mistura o faturamento —
-    as views já filtram por unidade, mas o aviso evita a carga silenciosa.
-    """
+def resumir_contas_stone(registros: Sequence[Mapping[str, object]]) -> None:
+    """Resume os códigos Stone; o vínculo conta/origem vive no banco."""
     from collections import Counter
 
     codigos = Counter(
@@ -141,19 +111,7 @@ def avisar_outros_estabelecimentos(registros: Sequence[Mapping[str, object]]) ->
         for item in registros
     )
     print(f"  stonecodes:          {dict(codigos)}")
-    outros = {
-        codigo: qtd
-        for codigo, qtd in codigos.items()
-        if codigo not in STONECODES_PAINEL and codigo != "(sem stonecode / Pix)"
-    }
-    if not outros:
-        return
-    print()
-    print("  *** ATENÇÃO: o arquivo tem estabelecimento de outra unidade ***")
-    for codigo, qtd in sorted(outros.items()):
-        print(f"      stonecode {codigo}: {qtd} linha(s)")
-    print("      O painel é da PRAIA (" + ", ".join(sorted(STONECODES_PAINEL)) + ").")
-    print("      Confira se é o arquivo certo antes de gravar.")
+    print("  vínculo:             cada código usa a conta Stone configurada no painel")
 
 
 def campo(row: Mapping[str, object], chave: str) -> str | None:
@@ -300,7 +258,6 @@ def validar_leitura(
         raise ValidacaoErro(f"período termina em {fim}, após o limite {opcoes.periodo_fim}")
 
     print("\n== Validação prévia ==")
-    print(f"  unidade:             {opcoes.unidade}")
     print(f"  linhas no CSV:       {total_linhas}")
     print(f"  linhas aceitas:      {len(registros)}")
     print(f"  linhas ignoradas:    {ignoradas}")
@@ -320,10 +277,10 @@ def importar_registros(
     colunas: Sequence[str],
     conflito: str,
     montar_linha: Callable[[Mapping[str, object], object | None], Sequence[object]],
-    conta_nome: str | None,
     fonte_log: str | None,
     periodo: tuple[date, date] | None,
     page_size: int = 500,
+    fonte_chave: str | None = None,
 ) -> ResultadoImportacao:
     _validar_sql_estatico(tabela, colunas, conflito)
     if not registros:
@@ -346,12 +303,17 @@ def importar_registros(
         cur = conn.cursor()
 
         conta_id = None
-        if conta_nome:
-            cur.execute("select id from conta where nome = %s limit 1;", (conta_nome,))
-            conta = cur.fetchone()
-            if not conta:
-                raise ErroOperacional(f"conta operacional não cadastrada: {conta_nome}")
-            conta_id = conta[0]
+        if fonte_chave:
+            cur.execute(
+                "select conta_id from fonte_financeira where chave = %s and ativa limit 1;",
+                (fonte_chave,),
+            )
+            fonte = cur.fetchone()
+            if not fonte or fonte[0] is None:
+                raise ErroOperacional(
+                    f"fonte financeira inativa ou sem conta configurada: {fonte_chave}"
+                )
+            conta_id = fonte[0]
 
         valores = [list(montar_linha(registro, conta_id)) for registro in registros]
         sql = (

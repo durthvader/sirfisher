@@ -130,7 +130,7 @@ no repositório.
 ### projecao_despesa_fixa
 - Tipo: painel / view agregada
 - Uso: `caixa.html`, `dre.html`, `index.html`, `despesas.html`
-- Propósito: mostra projeção de despesas fixas por dia. Calcula a média mensal dos 3 meses fechados anteriores (débitos dos grupos DRE PESSOAL, INFRAESTRUTURA, MARKETING E PUBLICIDADE e IMPOSTOS em `fato_financeiro`), subtrai o realizado na mesma fonte e nos mesmos grupos e distribui o restante (nunca negativo) pelos dias do mês após o corte de caixa. Contas recorrentes ativas, do tipo despesa, marcadas para entrar nos totais, com média positiva e ainda sem pagamento na competência entram no vencimento como previsão explícita; seu valor reduz antes o colchão genérico para evitar dupla contagem. Meses futuros sem realizado projetam a média cheia. Redefinida em `20260760000000_previsao_contas_abertas_no_caixa.sql`.
+- Propósito: mostra projeção de despesas fixas por dia. A quantidade de meses fechados usada na média vem de `meses_media_fixa`. Subtrai o realizado nos mesmos grupos e distribui o restante pelos dias após o corte. Contas recorrentes abertas entram no vencimento com a média do mesmo período configurado, reduzindo antes o colchão genérico para evitar dupla contagem. Parametrizada em `20260818010000`.
 - Colunas importantes:
   - `dia`
   - `valor`
@@ -484,35 +484,30 @@ no repositório.
   se propaga. Nota de equivalência: `tendencia_mes` pode não ter linha, então
   o join é `left join lateral ... on true` — um `cross join` apagaria as linhas.
 
-### stone_estabelecimento — o painel é de UMA unidade
-- Tipo: tabela de mapeamento (`stonecode` → `unidade`)
-- **O grupo tem três casas com stonecodes distintos:** `770398216` Praia (a
-  unidade do painel), `140366173` Imprensa e `916046432` PUB. O `173835323` é um
-  segundo código da **própria Praia** (e-commerce / link de pagamento) — provado
-  por aparecer dentro dos arquivos exportados da Praia.
-- **O relatório da Stone é por estabelecimento.** Importar o arquivo da casa
-  errada mistura o faturamento: aconteceu em 28/06/2026 e R$ 25.135,94 de
-  Imprensa e PUB contaram como Praia entre dez/2025 e mai/2026.
-- **Filtrar por stonecode não basta:** as linhas de **Pix QRcode não trazem
-  stonecode**, só as de cartão. A resolução usa o **número de série do
-  terminal** — conferido que cada série pertence a um único stonecode e nenhuma
-  migrou entre unidades, então a série identifica a unidade também no Pix.
-- O filtro em `recebimento_stone_net` **exclui o que se sabe ser de outra
-  unidade**, em vez de incluir só o que se sabe ser Praia. Assim um terminal novo
-  da Praia conta desde o primeiro dia, mesmo antes de entrar nesta tabela.
-- Os importadores `02_` e `03_` avisam quando o arquivo traz outro
-  estabelecimento. A lista canônica é esta tabela; `STONECODES_PAINEL` em
-  `importacao_core.py` existe só para o aviso rodar em `--dry-run`, sem banco.
-- Criada em `20260781000000`; e-commerce registrado em `20260782000000`.
-- RLS habilitado em `20260789000000`, sem policy para clientes. `anon`,
-  `authenticated` e `PUBLIC` não têm privilégios diretos; views e RPCs
-  proprietárias continuam usando o mapeamento internamente.
+### stone_conta — códigos Stone são contas/origens
+- Tipo: tabela de mapeamento (`stonecode` → `conta`)
+- A instalação possui uma única unidade. Cada código Stone identifica uma
+  conta/origem financeira vinculada a ela, com controles `ativa` e
+  `entra_faturamento`.
+- Pix sem código explícito usa o número de série do terminal para recuperar o
+  vínculo conhecido. Código ainda não cadastrado permanece incluído por padrão
+  até ser classificado, evitando perda silenciosa de receita.
+- `stone_estabelecimento` permanece congelada apenas como compatibilidade e
+  memória do modelo histórico. Consumidores novos usam `stone_conta`.
+- RLS nega acesso direto. Leitura e escrita administrativas passam pelas RPCs
+  `admin_listar_stone_conta()` e `admin_salvar_stone_conta(...)`.
+- Alterar o vínculo atualiza também as linhas Stone já importadas com aquele
+  código. O estado anterior e o novo ficam em
+  `private.stone_conta_historico`.
+- Na conversão inicial, códigos que já entravam no faturamento continuam
+  entrando e os que estavam excluídos continuam excluídos. A inclusão pode ser
+  alterada depois, explicitamente, na tela administrativa.
 
 ### raw_fundopay_vendas / venda_diaria
 - `venda_diaria` é a base do faturamento (planejamento, vendas.html, metas,
   tendência, peso do dia e, por `projecao_venda_diaria`, a projeção de caixa).
 - O braço da Stone lê o **`recebimento_stone_net`**, não a tabela crua: é ali que
-  moram, num lugar só, o líquido de cancelamento e o filtro de unidade. As duas
+  moram, num lugar só, o líquido de cancelamento e a seleção de contas ativas. As duas
   expressões eram idênticas e duplicadas — foi assim que os dois caminhos do
   faturamento divergiram na 20260777000000.
 - Reúne **quatro canais**, sempre pela **data da venda** e pelo **valor bruto**:
@@ -1064,10 +1059,8 @@ no repositório.
   - **STONE ID em notação científica → rejeição.** Entra na lista de motivos e
     vale a tolerância zero da função; nada é gravado. O padrão exige dígito
     antes do `E`, senão pegaria todo ID de Pix.
-  - **Estabelecimento de outra unidade → aviso.** Devolve `estabelecimentos`
-    (contagem por stonecode) e `outras_unidades` (o que não é Praia, incluindo
-    stonecode não cadastrado). É aviso e não rejeição: o arquivo pode estar
-    íntegro e ser de outra casa, e as views já filtram por unidade.
+  - **Códigos Stone → conferência.** Devolve a contagem por código; cada código
+    é associado à conta configurada em `stone_conta`, sempre sob a mesma unidade.
 - **Limite de 20.000 linhas** por arquivo; acima disso levanta exceção pedindo o
   script local. É a única diferença funcional entre os dois caminhos.
 - Ao alterar esta função, gere o `CREATE OR REPLACE` a partir de
@@ -1101,6 +1094,11 @@ no repositório.
 
 - `parametros_gerais.html` altera somente chaves já existentes de
   `public.parametros`, por `admin_salvar_parametro(text, numeric)`.
+- Desde `20260818000000`, cada parâmetro possui grupo, unidade de medida,
+  mínimo, máximo e ordem. A RPC rejeita valores fora da faixa cadastrada.
+- Alertas de indicadores e despesas, piso/horizonte do caixa, bonificação,
+  conciliação, depósitos e faixas de referência da DRE são carregados pelo
+  front-end por `app_configuracao_operacional()`.
 - A descrição é um título estável e não deve conter o valor atual do parâmetro.
   A migration `20260817000000` removeu os sufixos fixos “D+2” e “38%”, que
   ficavam incorretos quando o valor era alterado pela interface.
@@ -1122,6 +1120,33 @@ no repositório.
   `private.configuracao_empresa_historico`.
 - A migration `20260816000000` preserva a identidade atual como dado inicial.
   Em uma implantação nova, o administrador a substitui em **Parâmetros gerais**.
+
+### Configuração operacional e fontes
+
+- `configuracao_operacional` é singleton e define a unidade técnica principal,
+  o nome exibido, a conta de depósito, a data inicial da conferência, o padrão
+  textual do lançamento e o fuso horário.
+- O nome exibido pode mudar sem renomear o código técnico usado nos registros
+  históricos. Todas as contas pertencem à unidade principal.
+- `fonte_financeira` relaciona cada adaptador à conta padrão e aos controles
+  `ativa`, `entra_faturamento`, `entra_caixa`, `entra_caixa_historico` e
+  `entra_dre`. O controle histórico resolve aliases antigos sem fazer uma fonte
+  recém-habilitada alterar retroativamente o caixa consolidado.
+- `fato_financeiro.entra_dre`, `caixa_real_diario` e as views de faturamento
+  incorporam esses controles sem apagar ou reclassificar lançamentos.
+- No contrato legado de `fato_financeiro`, a coluna `empresa` passa a exibir o
+  nome da conta configurada para fontes vivas; `unidade` é sempre a unidade
+  principal. Assim, banco/adquirente não volta a ser interpretado como unidade.
+- Mudanças na configuração operacional, nas fontes financeiras e nos vínculos
+  Stone são auditadas, respectivamente, em
+  `private.configuracao_operacional_historico`,
+  `private.fonte_financeira_historico` e `private.stone_conta_historico`.
+- As RPCs administrativas de unidade, contas, metas, contas recorrentes e
+  sangrias reforçam no servidor o modelo de unidade única; não dependem apenas
+  dos campos bloqueados na interface.
+- Antes de consolidar os vínculos existentes, a migration registra em
+  `private.migracao_unidade_unica_backup_20260818` um snapshot privado dos IDs,
+  unidades e contas que serão alterados, sem copiar valores financeiros.
 
 ## Observações
 - O front-end autenticado usa views `app_*` e RPCs protegidas; tabelas internas

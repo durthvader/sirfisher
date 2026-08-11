@@ -45,11 +45,16 @@ Entrar como administrador e revisar todos os cards de **Parâmetros**:
 - peso dos dias da semana;
 - grupos de despesas variáveis;
 - metas mensais e saldo inicial;
-- unidades e contas bancárias;
+- nome exibido da unidade única, contas bancárias, fontes financeiras e contas Stone;
 - permissões por página, usuários e papéis.
 
 A identidade passa a ser usada automaticamente nos títulos, cabeçalhos e
 mensagens de login das páginas. Alterações ficam auditadas no banco.
+
+A instalação trabalha com uma única unidade operacional. O código técnico da
+unidade é preservado para manter compatibilidade com o histórico; o nome
+exibido é alterado em **Parâmetros gerais**. Bancos, adquirentes e códigos Stone
+são contas/origens distintas vinculadas a essa mesma unidade.
 
 ## 5. Fontes e importação
 
@@ -59,10 +64,14 @@ validar o layout e criar um adaptador específico; não reaproveitar um importad
 com colunas apenas parecidas.
 
 1. Executar os dry-runs locais sem dados de produção no repositório.
-2. Conferir cabeçalhos, datas, sinais, totais e regra de deduplicação.
-3. Fazer a primeira carga em período pequeno e reconciliar com os relatórios da
+2. Em **Parâmetros → Fontes financeiras**, vincular cada fonte à conta correta
+   e definir se entra no faturamento, caixa e DRE.
+3. Em **Parâmetros → Contas Stone**, vincular cada código Stone a uma conta da
+   unidade única. O código não representa uma unidade.
+4. Conferir cabeçalhos, datas, sinais, totais e regra de deduplicação.
+5. Fazer a primeira carga em período pequeno e reconciliar com os relatórios da
    empresa nova antes de importar o histórico.
-4. Nunca usar credenciais ou arquivos da instalação atual.
+6. Nunca usar credenciais ou arquivos da instalação atual.
 
 ### Cadastros iniciais herdados
 

@@ -22,8 +22,7 @@
   .drop-area p{margin:9px 0 0;font-size:12.5px;color:#6b7280}
   .drop-area input[type=file]{display:block;margin:12px auto 0;max-width:100%;font-size:12.5px}
   .file-erro{color:var(--red,#c94c4c);font-size:12px;word-break:break-word}
-  /* Aviso de estabelecimento: o arquivo pode estar integro e ser so de outra
-     casa, entao e alerta e nao erro — a decisao e de quem esta olhando. */
+  /* Resumo dos codigos Stone encontrados e de suas contas configuradas. */
   .file-aviso{color:var(--amber,#b8860b);font-size:12px;line-height:1.5;word-break:break-word}
   .file-aviso b{font-weight:700}
   .file-nome{word-break:break-all}
@@ -198,12 +197,10 @@ function render(){
           ? `<span class="status ok">Importado</span>`
           : (p.novas>0?`<span class="status ok">Pronto</span>`:`<span class="status warn">Nada novo</span>`);
         const linhaArquivo=`<tr><td class="file-nome"><b>${esc(a.nome)}</b></td><td>${esc(p.fonte)}</td><td class="right">${num(p.linhas)}</td><td class="right">${a.resultado?num(a.resultado.inseridos):num(p.novas)}</td><td>${fmtDia(p.periodo_inicio)} a ${fmtDia(p.periodo_fim)}</td><td>${estado}</td></tr>`;
-        // O relatorio da Stone e por estabelecimento: se vier de outra casa,
-        // avisa antes de gravar. So aviso, porque o arquivo pode estar certo.
-        const outras=p.outras_unidades||[];
-        if(!outras.length)return linhaArquivo;
-        const detalhe=outras.map(o=>`<b>${esc(o.unidade)}</b> (stonecode ${esc(o.stonecode)}): ${num(o.linhas)} linha(s)`).join(' · ');
-        return linhaArquivo+`<tr><td></td><td colspan="5" class="file-aviso">⚠ Este arquivo tem estabelecimento de outra unidade — ${detalhe}. O painel é da <b>Praia</b>. Confira se é o arquivo certo antes de importar.</td></tr>`;
+        const codigos=p.estabelecimentos&&typeof p.estabelecimentos==='object'?Object.entries(p.estabelecimentos):[];
+        if(!codigos.length)return linhaArquivo;
+        const detalhe=codigos.map(([codigo,linhas])=>`${esc(codigo)}: ${num(linhas)} linha(s)`).join(' · ');
+        return linhaArquivo+`<tr><td></td><td colspan="5" class="file-aviso">Códigos Stone encontrados: ${detalhe}. Cada código será associado à conta configurada em Parâmetros.</td></tr>`;
       }).join('')}
       </tbody></table></div>
       <div class="actions" style="margin-top:14px">
@@ -341,7 +338,7 @@ async function importar(){
   aviso(`✓ ${total} nova(s) linha(s) importada(s), saldo recalculado e painel atualizado.`,'var(--green)');
 }
 
-(async()=>{const auth=await SirFisherAuth.requireRole(sb);if(auth)render();})();
+(async()=>{await window.SirFisherApp.ready;const auth=await SirFisherAuth.requireRole(sb);if(auth)render();})();
 </script>
 </body>
 </html>

@@ -55,6 +55,7 @@ const requestedMonth=/^\d{4}-\d{2}$/.test(query.get('mes')||'')?query.get('mes')
 const requestedFilter=FILTROS_VALIDOS.has(query.get('filtro'))?query.get('filtro'):null;
 const requestedDecision=/^\d+$/.test(query.get('decisao')||'')?query.get('decisao'):null;
 let RESUMO=[];
+const param=(chave,padrao)=>window.SirFisherApp.number(chave,padrao);
 
 function nomeMes(anoMes){return MESES[Number(anoMes.slice(5,7))-1]+' de '+anoMes.slice(0,4);}
 function fmtData(value){return value?new Date(value+'T12:00:00').toLocaleDateString('pt-BR'):'—';}
@@ -156,7 +157,7 @@ async function renderMes(anoMes,navigation){
     <div class="summary-grid">
       <div class="summary-card"><div class="label">Créditos que devem zerar</div><div class="value">${rs(creditos)}</div></div>
       <div class="summary-card"><div class="label">Débitos que devem zerar</div><div class="value">${rs(debitos)}</div></div>
-      <div class="summary-card ${Math.abs(saldo)<=0.01?'good':'alert'}"><div class="label">Saldo líquido esperado: zero</div><div class="value">${rs(saldo)}</div></div>
+      <div class="summary-card ${Math.abs(saldo)<=param('conciliacao_tolerancia_valor',0.01)?'good':'alert'}"><div class="label">Saldo líquido esperado: zero</div><div class="value">${rs(saldo)}</div></div>
       <div class="summary-card good"><div class="label">Movimentos conciliados</div><div class="value">${conciliados.length.toLocaleString('pt-BR')}</div></div>
       <div class="summary-card ${alertas.length?'alert':'good'}"><div class="label">Precisam revisão</div><div class="value">${alertas.length.toLocaleString('pt-BR')}</div></div>
       <div class="summary-card"><div class="label">Apenas informativos</div><div class="value">${informativos.length.toLocaleString('pt-BR')}</div></div>
@@ -165,17 +166,17 @@ async function renderMes(anoMes,navigation){
       <div class="summary-card ${estornosAnalise?'alert':'good'}"><div class="label">Pares de estorno · analisar</div><div class="value">${estornosAnalise.toLocaleString('pt-BR')}</div></div>
       <div class="summary-card good"><div class="label">Pares resolvidos</div><div class="value">${resolvidos.toLocaleString('pt-BR')}</div></div>
     </div>
-    <div class="period-note">Base atualizada em ${esc(atualizado)}. Transferências usam janela de até cinco dias; possíveis estornos usam mesma conta, mesmo valor e mesmo dia.</div>
+    <div class="period-note">Base atualizada em ${esc(atualizado)}. Transferências usam janela de até ${param('conciliacao_janela_dias',5)} dias; possíveis estornos usam a configuração operacional vigente.</div>
     <div class="explain-grid">
       <div class="explain-card"><h3>Devem zerar</h3><p>Transferências entre contas e estornos precisam de uma entrada e uma saída equivalentes.</p></div>
-      <div class="explain-card"><h3>Possível estorno</h3><p>Débito seguido de crédito do mesmo valor na mesma conta. Até 60 minutos com contraparte ou descrição compatível é indício forte; nenhum lançamento é reclassificado automaticamente.</p></div>
+      <div class="explain-card"><h3>Possível estorno</h3><p>Débito seguido de crédito do mesmo valor na mesma conta. Até ${param('estorno_forte_minutos',60)} minutos com contraparte ou descrição compatível é indício forte; nenhum lançamento é reclassificado automaticamente.</p></div>
       <div class="explain-card"><h3>Como concluir</h3><p>Confirmar estorno classifica as duas pontas juntas como CONTÁBIL. “Não relacionados” preserva as categorias e retira o par dos alertas. As duas decisões podem ser desfeitas.</p></div>
       <div class="explain-card"><h3>Classificação divergente</h3><p>A contraparte existe, mas está em outra categoria. É o principal indício de despesa ou receita contabilizada indevidamente.</p></div>
       <div class="explain-card"><h3>Limite dos extratos</h3><p>BB e Inter não fornecem horário; nesses bancos o painel usa data, valor, contraparte e descrição, mantendo o resultado como provável ou para análise.</p></div>
     </div>
     <section class="panel"><div class="panel-head"><div><h3>Movimentos de ${esc(nomeMes(anoMes))}</h3><div class="hint">Cada possível estorno aparece uma vez, com as duas pontas e as ações disponíveis.</div></div><select id="statusFiltro" class="field"><option value="alertas">Somente alertas</option><option value="estornos">Possíveis estornos</option><option value="resolvidos">Resolvidos</option><option value="todos">Todos</option><option value="conciliados">Conciliados</option><option value="informativos">Informativos</option></select></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Data e hora</th><th>Status</th><th>Conta</th><th>Categoria atual</th><th>Contraparte</th><th class="right">Valor</th><th>Possível par / decisão</th></tr></thead><tbody id="movimentosBody"></tbody></table></div></section>
     <section class="panel"><div class="panel-head"><div><h3>Decisões do mês</h3><div class="hint">Histórico auditável; decisões ativas podem ser desfeitas.</div></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Quando</th><th>Decisão</th><th>Primeira ponta</th><th>Segunda ponta</th><th>Responsável</th><th>Ação</th></tr></thead><tbody id="decisoesBody">${decisoesHtml}</tbody></table></div></section>
-    <section class="panel"><div class="panel-head"><div><h3>Histórico mensal</h3><div class="hint">Saldo e quantidade de alertas dos movimentos que deveriam zerar.</div></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Mês</th><th class="right">Créditos</th><th class="right">Débitos</th><th class="right">Saldo</th><th class="right">Alertas</th></tr></thead><tbody>${[...new Set(RESUMO.map(row=>row.ano_mes))].sort().reverse().map(mes=>{const itens=linhaResumoMes(mes);const acionaveis=itens.filter(row=>STATUS_ALERTA.has(row.status_conciliacao));const cred=soma(itens.filter(row=>row.status_conciliacao!=='informativo'),'creditos');const deb=soma(itens.filter(row=>row.status_conciliacao!=='informativo'),'debitos');const liq=cred+deb;return`<tr><td>${esc(nomeMes(mes))}</td><td class="right">${rs(cred)}</td><td class="right">${rs(deb)}</td><td class="right" style="color:${Math.abs(liq)>.01?'var(--red)':'var(--green)'}">${rs(liq)}</td><td class="right">${soma(acionaveis,'qtd').toLocaleString('pt-BR')}</td></tr>`;}).join('')}</tbody></table></div></section>`;
+    <section class="panel"><div class="panel-head"><div><h3>Histórico mensal</h3><div class="hint">Saldo e quantidade de alertas dos movimentos que deveriam zerar.</div></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Mês</th><th class="right">Créditos</th><th class="right">Débitos</th><th class="right">Saldo</th><th class="right">Alertas</th></tr></thead><tbody>${[...new Set(RESUMO.map(row=>row.ano_mes))].sort().reverse().map(mes=>{const itens=linhaResumoMes(mes);const acionaveis=itens.filter(row=>STATUS_ALERTA.has(row.status_conciliacao));const cred=soma(itens.filter(row=>row.status_conciliacao!=='informativo'),'creditos');const deb=soma(itens.filter(row=>row.status_conciliacao!=='informativo'),'debitos');const liq=cred+deb;return`<tr><td>${esc(nomeMes(mes))}</td><td class="right">${rs(cred)}</td><td class="right">${rs(deb)}</td><td class="right" style="color:${Math.abs(liq)>param('conciliacao_tolerancia_valor',0.01)?'var(--red)':'var(--green)'}">${rs(liq)}</td><td class="right">${soma(acionaveis,'qtd').toLocaleString('pt-BR')}</td></tr>`;}).join('')}</tbody></table></div></section>`;
 
   const body=document.getElementById('movimentosBody');
   function desenhar(filtro){
@@ -218,7 +219,7 @@ async function desfazerDecisao(item,anoMes,button){
   await renderMes(anoMes);
 }
 
-(async()=>{const auth=await SirFisherAuth.requireRole(sb);if(!auth)return;try{await montarSeletor();}catch(error){document.getElementById('main').innerHTML='<div class="erro">Não foi possível carregar a rotina: '+esc(error.message||String(error))+'</div>';}})();
+(async()=>{await window.SirFisherApp.ready;const auth=await SirFisherAuth.requireRole(sb);if(!auth)return;try{await montarSeletor();}catch(error){document.getElementById('main').innerHTML='<div class="erro">Não foi possível carregar a rotina: '+esc(error.message||String(error))+'</div>';}})();
 </script>
 </body>
 </html>

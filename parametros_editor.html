@@ -104,7 +104,11 @@ const TABELAS={
       {key:'meta_bruta',label:'Meta bruta',type:'number'}
     ],
     toParams:v=>({p_mes:v.mes?(String(v.mes).length===7?v.mes+'-01':v.mes):null,p_unidade:v.unidade,p_meta_bruta:num(v.meta_bruta)}),
-    canAdd:true, addTemplate:{mes:'',unidade:'PRAIA',meta_bruta:''}
+    canAdd:true, addTemplate:{mes:'',unidade:'',meta_bruta:''},
+    prepare:async(cfg)=>{
+      await window.SirFisherApp.ready;
+      cfg.addTemplate.unidade=window.SirFisherApp.settings().unidadeCodigo;
+    }
   },
   conta:{
     titulo:'Contas bancárias',
@@ -120,23 +124,65 @@ const TABELAS={
     toParams:v=>({p_id:int(v.id),p_nome:v.nome,p_banco:v.banco,p_unidade_id:int(v.unidade_id),p_ativa:!!v.ativa}),
     canAdd:true, addTemplate:{nome:'',banco:'',unidade_id:'',ativa:true},
     prepare:async(cfg)=>{
+      await window.SirFisherApp.ready;
       const {data}=await sb.rpc('admin_listar_unidade');
-      const opts=(data||[]).map(u=>({value:u.id,label:u.nome}));
+      const principal=window.SirFisherApp.settings().unidadeCodigo;
+      const opts=(data||[]).filter(u=>u.nome===principal).map(u=>({value:u.id,label:u.nome}));
       cfg.colunas.find(c=>c.key==='unidade_id').options=opts;
       if(opts.length) cfg.addTemplate.unidade_id=opts[0].value;
     }
   },
   unidade:{
-    titulo:'Unidades',
-    subtitulo:'Cadastro de unidades do negócio. Para "remover", desmarque Ativa.',
+    titulo:'Unidade principal',
+    subtitulo:'A instalação trabalha com uma unidade técnica preservada. O nome exibido é alterado em Parâmetros gerais.',
     listRpc:'admin_listar_unidade', saveRpc:'admin_salvar_unidade',
     colunas:[
       {key:'id',label:'#',readOnly:true,addHidden:true},
-      {key:'nome',label:'Nome',type:'text'},
-      {key:'ativa',label:'Ativa',type:'boolean'}
+      {key:'nome',label:'Código técnico',readOnly:true},
+      {key:'ativa',label:'Ativa',readOnly:true,type:'boolean'}
     ],
     toParams:v=>({p_id:int(v.id),p_nome:v.nome,p_ativa:!!v.ativa}),
-    canAdd:true, addTemplate:{nome:'',ativa:true}
+    canAdd:false, addTemplate:{nome:'',ativa:true}
+  },
+  fonte_financeira:{
+    titulo:'Fontes financeiras',
+    subtitulo:'Configure a conta padrão e em quais demonstrativos cada origem participa.',
+    listRpc:'admin_listar_fonte_financeira', saveRpc:'admin_salvar_fonte_financeira',
+    colunas:[
+      {key:'chave',label:'Fonte',readOnly:true},
+      {key:'nome',label:'Nome',type:'text'},
+      {key:'conta_id',label:'Conta padrão',type:'select',options:[]},
+      {key:'ativa',label:'Ativa',type:'boolean'},
+      {key:'entra_faturamento',label:'Faturamento',type:'boolean'},
+      {key:'entra_caixa',label:'Caixa',type:'boolean'},
+      {key:'entra_caixa_historico',label:'Caixa histórico',type:'boolean'},
+      {key:'entra_dre',label:'DRE',type:'boolean'}
+    ],
+    toParams:v=>({p_chave:v.chave,p_nome:v.nome,p_conta_id:v.conta_id?int(v.conta_id):null,p_ativa:!!v.ativa,p_entra_faturamento:!!v.entra_faturamento,p_entra_caixa:!!v.entra_caixa,p_entra_caixa_historico:!!v.entra_caixa_historico,p_entra_dre:!!v.entra_dre}),
+    prepare:async(cfg)=>{
+      const {data}=await sb.rpc('admin_listar_conta');
+      cfg.colunas.find(c=>c.key==='conta_id').options=[{value:'',label:'Sem conta'}].concat((data||[]).filter(c=>c.ativa).map(c=>({value:c.id,label:c.nome})));
+    }
+  },
+  stone_conta:{
+    titulo:'Contas Stone',
+    subtitulo:'O código identifica a conta/origem dentro da mesma unidade; não representa uma unidade separada.',
+    listRpc:'admin_listar_stone_conta', saveRpc:'admin_salvar_stone_conta',
+    colunas:[
+      {key:'stonecode',label:'Código Stone',keyOnAdd:true},
+      {key:'conta_id',label:'Conta bancária',type:'select',options:[]},
+      {key:'descricao',label:'Descrição',type:'text'},
+      {key:'ativa',label:'Ativa',type:'boolean'},
+      {key:'entra_faturamento',label:'Entra no faturamento',type:'boolean'}
+    ],
+    toParams:v=>({p_stonecode:v.stonecode,p_conta_id:int(v.conta_id),p_descricao:v.descricao||null,p_ativa:!!v.ativa,p_entra_faturamento:!!v.entra_faturamento}),
+    canAdd:true, addTemplate:{stonecode:'',conta_id:'',descricao:'',ativa:true,entra_faturamento:true},
+    prepare:async(cfg)=>{
+      const {data}=await sb.rpc('admin_listar_conta');
+      const opts=(data||[]).filter(c=>c.ativa).map(c=>({value:c.id,label:c.nome}));
+      cfg.colunas.find(c=>c.key==='conta_id').options=opts;
+      if(opts.length)cfg.addTemplate.conta_id=opts[0].value;
+    }
   }
 };
 

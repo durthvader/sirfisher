@@ -146,7 +146,6 @@ def gravar(registros):
         colunas=COLUNAS,
         conflito="(dedup_hash)",
         montar_linha=lambda item, _conta_id: [item[coluna] for coluna in COLUNAS],
-        conta_nome=None,
         fonte_log=None,
         periodo=None,
         page_size=1000,

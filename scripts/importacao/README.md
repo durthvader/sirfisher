@@ -74,8 +74,12 @@ Os importadores conferem:
 - extensão, conteúdo e cabeçalhos do CSV;
 - tipos de datas, números e chaves obrigatórias;
 - período mínimo e máximo observado;
-- unidade operacional, atualmente restrita a `PRAIA`;
+- vínculo canônico da unidade única e das contas mantido na tela de parâmetros;
 - rejeições de linhas, com tolerância zero antes da gravação.
+
+Uma gravação real exige que a fonte esteja ativa e vinculada a uma conta em
+**Parâmetros → Fontes financeiras**. Não há fallback silencioso para nomes de
+conta escritos nos scripts.
 
 Os limites opcionais de período usam o formato `AAAA-MM-DD`:
 

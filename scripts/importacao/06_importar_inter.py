@@ -145,9 +145,9 @@ def gravar(registros, periodo):
         montar_linha=lambda item, conta_id: (
             [conta_id] + [item[coluna] for coluna in COLUNAS[1:]]
         ),
-        conta_nome="Inter",
         fonte_log="Extrato Inter",
         periodo=periodo,
+        fonte_chave="inter",
     )
 
 

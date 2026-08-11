@@ -137,9 +137,9 @@ def gravar(registros, periodo):
             + [item[coluna] for coluna in COLUNAS[1:-2]]
             + ["stone_extrato", item["dedup_hash"]]
         ),
-        conta_nome="Stone",
         fonte_log="Extrato Stone",
         periodo=periodo,
+        fonte_chave="stone_extrato",
     )
 
 

@@ -75,7 +75,7 @@
   <main id="main"><div class="loading">Carregando DRE…</div></main>
   <footer id="rodape" style="display:none">
     <span id="rodapeAtt"></span>
-    <span>Regime de competência · unidade PRAIA · <a href="#" id="verCargas" style="color:var(--teal);text-decoration:none">histórico de cargas</a></span>
+    <span>Regime de competência · unidade <b data-app-unidade>PRINCIPAL</b> · <a href="#" id="verCargas" style="color:var(--teal);text-decoration:none">histórico de cargas</a></span>
   </footer>
 </div>
 <div id="cargasBox" style="display:none;position:fixed;inset:0;background:rgba(18,49,63,.45);z-index:60;align-items:center;justify-content:center;padding:20px">
@@ -93,6 +93,7 @@
 const sb=SirFisherSupabase;
 const esc=SirFisherDOM.escapeHTML;
 const C={header:'#12313F',teal:'#00A6A6',amber:'#D6A84F',green:'#2E7D5B',red:'#C94C4C',muted:'#6B7280',border:'#E5E7EB'};
+const param=(chave,padrao)=>window.SirFisherApp.number(chave,padrao);
 const MESES=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 let CHARTS=[],ROWS=[],RESUMO=[],DESP_FIXA=[],DESP_DIRETA=[],ULTIMA=null,CARGAS=[];
 
@@ -350,9 +351,9 @@ function drawBench(r){
   const prime=(cmv||0)+(pes||0);
   // [valor, refMin, refMax, escalaMax, nota]
   const items=[
-    ['CMV','cmv',cmv,28,35,60,'ideal 28–35%'],
-    ['Pessoal','pes',pes,25,35,60,'referência aprox. 25–35%'],
-    ['Prime cost','prime',prime,55,65,100,'CMV+Pessoal · aprox. 55–65%']
+    ['CMV','cmv',cmv,param('dre_cmv_referencia_min',28),param('dre_cmv_referencia_max',35),60,'faixa configurada'],
+    ['Pessoal','pes',pes,param('dre_pessoal_referencia_min',25),param('dre_pessoal_referencia_max',35),60,'faixa configurada'],
+    ['Prime cost','prime',prime,param('dre_prime_cost_referencia_min',55),param('dre_prime_cost_referencia_max',65),100,'CMV+Pessoal · faixa configurada']
   ];
   const corVal=(v,lo,hi)=>v==null?C.muted:(v<=hi?C.green:(v<=hi+8?C.amber:C.red));
   let h='<div class="bench">';
@@ -397,7 +398,7 @@ document.getElementById('verCargas').addEventListener('click',e=>{e.preventDefau
 document.getElementById('fecharCargas').addEventListener('click',()=>cargasBox.style.display='none');
 cargasBox.addEventListener('click',e=>{if(e.target===cargasBox)cargasBox.style.display='none';});
 
-SirFisherAuth.requireRole(sb).then(ctx=>{if(ctx)main();});
+(async()=>{await window.SirFisherApp.ready;const ctx=await SirFisherAuth.requireRole(sb);if(ctx)main();})();
 </script>
 </body>
 </html>

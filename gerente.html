@@ -61,6 +61,7 @@ const sb=SirFisherSupabase;
 const esc=SirFisherDOM.escapeHTML;
 const {brl,pct,rs}=SirFisherFormat;
 const C={header:'#12313F',teal:'#00A6A6',amber:'#D6A84F',green:'#2E7D5B',red:'#C94C4C',muted:'#6B7280',border:'#E5E7EB'};
+const param=(chave,padrao)=>window.SirFisherApp.number(chave,padrao);
 const MESES=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 let CHARTS=[];
 let rowsResumo=[];
@@ -135,7 +136,7 @@ function render(cur,rowsHist,dias,gastos,horas,saldoVar,cascata){
   const meta=N(cur.meta),proj=N(cur.faturamento_proj),percMeta=N(cur.perc_meta),realizado=N(cur.faturamento);
   const diff=(proj!=null&&meta!=null)?proj-meta:null;
   const acima=diff!=null&&diff>=0;
-  const corMeta=percMeta==null?C.muted:(percMeta>=100?C.green:(acima?C.teal:C.amber));
+  const corMeta=percMeta==null?C.muted:(percMeta>=param('meta_atingida_perc',100)?C.green:(acima?C.teal:C.amber));
 
   const varCaixa=saldoVar?N(saldoVar.variacao_perc):null;
   const corCaixa=varCaixa==null?C.muted:(varCaixa>=0?C.green:C.red);
@@ -294,13 +295,14 @@ function drawMetaHistorico(rowsHist){
   const labels=d.map(x=>MESES[+x.ano_mes.slice(5,7)-1].slice(0,3)+'/'+x.ano_mes.slice(2,4));
   const valores=d.map(x=>Number(x.perc_meta));
   CHARTS.push(new Chart(document.getElementById('chartMetaHist'),{type:'bar',
-    data:{labels,datasets:[{data:valores,backgroundColor:valores.map(v=>v>=100?C.green:(v>=90?C.amber:C.red)),borderRadius:4,maxBarThickness:28}]},
+    data:{labels,datasets:[{data:valores,backgroundColor:valores.map(v=>v>=param('meta_atingida_perc',100)?C.green:(v>=param('meta_proxima_perc',90)?C.amber:C.red)),borderRadius:4,maxBarThickness:28}]},
     options:{responsive:true,maintainAspectRatio:false,
       plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+pct(c.parsed.y)+' da meta'}}},
       scales:{y:{grid:{color:C.border},ticks:{callback:v=>v+'%',font:{size:10}}},x:{grid:{display:false},ticks:{font:{size:9},maxRotation:0,autoSkip:true,maxTicksLimit:12}}}}}));
 }
 
 (async()=>{
+  await window.SirFisherApp.ready;
   const auth=await SirFisherAuth.requireRole(sb);
   if(!auth)return;
   carregar();

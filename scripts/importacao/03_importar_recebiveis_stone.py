@@ -10,7 +10,7 @@ from importacao_core import (
     abrir_csv_validado,
     adicionar_rejeicao,
     atualizar_painel,
-    avisar_outros_estabelecimentos,
+    resumir_contas_stone,
     campo,
     criar_parser,
     executar_com_saida,
@@ -183,7 +183,7 @@ def resumo(registros):
     print(f"  chaves únicas:       {len(chaves)}")
     print(f"  duplicatas internas: {len(registros) - len(chaves)}")
     print(f"  status:              {dict(Counter(item['ultimo_status'] for item in registros))}")
-    avisar_outros_estabelecimentos(registros)
+    resumir_contas_stone(registros)
 
 
 def gravar(registros, periodo):
@@ -195,9 +195,9 @@ def gravar(registros, periodo):
         montar_linha=lambda item, conta_id: (
             [conta_id] + [item[coluna] for coluna in COLUNAS[1:]]
         ),
-        conta_nome="Stone",
         fonte_log="Recebíveis Stone",
         periodo=periodo,
+        fonte_chave="stone_recebiveis",
     )
 
 

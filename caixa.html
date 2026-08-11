@@ -83,7 +83,7 @@ const esc=SirFisherDOM.escapeHTML;
 const C={header:'#12313F',teal:'#00A6A6',amber:'#D6A84F',green:'#2E7D5B',red:'#C94C4C',muted:'#6B7280',border:'#E5E7EB',brown:'#B98A2E',grey:'#9aa6b2'};
 const MESES=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 let CHARTS=[],SALDO_ATUAL=null,FIMMES=[],FLUXO=[],RC=[],RP=[],DF=[],DD=[],CONTAS=[],HOJE=null,ULTIMA=null,CARGAS=[];
-const PISO=100000; // saldo minimo de seguranca definido pelo Rogerio
+let PISO=100000,DIAS_CRITICO=30,DIAS_ATENCAO=60,HORIZONTE_DIAS=90;
 
 const DESC={
   satual:'Saldo consolidado das contas no último dia com dado real (Stone + bancos).',
@@ -93,7 +93,7 @@ const DESC={
   sproj:'Saldo de caixa projetado para o fim do mês selecionado, mantido o ritmo atual de entradas e saídas.',
   arec:'Recebíveis já vendidos com liquidação prevista dentro do mês selecionado — não dependem de venda futura.',
   smin:'Menor saldo projetado dentro do horizonte e a data em que ocorre: o ponto de maior aperto de caixa.',
-  piso:'Saldo mínimo de segurança definido: R$ 100 mil. Mostra em quantos dias, a partir de hoje, o saldo projetado cruza esse piso pela primeira vez.'
+  piso:'Saldo mínimo de segurança configurado. Mostra em quantos dias, a partir de hoje, o saldo projetado cruza esse piso pela primeira vez.'
 };
 
 function brl(v){if(v==null||isNaN(v))return '—';const a=Math.abs(v);if(a>=1e6)return 'R$ '+(v/1e6).toFixed(2).replace('.',',')+' mi';if(a>=1e3)return 'R$ '+(v/1e3).toFixed(1).replace('.',',')+' mil';return 'R$ '+v.toFixed(0);}
@@ -249,7 +249,7 @@ function renderMes(anoMes){
   const jaAbaixo=shoje!=null&&shoje<PISO;
   let pisoColor=C.green,pisoVal='—',pisoSub='<div class="sub">não cruza no horizonte</div>';
   if(jaAbaixo){pisoColor=C.red;pisoVal='Abaixo';pisoSub='<div class="sub down">saldo de hoje já está sob o piso</div>';}
-  else if(pisoDia){pisoColor=pisoDias<=30?C.red:(pisoDias<=60?C.amber:C.green);pisoVal=pisoDias+' dias';pisoSub='<div class="sub">cruza em <b>'+ddmm(pisoDia)+'</b></div>';}
+  else if(pisoDia){pisoColor=pisoDias<=DIAS_CRITICO?C.red:(pisoDias<=DIAS_ATENCAO?C.amber:C.green);pisoVal=pisoDias+' dias';pisoSub='<div class="sub">cruza em <b>'+ddmm(pisoDia)+'</b></div>';}
 
   const html=`
     <div class="section-title">Resumo de caixa — ${periodo}</div>
@@ -285,7 +285,7 @@ function renderMes(anoMes){
         <span><i style="border-color:${C.amber};border-top-style:dashed"></i>Projetado</span>
         <span><i style="border-color:${C.header};border-top:0;width:8px;height:8px;border-radius:50%;background:${C.header}"></i>Saldo no fechamento do mês</span>
         <span><i style="border-color:${C.teal};border-top-style:dashed"></i>Fim do mês selecionado</span>
-        <span><i style="border-color:${C.red};border-top-style:dotted"></i>Piso de segurança (R$ 100 mil)</span>
+        <span><i style="border-color:${C.red};border-top-style:dotted"></i>Piso de segurança (${brlK(PISO)})</span>
       </div>
     </div>
 
@@ -331,7 +331,7 @@ function drawCurva(anoMes){
   const ref=new Date(anoMes+'-01T00:00:00');
   ref.setMonth(ref.getMonth()+1);ref.setDate(0); // ultimo dia do mes selecionado
   const ini=new Date(ref);ini.setMonth(ini.getMonth()-6);
-  const fim=new Date(ref);fim.setDate(fim.getDate()+90);
+  const fim=new Date(ref);fim.setDate(fim.getDate()+HORIZONTE_DIAS);
   const iniStr=ini.toISOString().slice(0,10), fimStr=fim.toISOString().slice(0,10);
   win=FLUXO.filter(r=>r.dia>=iniStr&&r.dia<=fimStr);
   if(!win.length)win=FLUXO;
@@ -449,7 +449,7 @@ document.getElementById('verCargas').addEventListener('click',e=>{e.preventDefau
 document.getElementById('fecharCargas').addEventListener('click',()=>cargasBox.style.display='none');
 cargasBox.addEventListener('click',e=>{if(e.target===cargasBox)cargasBox.style.display='none';});
 
-SirFisherAuth.requireRole(sb).then(ctx=>{if(ctx)main();});
+(async()=>{await window.SirFisherApp.ready;PISO=window.SirFisherApp.number('caixa_saldo_minimo',100000);DIAS_CRITICO=window.SirFisherApp.number('caixa_dias_critico',30);DIAS_ATENCAO=window.SirFisherApp.number('caixa_dias_atencao',60);HORIZONTE_DIAS=window.SirFisherApp.number('caixa_horizonte_dias',90);const ctx=await SirFisherAuth.requireRole(sb);if(ctx)main();})();
 </script>
 </body>
 </html>

@@ -1452,3 +1452,39 @@ histórico e permissões permanecem iguais. Qualidade, migrations, acessos, oito
 dry-runs e `git diff --check` passaram. Migration não aplicada diretamente.
 
 — Codex
+
+---
+
+## 2026-08-11 — Codex — P1/P2: unidade única, contas Stone e parametrização
+
+Entrega preparada e validada para publicação. A operação passa a ter uma única
+unidade técnica; contas, vendas em espécie e contas recorrentes são consolidadas
+nela. Os códigos Stone deixaram de representar estabelecimentos: agora apontam
+para contas bancárias distintas em `stone_conta`, inclusive para os códigos
+históricos antes associados a PUB/Imprensa. A inclusão vigente no faturamento é
+preservada por padrão e só muda por ação explícita na tela. Alterar um vínculo também corrige o `conta_id`
+das linhas Stone existentes e registra auditoria privada.
+
+Criados `configuracao_operacional` e `fonte_financeira`, com RPCs administrativas
+e histórico. Views/RPCs de faturamento, caixa, DRE, projeções, conciliação,
+depósitos, metas, contas recorrentes e sangrias passam a ler a unidade/fontes e
+os parâmetros editáveis. O servidor impede criar uma segunda unidade ou gravar
+metas/contas fora da principal. O importador legado de planilha de contas foi
+removido e os importadores Python/web usam obrigatoriamente o cadastro de
+fontes/contas, sem fallback silencioso para nomes gravados nos scripts. As RPCs
+de contas recorrentes preservam a permissão configurável da página.
+
+Validações aprovadas: parse das sete migrations com `pglast`, AST dos 14
+scripts Python, qualidade das 24 páginas, catálogo de 123 migrations, contratos
+de acesso e oito dry-runs de importação. Os anchors da alteração dinâmica da RPC
+web também foram conferidos. Uma comparação somente leitura na produção deu
+diferença zero entre as regras atuais e as parametrizadas para faturamento,
+caixa e `entra_dre`; hashes dos resultados vigentes foram registrados para a
+conferência pós-deploy. Não houve importação real nem escrita direta no banco.
+QA visual ficou pendente porque o navegador integrado não estava disponível.
+
+Antes da consolidação, a migration cria o snapshot privado
+`private.migracao_unidade_unica_backup_20260818`, limitado aos vínculos que ela
+altera. Ele permite restaurar unidade/conta sem duplicar os dados financeiros.
+
+— Codex

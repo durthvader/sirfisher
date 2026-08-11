@@ -15,9 +15,10 @@
   .voltar:hover{color:var(--teal)}
   .op-row .chave{font-family:Consolas,monospace;font-size:10.5px}
   .empresa-form{display:grid;grid-template-columns:minmax(180px,1fr) minmax(220px,1.4fr) auto;gap:12px;align-items:end}
-  .empresa-form label{display:grid;gap:6px;font-size:11px;font-weight:700;color:var(--muted)}
+  .operacional-form{display:grid;grid-template-columns:repeat(2,minmax(170px,1fr));gap:12px;align-items:end}
+  .empresa-form label,.operacional-form label{display:grid;gap:6px;font-size:11px;font-weight:700;color:var(--muted)}
   .empresa-form .field{width:100%}
-  @media(max-width:760px){.empresa-form{grid-template-columns:1fr}.empresa-form .button{width:100%}}
+  @media(max-width:760px){.empresa-form,.operacional-form{grid-template-columns:1fr}.empresa-form .button,.operacional-form .button{width:100%}}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.108.2" integrity="sha384-JWEyvHh+lRf0sN/WWY+QTQwX+CyWqmNg4tkc8GQzAMEtR2wGNrCJlvnu1lHD1kDm" crossorigin="anonymous"></script>
 <script src="assets/supabase-client.js"></script>
@@ -43,6 +44,19 @@
       </div>
       <div class="hint" id="empresaStatus" style="margin-top:10px">Carregando…</div>
     </section>
+    <section class="panel" style="margin-bottom:16px">
+      <div class="panel-head"><div><h3>Operação de unidade única</h3><div class="hint">Todas as contas e origens pertencem à unidade principal. A conferência de dinheiro usa a conta e as regras abaixo.</div></div></div>
+      <div class="operacional-form">
+        <label>Unidade técnica<select class="field" id="operacaoUnidade"></select></label>
+        <label>Nome exibido da unidade<input class="field" id="operacaoUnidadeExibicao" maxlength="80"></label>
+        <label>Conta que recebe depósitos<select class="field" id="operacaoConta"><option value="">Todas as contas</option></select></label>
+        <label>Conferir depósitos desde<input class="field" id="operacaoDesde" type="date"></label>
+        <label>Descrição do depósito no extrato<input class="field" id="operacaoDescricao" maxlength="120"></label>
+        <label>Fuso horário<input class="field" id="operacaoFuso" maxlength="80"></label>
+        <button class="button" id="operacaoSalvar" type="button">Salvar operação</button>
+      </div>
+      <div class="hint" id="operacaoStatus" style="margin-top:10px">Carregando…</div>
+    </section>
     <div class="panel"><div id="lista"><div class="loading">Carregando…</div></div></div>
     <section class="panel" style="margin-top:16px"><div class="panel-head"><div><h3>Histórico recente</h3><div class="hint">Alterações dos parâmetros numéricos feitas nesta tela.</div></div></div><div id="historico" class="hint">Carregando…</div></section>
   </main>
@@ -59,6 +73,14 @@ const empresaNome=document.getElementById('empresaNome');
 const empresaSubtitulo=document.getElementById('empresaSubtitulo');
 const empresaSalvar=document.getElementById('empresaSalvar');
 const empresaStatus=document.getElementById('empresaStatus');
+const operacaoUnidade=document.getElementById('operacaoUnidade');
+const operacaoUnidadeExibicao=document.getElementById('operacaoUnidadeExibicao');
+const operacaoConta=document.getElementById('operacaoConta');
+const operacaoDesde=document.getElementById('operacaoDesde');
+const operacaoDescricao=document.getElementById('operacaoDescricao');
+const operacaoFuso=document.getElementById('operacaoFuso');
+const operacaoSalvar=document.getElementById('operacaoSalvar');
+const operacaoStatus=document.getElementById('operacaoStatus');
 
 function toast(msg,isErr){
   toastEl.textContent=msg;
@@ -93,6 +115,43 @@ empresaSalvar.addEventListener('click',async()=>{
   await window.SirFisherApp?.reload();
   await carregarEmpresa();
   toast('Identidade atualizada.');
+});
+
+async function carregarOperacao(){
+  const [cfg,unidades,contas]=await Promise.all([
+    sb.rpc('admin_obter_configuracao_operacional'),
+    sb.rpc('admin_listar_unidade'),
+    sb.rpc('admin_listar_conta')
+  ]);
+  if(cfg.error||unidades.error||contas.error){operacaoStatus.textContent='Configuração operacional indisponível.';return;}
+  const row=Array.isArray(cfg.data)?cfg.data[0]:cfg.data;
+  operacaoUnidade.innerHTML=(unidades.data||[]).filter(u=>u.ativa||Number(u.id)===Number(row?.unidade_id)).map(u=>`<option value="${Number(u.id)}">${esc(u.nome)}</option>`).join('');
+  operacaoConta.innerHTML='<option value="">Todas as contas</option>'+(contas.data||[]).filter(c=>c.ativa).map(c=>`<option value="${Number(c.id)}">${esc(c.nome)}</option>`).join('');
+  if(!row){operacaoStatus.textContent='Configuração operacional não inicializada.';return;}
+  operacaoUnidade.value=String(row.unidade_id);
+  operacaoUnidadeExibicao.value=row.unidade_exibicao||row.unidade_nome||'';
+  operacaoConta.value=row.conta_deposito_id==null?'':String(row.conta_deposito_id);
+  operacaoDesde.value=row.conferencia_deposito_desde||'';
+  operacaoDescricao.value=row.deposito_descricao_padrao||'';
+  operacaoFuso.value=row.fuso_horario||'';
+  operacaoStatus.textContent=row.atualizado_em?'Última atualização: '+new Date(row.atualizado_em).toLocaleString('pt-BR'):'Configuração inicial.';
+}
+
+operacaoSalvar.addEventListener('click',async()=>{
+  operacaoSalvar.disabled=true;
+  const {error}=await sb.rpc('admin_salvar_configuracao_operacional',{
+    p_unidade_id:Number(operacaoUnidade.value),
+    p_unidade_exibicao:operacaoUnidadeExibicao.value.trim(),
+    p_conta_deposito_id:operacaoConta.value?Number(operacaoConta.value):null,
+    p_conferencia_deposito_desde:operacaoDesde.value||null,
+    p_deposito_descricao_padrao:operacaoDescricao.value.trim(),
+    p_fuso_horario:operacaoFuso.value.trim()
+  });
+  operacaoSalvar.disabled=false;
+  if(error){toast('Não salvou: '+error.message,true);return;}
+  await window.SirFisherApp?.reload();
+  await carregarOperacao();
+  toast('Configuração operacional atualizada.');
 });
 
 async function carregar(){
@@ -131,7 +190,7 @@ function linha(r){
   el.innerHTML=`
     <div class="info">
       <div class="nome">${esc(r.descricao||r.chave)}</div>
-      <div class="meta"><span class="chave">${esc(r.chave)}</span></div>
+      <div class="meta"><span>${esc(r.grupo||'Geral')}</span> · <span>${esc(r.unidade_medida||'número')}</span> · <span class="chave">${esc(r.chave)}</span></div>
     </div>
     <div class="controls">
       <input type="number" step="any" inputmode="decimal" aria-label="Valor de ${esc(r.chave)}">
@@ -142,6 +201,9 @@ function linha(r){
   const btn=el.querySelector('button.save');
   let original=fmtNum(r.valor);
   input.value=original;
+  input.step=['dias','meses','minutos'].includes(r.unidade_medida)?'1':'any';
+  if(r.valor_min!=null)input.min=String(r.valor_min);
+  if(r.valor_max!=null)input.max=String(r.valor_max);
 
   input.addEventListener('input',()=>{
     btn.disabled = input.value.trim()===''|| input.value===original;
@@ -173,7 +235,7 @@ function linha(r){
 (async()=>{
   const auth=await SirFisherAuth.requireRole(sb);
   if(!auth)return;
-  await Promise.all([carregarEmpresa(),carregar()]);
+  await Promise.all([carregarEmpresa(),carregarOperacao(),carregar()]);
 })();
 </script>
 </body>
