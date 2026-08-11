@@ -1488,3 +1488,21 @@ Antes da consolidação, a migration cria o snapshot privado
 altera. Ele permite restaurar unidade/conta sem duplicar os dados financeiros.
 
 — Codex
+
+---
+
+## 2026-08-11 — Codex — Correção do deploy da conciliação parametrizada
+
+O primeiro deploy aplicou as migrations `20260818000000` e `20260818010000`,
+mas a proteção da `20260818020000` interrompeu a sequência: a materialized view
+vigente tinha quatro linhas defasadas em relação à própria regra antiga. A
+comparação somente leitura entre a regra antiga recalculada e a nova regra
+parametrizada retornou 1.531 linhas em ambas e diferença zero nos dois sentidos.
+
+A migration ainda não aplicada agora executa o refresh da regra vigente dentro
+da mesma transação antes do snapshot de validação e desativa o timeout somente
+nessa transação. Nenhum fato financeiro é alterado; apenas a view derivada é
+sincronizada antes da troca de definição. A trava de igualdade integral continua
+ativa e aborta tudo se houver qualquer diferença de valor ou classificação.
+
+— Codex

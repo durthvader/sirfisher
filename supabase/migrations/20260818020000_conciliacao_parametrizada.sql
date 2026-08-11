@@ -3,6 +3,12 @@
 
 begin;
 
+-- A view pode estar defasada em relacao aos fatos entre dois refreshes.
+-- Recalcula a regra vigente na mesma transacao para que a validacao abaixo
+-- compare regras equivalentes, e nao o estado antigo armazenado com dados novos.
+set local statement_timeout = 0;
+refresh materialized view public.mv_conciliacao_contabil;
+
 drop table if exists pg_temp.p2_antes_conciliacao;
 create temporary table p2_antes_conciliacao on commit drop as
 select to_jsonb(c) - 'atualizado_em' as linha
