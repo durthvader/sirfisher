@@ -1505,4 +1505,10 @@ nessa transação. Nenhum fato financeiro é alterado; apenas a view derivada é
 sincronizada antes da troca de definição. A trava de igualdade integral continua
 ativa e aborta tudo se houver qualquer diferença de valor ou classificação.
 
+Na retomada, as migrations até `20260818050000` foram aplicadas. A
+`20260818060000` encontrou um ponto e vírgula final retornado por
+`pg_get_viewdef()` dentro de uma subconsulta dinâmica; a definição agora remove
+somente esse terminador antes do `CREATE OR REPLACE VIEW`. A validação de
+igualdade da `fato_financeiro` permanece inalterada.
+
 — Codex

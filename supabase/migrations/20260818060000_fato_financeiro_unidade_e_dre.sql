@@ -13,6 +13,9 @@ declare
   v_def text;
 begin
   select pg_get_viewdef('public.fato_financeiro'::regclass, true) into v_def;
+  -- pg_get_viewdef inclui um ponto e virgula final neste projeto. Dentro da
+  -- subconsulta dinamica ele seria sintaxe invalida: from (<definicao>;).
+  v_def := regexp_replace(v_def, ';[[:space:]]*$', '');
   if position('fonte_financeira' in v_def) > 0
      and position('unidade_principal_nome' in v_def) > 0 then
     return;
