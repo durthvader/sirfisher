@@ -1517,4 +1517,14 @@ tinha `EXECUTE` nas novas auxiliares chamadas pelas views. A migration
 `parametro_valor(text, numeric)` para `supabase_read_only_user`, seguindo o
 mesmo padrão condicional da `20260740000000`, sem permissão de escrita.
 
+Deploy concluído: migrations até `20260818070000`, Quality Gates e GitHub Pages
+aprovados. Onze fingerprints financeiros ficaram idênticos ao baseline. A
+conciliação manteve 1.531 linhas; o hash mudou somente porque quatro linhas
+defasadas foram atualizadas, e a view publicada teve diferença zero contra a
+regra antiga recalculada. Produção ficou com uma unidade ativa e zero contas,
+metas, recorrências, fatos ou vínculos Stone fora dela. O conector MCP voltou a
+ler as views; `anon` e `authenticated` continuam sem acesso direto de escrita às
+novas tabelas. Advisors sem `auth_users_exposed`; avisos intencionais permanecem
+conforme o `AGENTS.md`.
+
 — Codex
