@@ -31,3 +31,9 @@ jobs:
 
       - name: Importer dry-runs
         run: python scripts/ci/test_importacao.py
+
+      - name: Migration catalog checks
+        run: python scripts/ci/test_migrations.py
+
+      - name: Access contracts
+        run: python scripts/ci/test_access_contracts.py

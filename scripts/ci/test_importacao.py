@@ -24,6 +24,16 @@ CASES = [
         {"Data": "01/07/2026", "Lançamento": "Pix recebido", "Valor": "10,00"},
         {"Data": "01/07/2026", "Lançamento": "S A L D O", "Valor": "110,00"},
     ]),
+    ("05_importar_bs_cash.py", ",", "utf-8", [{
+        "Data": "01/07/2026 10:00:00", "Dcto.": "1", "Operação": "PIX",
+        "Histórico": "Crédito", "Favorecido": "Teste", "Créditos (R$)": "10,00",
+        "Saldo (R$)": "10,00",
+    }]),
+    ("07_importar_fundopay.py", ";", "utf-8-sig", [{
+        "ID Venda": "teste-1", "Data Venda": "01/07/2026 10:00:00",
+        "Valor Venda": "10,00", "Valor Liquido": "9,50", "Situacao": "Aprovada",
+        "Parcelas": "1",
+    }]),
     ("13_importar_historico.py", ",", "utf-8-sig", [{"seq": "1", "empresa": "Stone", "valor": "10.00", "saldo_antes": "0.00", "saldo_depois": "10.00", "data_iso": "2026-07-01 10:00:00"}]),
 ]
 
@@ -47,6 +57,25 @@ def write_csv(path: Path, module, delimiter: str, encoding: str, values_list) ->
             writer.writerow(row)
 
 
+def run_dry_run(script: str, csv_path: Path) -> None:
+    result = subprocess.run(
+        [sys.executable, str(IMPORT_DIR / script), str(csv_path), "--dry-run"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise AssertionError(f"{script} retornou {result.returncode}: {result.stdout}")
+
+
+def write_inter_fixture(path: Path) -> None:
+    path.write_text(
+        "Extrato da conta\n"
+        "Data Lançamento;Histórico;Descrição;Valor;Saldo\n"
+        "01/07/2026;Pix recebido;Teste;10,00;10,00\n",
+        encoding="utf-8",
+    )
+
+
 def main() -> int:
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = Path(tmp)
@@ -54,13 +83,11 @@ def main() -> int:
             module = load_module(IMPORT_DIR / script, index)
             csv_path = tmp_path / f"case-{index}.csv"
             write_csv(csv_path, module, delimiter, encoding, values_list)
-            result = subprocess.run(
-                [sys.executable, str(IMPORT_DIR / script), str(csv_path), "--dry-run"],
-                capture_output=True,
-                text=True,
-            )
-            if result.returncode != 0:
-                raise AssertionError(f"{script} retornou {result.returncode}: {result.stdout}")
+            run_dry_run(script, csv_path)
+
+        inter_path = tmp_path / "inter.csv"
+        write_inter_fixture(inter_path)
+        run_dry_run("06_importar_inter.py", inter_path)
 
         invalid = tmp_path / "invalid.csv"
         invalid.write_text("coluna_errada\nvalor\n", encoding="utf-8")
@@ -89,7 +116,7 @@ def main() -> int:
                 "Saldo BB divergente deveria ser rejeitado com a mensagem de reconciliação"
             )
 
-    print(f"IMPORT_TESTS_OK dry_runs={len(CASES)} invalid_header=1 invalid_bb_balance=1")
+    print(f"IMPORT_TESTS_OK dry_runs={len(CASES) + 1} invalid_header=1 invalid_bb_balance=1")
     return 0
 
 

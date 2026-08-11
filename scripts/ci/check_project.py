@@ -157,6 +157,24 @@ def check_contracts() -> int:
 
 
 def check_security_contracts() -> int:
+    pages = sorted(ROOT.glob("*.html"))
+    common_csp = (
+        "default-src 'self'",
+        "object-src 'none'",
+        "base-uri 'none'",
+        "form-action 'self'",
+    )
+    for page in pages:
+        html = page.read_text(encoding="utf-8")
+        if "Content-Security-Policy" not in html:
+            fail(f"{page.name} sem Content Security Policy")
+        if any(value not in html for value in common_csp):
+            fail(f"{page.name} com Content Security Policy incompleta")
+        if "'unsafe-eval'" in html:
+            fail(f"{page.name} permite unsafe-eval na Content Security Policy")
+        if '<script src="assets/safe-dom.js"></script>' not in html:
+            fail(f"{page.name} sem helper compartilhado de escape HTML")
+
     calendar = (ROOT / "calendario.html").read_text(encoding="utf-8")
     safe_dom_script = '<script src="assets/safe-dom.js"></script>'
     if safe_dom_script not in calendar:
@@ -173,7 +191,7 @@ def check_security_contracts() -> int:
     line_body = line_match.group("body")
     if "${esc(rotulo)}" not in line_body or "${rotulo}" in line_body:
         fail("Rotulo dinamico do calendario nao esta escapado")
-    return 1
+    return len(pages) + 1
 
 
 def check_secrets(files: list[Path]) -> int:
