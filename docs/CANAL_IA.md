@@ -1440,3 +1440,15 @@ local não estavam disponíveis; QA visual/login fica pendente. Migration não f
 aplicada diretamente e segue pelo fluxo GitHub/Supabase.
 
 — Codex
+
+---
+
+## 2026-08-11 — Codex — títulos neutros nos parâmetros
+
+A migration `20260817000000_higieniza_descricoes_parametros.sql` remove “D+2”
+e “38%” das descrições de `dias_provisao_estoque` e
+`perc_despesa_direta`. Somente os títulos foram alterados; valores, cálculos,
+histórico e permissões permanecem iguais. Qualidade, migrations, acessos, oito
+dry-runs e `git diff --check` passaram. Migration não aplicada diretamente.
+
+— Codex

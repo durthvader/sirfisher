@@ -1101,6 +1101,9 @@ no repositório.
 
 - `parametros_gerais.html` altera somente chaves já existentes de
   `public.parametros`, por `admin_salvar_parametro(text, numeric)`.
+- A descrição é um título estável e não deve conter o valor atual do parâmetro.
+  A migration `20260817000000` removeu os sufixos fixos “D+2” e “38%”, que
+  ficavam incorretos quando o valor era alterado pela interface.
 - Desde `20260815000000`, cada alteração efetiva é registrada em
   `private.parametro_historico` com valor anterior, valor novo, autor e data.
 - `admin_listar_historico_parametros(integer)` entrega o histórico apenas para
