@@ -94,6 +94,34 @@ def main() -> int:
     if "refresh materialized view concurrently public.mv_saldo_caixa_diario_detalhado" in latest_refresh:
         fail("Refresh atual voltou a recalcular o snapshot fixo legado")
 
+    calendar_html = (ROOT / "calendario.html").read_text(encoding="utf-8-sig")
+    require(
+        calendar_html,
+        (
+            "sb.rpc('listar_saldo_contas_dia'",
+            "contasVisiveis.map",
+            "formada pelas contas ativas configuradas",
+        ),
+        "Calendário perdeu o detalhamento dinâmico de contas",
+    )
+    if "sb.rpc('detalhar_saldo_caixa_dia'" in calendar_html:
+        fail("Calendário voltou ao detalhamento fixo por banco")
+
+    parameters_html = (ROOT / "parametros.html").read_text(encoding="utf-8-sig")
+    editor_html = (ROOT / "parametros_editor.html").read_text(encoding="utf-8-sig")
+    require(
+        editor_html,
+        (
+            "saveRpc:'admin_salvar_conta_com_saldo'",
+            "saveRpc:'admin_salvar_fonte_financeira_com_saldo'",
+            "key:'saldo_metodo'",
+            "key:'saldo_adaptador'",
+        ),
+        "Editor perdeu parâmetros do saldo por conta",
+    )
+    if "parametros_editor.html?t=saldo_inicial" in parameters_html:
+        fail("Parâmetros voltou a exibir o cadastro duplicado de saldo inicial")
+
     print("FINANCIAL_CONTRACTS_OK calendar=2 derived=5 rollover=1 generic_balance=1")
     return 0
 

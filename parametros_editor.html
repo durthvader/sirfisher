@@ -81,19 +81,6 @@ const TABELAS={
     ],
     toParams:v=>({p_grupo:v.grupo,p_variavel:!!v.variavel})
   },
-  saldo_inicial:{
-    titulo:'Saldo inicial',
-    subtitulo:'Saldo semente que inicia o fluxo de caixa de cada conta.',
-    listRpc:'admin_listar_saldo_inicial', saveRpc:'admin_salvar_saldo_inicial',
-    colunas:[
-      {key:'conta',label:'Conta',keyOnAdd:true},
-      {key:'data_base',label:'Data base',type:'date'},
-      {key:'saldo',label:'Saldo',type:'number'},
-      {key:'obs',label:'Observação',type:'text'}
-    ],
-    toParams:v=>({p_conta:v.conta,p_data_base:v.data_base||null,p_saldo:num(v.saldo),p_obs:v.obs||null}),
-    canAdd:true, addTemplate:{conta:'',data_base:'',saldo:'',obs:''}
-  },
   meta_mensal:{
     titulo:'Metas mensais',
     subtitulo:'Meta de faturamento bruto por mês e unidade. Adicione novos meses no fim da tabela.',
@@ -112,17 +99,24 @@ const TABELAS={
   },
   conta:{
     titulo:'Contas bancárias',
-    subtitulo:'Cadastro de contas por unidade. Para "remover" uma conta, desmarque Ativa.',
-    listRpc:'admin_listar_conta', saveRpc:'admin_salvar_conta',
+    subtitulo:'Cadastro e saldo inicial de cada conta. Escolha como o saldo é calculado; para remover, desmarque Ativa.',
+    listRpc:'admin_listar_conta', saveRpc:'admin_salvar_conta_com_saldo',
     colunas:[
       {key:'id',label:'#',readOnly:true,addHidden:true},
       {key:'nome',label:'Nome',type:'text'},
       {key:'banco',label:'Banco',type:'text'},
       {key:'unidade_id',label:'Unidade',type:'select',options:[]},
+      {key:'saldo_metodo',label:'Cálculo do saldo',type:'select',options:[
+        {value:'ignorar',label:'Não compõe o caixa'},
+        {value:'extrato',label:'Saldo informado no extrato'},
+        {value:'movimentos',label:'Saldo-base + movimentações'}
+      ]},
+      {key:'saldo_data_base',label:'Data-base (se houver)',type:'date'},
+      {key:'saldo_base',label:'Saldo-base',type:'number'},
       {key:'ativa',label:'Ativa',type:'boolean'}
     ],
-    toParams:v=>({p_id:int(v.id),p_nome:v.nome,p_banco:v.banco,p_unidade_id:int(v.unidade_id),p_ativa:!!v.ativa}),
-    canAdd:true, addTemplate:{nome:'',banco:'',unidade_id:'',ativa:true},
+    toParams:v=>({p_id:int(v.id),p_nome:v.nome,p_banco:v.banco,p_unidade_id:int(v.unidade_id),p_ativa:!!v.ativa,p_saldo_metodo:v.saldo_metodo||'ignorar',p_saldo_data_base:v.saldo_data_base||'0001-01-01',p_saldo_base:num(v.saldo_base)??0}),
+    canAdd:true, addTemplate:{nome:'',banco:'',unidade_id:'',saldo_metodo:'ignorar',saldo_data_base:'0001-01-01',saldo_base:0,ativa:true},
     prepare:async(cfg)=>{
       await window.SirFisherApp.ready;
       const {data}=await sb.rpc('admin_listar_unidade');
@@ -146,19 +140,27 @@ const TABELAS={
   },
   fonte_financeira:{
     titulo:'Fontes financeiras',
-    subtitulo:'Configure a conta padrão e em quais demonstrativos cada origem participa.',
-    listRpc:'admin_listar_fonte_financeira', saveRpc:'admin_salvar_fonte_financeira',
+    subtitulo:'Configure a conta, o formato de saldo e em quais demonstrativos cada origem participa.',
+    listRpc:'admin_listar_fonte_financeira', saveRpc:'admin_salvar_fonte_financeira_com_saldo',
     colunas:[
       {key:'chave',label:'Fonte',readOnly:true},
       {key:'nome',label:'Nome',type:'text'},
       {key:'conta_id',label:'Conta padrão',type:'select',options:[]},
+      {key:'saldo_adaptador',label:'Formato do saldo',type:'select',options:[
+        {value:'nenhum',label:'Não calcula saldo'},
+        {value:'stone_extrato',label:'Extrato Stone'},
+        {value:'bb',label:'Extrato Banco do Brasil'},
+        {value:'inter',label:'Extrato Inter'},
+        {value:'bs_cash',label:'Extrato BS Cash'},
+        {value:'venda_especie',label:'Dinheiro em espécie'}
+      ]},
       {key:'ativa',label:'Ativa',type:'boolean'},
       {key:'entra_faturamento',label:'Faturamento',type:'boolean'},
       {key:'entra_caixa',label:'Caixa',type:'boolean'},
       {key:'entra_caixa_historico',label:'Caixa histórico',type:'boolean'},
       {key:'entra_dre',label:'DRE',type:'boolean'}
     ],
-    toParams:v=>({p_chave:v.chave,p_nome:v.nome,p_conta_id:v.conta_id?int(v.conta_id):null,p_ativa:!!v.ativa,p_entra_faturamento:!!v.entra_faturamento,p_entra_caixa:!!v.entra_caixa,p_entra_caixa_historico:!!v.entra_caixa_historico,p_entra_dre:!!v.entra_dre}),
+    toParams:v=>({p_chave:v.chave,p_nome:v.nome,p_conta_id:v.conta_id?int(v.conta_id):null,p_ativa:!!v.ativa,p_entra_faturamento:!!v.entra_faturamento,p_entra_caixa:!!v.entra_caixa,p_entra_caixa_historico:!!v.entra_caixa_historico,p_entra_dre:!!v.entra_dre,p_saldo_adaptador:v.saldo_adaptador||'nenhum'}),
     prepare:async(cfg)=>{
       const {data}=await sb.rpc('admin_listar_conta');
       cfg.colunas.find(c=>c.key==='conta_id').options=[{value:'',label:'Sem conta'}].concat((data||[]).filter(c=>c.ativa).map(c=>({value:c.id,label:c.nome})));
@@ -197,12 +199,12 @@ function buildInput(col,value){
   let el;
   if(col.type==='boolean'){el=document.createElement('input');el.type='checkbox';el.checked=!!value;}
   else if(col.type==='select'){el=document.createElement('select');(col.options||[]).forEach(o=>{const op=document.createElement('option');op.value=String(o.value);op.textContent=o.label;el.appendChild(op);});el.value=value==null?'':String(value);}
-  else{el=document.createElement('input');el.type=col.type==='number'?'number':col.type==='date'?'date':col.type==='month'?'month':'text';if(col.type==='number')el.step='any';el.value=value==null?'':(col.type==='month'?String(value).slice(0,7):String(value));}
+  else{el=document.createElement('input');el.type=col.type==='number'?'number':col.type==='date'?'date':col.type==='month'?'month':'text';if(col.type==='number')el.step='any';el.value=value==null||(col.type==='date'&&value==='0001-01-01')?'':(col.type==='month'?String(value).slice(0,7):String(value));}
   el.className='field';
   return el;
 }
 function readInput(el,col){return col.type==='boolean'?el.checked:el.value;}
-function setInput(el,value,col){if(col.type==='boolean')el.checked=!!value;else if(col.type==='month')el.value=value==null?'':String(value).slice(0,7);else el.value=value==null?'':String(value);}
+function setInput(el,value,col){if(col.type==='boolean')el.checked=!!value;else if(col.type==='month')el.value=value==null?'':String(value).slice(0,7);else el.value=value==null||(col.type==='date'&&value==='0001-01-01')?'':String(value);}
 
 function buildRow(cfg,row,isAdd){
   const tr=document.createElement('tr');

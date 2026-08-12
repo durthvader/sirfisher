@@ -140,14 +140,15 @@ async function mostrarDetalhe(button){
   if(tipo==='saldo'){
     if(SALDOS_DIA[r.dia]===undefined){
       pop.innerHTML=`<h3>Saldo em caixa · ${dataBR(r.dia)}</h3><div class="detail-note">Carregando composição…</div>`;posicionarPopover(pop,button);
-      const {data,error}=await sb.rpc('detalhar_saldo_caixa_dia',{p_dia:r.dia});
+      const {data,error}=await sb.rpc('listar_saldo_contas_dia',{p_dia:r.dia});
       if(error){console.error('Falha ao detalhar saldo do dia:',error);SALDOS_DIA[r.dia]=null;}
-      else SALDOS_DIA[r.dia]=(data&&data[0])||null;
+      else SALDOS_DIA[r.dia]=data||[];
       if(pop.dataset.dia!==r.dia||pop.dataset.tipo!=='saldo'||!pop.classList.contains('show'))return;
     }
-    const saldo=SALDOS_DIA[r.dia];
-    html=saldo
-      ?`<h3>Saldo em caixa · ${dataBR(r.dia)}</h3>${linha('Stone',saldo.saldo_stone)}${linha('Banco do Brasil',saldo.saldo_bb)}${Number(saldo.saldo_inter)?linha('Inter',saldo.saldo_inter):''}${linha('Dinheiro a depositar',saldo.dinheiro_pendente)}${linha('Total',saldo.saldo_total)}<div class="detail-note">Posição no fechamento desta data. O dinheiro considera somente sangrias ainda não depositadas naquele dia; BS Cash permanece fora do caixa disponível.</div>`
+    const contas=SALDOS_DIA[r.dia];
+    const contasVisiveis=contas?.filter(c=>Math.abs(Number(c.saldo)||0)>=.005);
+    html=contas
+      ?`<h3>Saldo em caixa · ${dataBR(r.dia)}</h3>${contasVisiveis.map(c=>linha(c.conta,c.saldo)).join('')}${linha('Total',contas[0]?.saldo_total??r.saldo_caixa)}<div class="detail-note">Posição no fechamento desta data, formada pelas contas ativas configuradas para compor o caixa.</div>`
       :`<h3>Saldo em caixa · ${dataBR(r.dia)}</h3><div class="detail-note">A composição por conta não está disponível para esta data.</div>`;
   }
   if(tipo==='despesas'){
