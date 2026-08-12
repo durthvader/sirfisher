@@ -68,7 +68,33 @@ def main() -> int:
         "Sincronização dos derivados perdeu uma proteção obrigatória",
     )
 
-    print("FINANCIAL_CONTRACTS_OK calendar=2 derived=5 rollover=1")
+    generic_balance = (
+        MIGRATIONS / "20260818120000_saldo_generico_por_conta.sql"
+    ).read_text(encoding="utf-8-sig")
+    require(
+        generic_balance,
+        (
+            "private.movimento_saldo_conta",
+            "private.mv_saldo_conta_diario",
+            "private.saldo_caixa_diario",
+            "Novo saldo por conta divergiu do snapshot anterior",
+            "Nova âncora de saldo divergiu do valor anterior",
+            "public.listar_saldo_contas_dia",
+            "public.admin_salvar_conta_com_saldo",
+            "public.admin_salvar_fonte_financeira_com_saldo",
+            "refresh materialized view concurrently private.mv_saldo_conta_diario",
+            "select public.refresh_painel();",
+        ),
+        "Saldo genérico perdeu uma proteção obrigatória",
+    )
+
+    latest_refresh = generic_balance.split(
+        "create or replace function public.refresh_painel()", 1
+    )[1].split("$function$;", 1)[0]
+    if "refresh materialized view concurrently public.mv_saldo_caixa_diario_detalhado" in latest_refresh:
+        fail("Refresh atual voltou a recalcular o snapshot fixo legado")
+
+    print("FINANCIAL_CONTRACTS_OK calendar=2 derived=5 rollover=1 generic_balance=1")
     return 0
 
 

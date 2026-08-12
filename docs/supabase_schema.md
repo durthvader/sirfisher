@@ -98,8 +98,8 @@ no repositório.
 - Tipo: painel / view agregada
 - Uso: `caixa.html`
 - Propósito: mostra fluxo de caixa diário, saldo real/projetado e entradas/saídas.
-- As linhas realizadas usam `mv_saldo_caixa_diario_detalhado`; as linhas
-  projetadas preservam a memória prospectiva anterior. No corte, as duas
+- As linhas realizadas usam `private.saldo_caixa_diario`, agregado do saldo
+  configurável por conta; as linhas projetadas preservam a memória prospectiva anterior. No corte, as duas
   fontes convergem e mantêm a continuidade da curva.
 - Colunas importantes:
   - `dia`
@@ -541,26 +541,31 @@ no repositório.
   tratados como "projetado"; dias até o corte como "real".
 - Regra (desde `20260745000000_corte_considera_dia_completo.sql`):
   - `corte_venda` = `least(max(data_venda) da raw_stone_vendas, max(data) da
-    venda_especie, ontem em America/Sao_Paulo)`. Um dia só conta quando as duas
+    venda_especie, ontem no fuso configurado)`. Um dia só conta quando as duas
     fontes já passaram por ele e o dia terminou. Semântica da espécie: dia sem
     lançamento mas com lançamento posterior = zero implícito (conta); dia sem
     lançamento na fronteira = fica fora até o próximo lançamento; lançar R$ 0
     explícito avança a fronteira.
-  - `corte_caixa` = `least(max(data_caixa) de fato_financeiro, ontem em
-    America/Sao_Paulo)`.
+  - `corte_caixa` = `least(max(data_caixa) de fato_financeiro, ontem no fuso
+    configurado)`.
 - `tendencia_mes` usa `corte_venda.dia` diretamente como `dia_ref` (não mais
   `max(dia)` do mês, que deixava espécie adiantada furar o corte).
 
-### mv_saldo_caixa_diario_detalhado / detalhar_saldo_caixa_dia(date)
-- Tipo: materialized view interna e RPC diária `SECURITY DEFINER`, protegida
-  pela permissão de `calendario.html`.
-- Uso: saldo realizado e popover da coluna Saldo caixa em `calendario.html`.
-- Propósito: preservar a memória de fechamento de cada data separada em saldo
-  Stone, saldo Banco do Brasil, saldo Inter e dinheiro em espécie ainda não
-  depositado naquela data. O total diário é a soma dos componentes; BS Cash
-  continua fora do caixa disponível. O saldo Inter é a soma acumulada de
-  `raw_inter` (a conta nasceu zerada em mai/2025 e foi encerrada zerada em
-  jun/2026), então só afeta as datas em que a conta tinha dinheiro.
+### saldo por conta / listar_saldo_contas_dia(date)
+- Tipo: view normalizadora e materialized view no schema `private`, mais RPC
+  diária `SECURITY DEFINER` protegida pela permissão de `calendario.html`.
+- Uso: saldo realizado, “onde está o dinheiro” e popover da coluna Saldo caixa.
+- `conta.saldo_metodo` define se a conta fica fora do caixa, usa o último saldo
+  informado pelo extrato ou parte de um saldo-base e soma os movimentos.
+  `saldo_data_base` impede contar novamente movimentos já contidos no
+  fechamento inicial.
+- `fonte_financeira.saldo_adaptador` liga a fonte ao formato técnico importado.
+  O cálculo não consulta nome de restaurante, unidade, banco ou conta.
+- `private.movimento_saldo_conta` normaliza os formatos; a pequena
+  `private.mv_saldo_conta_diario` guarda uma linha por conta/dia; e
+  `private.saldo_caixa_diario` soma apenas as contas configuradas para o caixa.
+- `listar_saldo_contas_dia(date)` devolve a lista dinâmica usada pela interface.
+  `detalhar_saldo_caixa_dia(date)` permanece como compatibilidade transitória.
 - O dinheiro pendente é reconstituído pelos eventos de custódia: entra na data
   da venda em espécie e sai na data local em que a sangria é marcada como
   depositada. Assim, o pendente atual não é reaplicado retroativamente aos
@@ -569,13 +574,14 @@ no repositório.
   a variação negativa participa das saídas. No depósito, a baixa física e o
   crédito bancário ficam visíveis separadamente, preservando a igualdade
   `saldo do dia - saldo anterior = recebimentos - despesas`.
-- A view não possui `grant` direto ao navegador. A RPC retorna somente uma
-  linha e é carregada sob demanda, com cache no front-end.
+- Os objetos internos não possuem `grant` direto ao navegador. A RPC é
+  carregada sob demanda pela interface.
 - Importações a atualizam pelo `refresh_painel()`. Alterações de sangria criam
   apenas um job `pg_cron` temporário para este snapshot pequeno; o worker se
-  remove depois do refresh. Não existe agendamento permanente nem diário.
-- Criados em `20260763000000_saldo_diario_detalhado.sql`; coluna `saldo_inter`
-  adicionada em `20260765000000_conta_inter_e_extrato_bb_2025.sql`.
+  remove depois do refresh. A virada horária apenas verifica se o corte mudou.
+- O motor genérico foi criado em
+  `20260818120000_saldo_generico_por_conta.sql`. A implantação compara todos os
+  dias e componentes com o snapshot anterior e é cancelada se houver diferença.
 
 ### raw_inter / conta Inter
 - Tipo: tabela raw de extrato (carga única) da conta Inter, encerrada em
