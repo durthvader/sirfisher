@@ -136,6 +136,7 @@ def gravar(registros, periodo):
         fonte_log="Vendas Fundopay",
         periodo=periodo,
         fonte_chave="fundopay",
+        conta_obrigatoria=False,
     )
 
 

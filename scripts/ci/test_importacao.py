@@ -15,6 +15,8 @@ ROOT = Path(__file__).resolve().parents[2]
 IMPORT_DIR = ROOT / "scripts" / "importacao"
 sys.path.insert(0, str(IMPORT_DIR))
 
+import importacao_core
+
 CASES = [
     ("01_importar_extrato_stone.py", ",", "utf-8-sig", [{"Movimentação": "Crédito", "Valor": "10,00", "Saldo antes": "0,00", "Saldo depois": "10,00", "Data": "01/07/2026 10:00"}]),
     ("02_importar_vendas_stone.py", ";", "utf-8-sig", [{"DATA DA VENDA": "01/07/2026 10:00", "STONE ID": "teste-1", "VALOR BRUTO": "10,00", "VALOR LIQUIDO": "9,50"}]),
@@ -76,7 +78,56 @@ def write_inter_fixture(path: Path) -> None:
     )
 
 
+class CursorFonteFake:
+    def __init__(self, retorno):
+        self.retorno = retorno
+        self.consulta = None
+        self.parametros = None
+
+    def execute(self, consulta, parametros):
+        self.consulta = consulta
+        self.parametros = parametros
+
+    def fetchone(self):
+        return self.retorno
+
+
+def test_resolucao_conta_fonte() -> None:
+    conta = importacao_core._resolver_conta_fonte(
+        CursorFonteFake((None,)),
+        "fundopay",
+        conta_obrigatoria=False,
+    )
+    if conta is not None:
+        raise AssertionError("Fonte de vendas sem conta deveria ser aceita")
+
+    try:
+        importacao_core._resolver_conta_fonte(
+            CursorFonteFake((None,)),
+            "stone_extrato",
+            conta_obrigatoria=True,
+        )
+    except importacao_core.ErroOperacional as exc:
+        if "sem conta configurada" not in str(exc):
+            raise AssertionError("Erro de conta obrigatória ficou ambíguo") from exc
+    else:
+        raise AssertionError("Fonte financeira sem conta deveria ser rejeitada")
+
+    try:
+        importacao_core._resolver_conta_fonte(
+            CursorFonteFake(None),
+            "fonte_inativa",
+            conta_obrigatoria=False,
+        )
+    except importacao_core.ErroOperacional as exc:
+        if "inexistente ou inativa" not in str(exc):
+            raise AssertionError("Erro de fonte inativa ficou ambíguo") from exc
+    else:
+        raise AssertionError("Fonte inexistente ou inativa deveria ser rejeitada")
+
+
 def main() -> int:
+    test_resolucao_conta_fonte()
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = Path(tmp)
         for index, (script, delimiter, encoding, values_list) in enumerate(CASES):
@@ -116,7 +167,10 @@ def main() -> int:
                 "Saldo BB divergente deveria ser rejeitado com a mensagem de reconciliação"
             )
 
-    print(f"IMPORT_TESTS_OK dry_runs={len(CASES) + 1} invalid_header=1 invalid_bb_balance=1")
+    print(
+        f"IMPORT_TESTS_OK dry_runs={len(CASES) + 1} invalid_header=1 "
+        "invalid_bb_balance=1 source_account_rules=3"
+    )
     return 0
 
 

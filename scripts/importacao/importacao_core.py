@@ -281,6 +281,7 @@ def importar_registros(
     periodo: tuple[date, date] | None,
     page_size: int = 500,
     fonte_chave: str | None = None,
+    conta_obrigatoria: bool = True,
 ) -> ResultadoImportacao:
     _validar_sql_estatico(tabela, colunas, conflito)
     if not registros:
@@ -302,18 +303,11 @@ def importar_registros(
         conn.autocommit = False
         cur = conn.cursor()
 
-        conta_id = None
-        if fonte_chave:
-            cur.execute(
-                "select conta_id from fonte_financeira where chave = %s and ativa limit 1;",
-                (fonte_chave,),
-            )
-            fonte = cur.fetchone()
-            if not fonte or fonte[0] is None:
-                raise ErroOperacional(
-                    f"fonte financeira inativa ou sem conta configurada: {fonte_chave}"
-                )
-            conta_id = fonte[0]
+        conta_id = _resolver_conta_fonte(
+            cur,
+            fonte_chave,
+            conta_obrigatoria=conta_obrigatoria,
+        )
 
         valores = [list(montar_linha(registro, conta_id)) for registro in registros]
         sql = (
@@ -352,6 +346,23 @@ def importar_registros(
             cur.close()
         if conn:
             conn.close()
+
+
+def _resolver_conta_fonte(cur, fonte_chave: str | None, *, conta_obrigatoria: bool):
+    """Valida a fonte e resolve sua conta quando o adaptador precisa dela."""
+    if not fonte_chave:
+        return None
+
+    cur.execute(
+        "select conta_id from fonte_financeira where chave = %s and ativa limit 1;",
+        (fonte_chave,),
+    )
+    fonte = cur.fetchone()
+    if not fonte:
+        raise ErroOperacional(f"fonte financeira inexistente ou inativa: {fonte_chave}")
+    if fonte[0] is None and conta_obrigatoria:
+        raise ErroOperacional(f"fonte financeira sem conta configurada: {fonte_chave}")
+    return fonte[0]
 
 
 def atualizar_painel() -> None:
