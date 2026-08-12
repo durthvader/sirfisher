@@ -113,9 +113,10 @@ def main() -> int:
         editor_html,
         (
             "saveRpc:'admin_salvar_conta_com_saldo'",
-            "saveRpc:'admin_salvar_fonte_financeira_com_saldo'",
+            "saveRpc:'admin_salvar_fonte_financeira_com_vigencia'",
             "key:'saldo_metodo'",
             "key:'saldo_adaptador'",
+            "key:'considerar_desde'",
         ),
         "Editor perdeu parâmetros do saldo por conta",
     )
@@ -163,7 +164,43 @@ def main() -> int:
         "Alertas operacionais voltaram a depender de fontes ou prazos fixos",
     )
 
-    print("FINANCIAL_CONTRACTS_OK calendar=2 derived=5 rollover=1 generic_balance=1 deposit_account=1 operational_alerts=1")
+    supplier_analysis = (
+        MIGRATIONS / "20260818160000_parametriza_analise_fornecedores.sql"
+    ).read_text(encoding="utf-8-sig")
+    require(
+        supplier_analysis,
+        (
+            "fornecedor_meses_historico",
+            "fornecedor_recorrencia_presenca_perc",
+            "fornecedor_recorrencia_min_meses",
+            "private.validar_parametros_fornecedor",
+            "trg_validar_parametros_fornecedor",
+        ),
+        "Análise de fornecedores voltou a depender de regras fixas",
+    )
+
+    source_validity = (
+        MIGRATIONS / "20260818170000_parametriza_inicio_fontes.sql"
+    ).read_text(encoding="utf-8-sig")
+    require(
+        source_validity,
+        (
+            "considerar_desde date",
+            "p3_antes_vigencia_fontes",
+            "except all",
+            "admin_salvar_fonte_financeira_com_vigencia",
+            "cfg_vigencia.considerar_desde",
+            "Não foi possível remover com segurança o corte fixo do BS Cash",
+        ),
+        "Vigencia das fontes perdeu uma protecao obrigatoria",
+    )
+    bs_importer = (ROOT / "scripts" / "importacao" / "05_importar_bs_cash.py").read_text(
+        encoding="utf-8-sig"
+    )
+    if "CORTE_FATO_FINANCEIRO" in bs_importer or "date(2026, 1, 1)" in bs_importer:
+        fail("Importador BS Cash voltou a carregar corte especifico da empresa atual")
+
+    print("FINANCIAL_CONTRACTS_OK calendar=2 derived=5 rollover=1 generic_balance=1 deposit_account=1 operational_alerts=1 supplier_analysis=1 source_validity=1")
     return 0
 
 

@@ -15,8 +15,7 @@
 body { background: var(--bg); color: var(--text); font-family: 'Roboto', Arial, sans-serif; font-size: 14px; line-height: 1.4; -webkit-font-smoothing: antialiased; }
 .app { max-width: 960px; margin: 0 auto; padding-bottom: 30px; }
 .brand { display: flex; align-items: center; gap: 9px; min-width: 0; }
-.brand .mark { width: 30px; height: 30px; border-radius: 7px; background: var(--teal); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.brand .mark svg { width: 18px; height: 18px; }
+.brand .mark { width: 30px; height: 30px; border-radius: 7px; background: var(--teal); color: #fff; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 11px; font-weight: 700; letter-spacing: .25px; }
 .brand h1 { font-size: 16px; font-weight: 700; letter-spacing: .2px; }
 .brand span { font-size: 10.5px; color: #9fb3bd; display: block; font-weight: 400; }
 .head-meta { text-align: right; flex-shrink: 0; }

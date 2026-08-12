@@ -263,6 +263,12 @@ no repositório.
   fornecedores do mês com o realizado até o dia de corte e a média dos meses
   anteriores **até o mesmo dia do mês** — sem tendência. Em mês fechado o corte
   vai a 31 e cobre o mês inteiro.
+- Desde `20260818160000`, `despesas.html` envia a janela configurável
+  `fornecedor_meses_historico` para a RPC. A classificação de recorrência usa
+  também `fornecedor_recorrencia_presenca_perc` e
+  `fornecedor_recorrencia_min_meses`, todos editáveis em Parâmetros. Os padrões
+  `6`, `60%` e `2` preservam o resultado anterior. Um trigger impede apenas que
+  a presença mínima supere o histórico disponível somado ao mês atual.
 - **Por que o mesmo período, e não tendência:** a tendência é um multiplicador da
   curva de **vendas**, e despesa fixa não segue venda — é paga uma vez e não
   cresce com o avanço do mês. Cortando os dois lados no mesmo dia, o próprio dado
@@ -893,8 +899,10 @@ no repositório.
   data efetiva em que a conta foi paga.
 - `sem_movimento` substitui os antigos marcadores simbólicos de R$ 0,01 sem
   contaminar médias ou totais financeiros.
-- A RPC `listar_contas_recorrentes(date)` calcula a média dos três últimos
-  pagamentos reais anteriores à competência escolhida.
+- A RPC `listar_contas_recorrentes(date)` calcula a média da quantidade
+  configurada em `meses_media_fixa` de pagamentos reais anteriores à
+  competência escolhida. O nome técnico legado da coluna retornada permanece
+  `media_3` por compatibilidade.
 - Escritas usam as RPCs `salvar_conta_recorrente`,
   `salvar_pagamento_recorrente` e `excluir_pagamento_recorrente`.
 - O histórico da planilha antiga pode ser enviado uma única vez pela RPC admin
@@ -1149,8 +1157,11 @@ no repositório.
   históricos. Todas as contas pertencem à unidade principal.
 - `fonte_financeira` relaciona cada adaptador à conta padrão e aos controles
   `ativa`, `entra_faturamento`, `entra_caixa`, `entra_caixa_historico` e
-  `entra_dre`. O controle histórico resolve aliases antigos sem fazer uma fonte
-  recém-habilitada alterar retroativamente o caixa consolidado.
+  `entra_dre`. `considerar_desde`, adicionado em `20260818170000`, define a
+  vigência de qualquer fonte no fato; vazio inclui todo o histórico. O corte
+  legado do BS Cash deixa de existir no código e permanece apenas como valor
+  editável desta instalação. O controle histórico resolve aliases antigos sem
+  fazer uma fonte recém-habilitada alterar retroativamente o caixa consolidado.
 - `fato_financeiro.entra_dre`, `caixa_real_diario` e as views de faturamento
   incorporam esses controles sem apagar ou reclassificar lançamentos.
 - No contrato legado de `fato_financeiro`, a coluna `empresa` passa a exibir o

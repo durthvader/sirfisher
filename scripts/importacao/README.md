@@ -116,7 +116,6 @@ Atualização do painel:
 BAT nem pelo dispatcher.
 
 O extrato da conta BS Cash (`05_importar_bs_cash.py`) é gravado por inteiro em
-`raw_bs_cash`, mas `fato_financeiro` só passa a considerá-lo a partir de
-2026-01-01 (mesmo corte usado para Stone/BB) — período anterior já é contado
-pela carga única do histórico. Ver a migration
-`20260725000000_importa_bs_cash.sql` para o motivo.
+`raw_bs_cash`. A data inicial que participa do `fato_financeiro` é editável em
+**Parâmetros > Fontes financeiras > Considerar desde**. Data vazia inclui todo
+o histórico; isso evita levar para outra empresa o corte legado desta base.

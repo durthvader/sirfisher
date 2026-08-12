@@ -2,16 +2,12 @@
 """Importa extrato da conta BS Cash com validação antes da transação.
 
 O CSV traz Créditos e Débitos em colunas separadas (não um valor único com
-sinal, como no BB) e data+hora completas. Todo o arquivo é gravado em
-raw_bs_cash, mas fato_financeiro só passa a considerar lançamentos a partir
-de CORTE_FATO_FINANCEIRO — ver migration 20260725000000_importa_bs_cash
-para o motivo (evitar duplicar o que raw_historico já conta entre 2023 e
-2025).
+sinal, como no BB) e data+hora completas. A data inicial que participa dos
+painéis pertence à configuração da fonte financeira, não ao importador.
 """
 
 import hashlib
 import sys
-from datetime import date
 
 from importacao_core import (
     Rejeicao,
@@ -39,12 +35,6 @@ COLUNAS = [
     "favorecido", "valor", "saldo", "dedup_hash",
 ]
 FORMATOS_DATA = ("%d/%m/%Y %H:%M:%S", "%d/%m/%Y")
-
-# Mesmo corte usado para stone_extrato/bb em fato_financeiro (só cosmético
-# aqui: informa o usuário quantos registros deste arquivo vão "valer" nos
-# painéis; quem decide de fato é a view).
-CORTE_FATO_FINANCEIRO = date(2026, 1, 1)
-
 
 def ler_csv(caminho, opcoes):
     registros = []
@@ -111,24 +101,12 @@ def ler_csv(caminho, opcoes):
 
 def resumo(registros, ignoradas):
     hashes = {item["dedup_hash"] for item in registros}
-    considerados = sum(
-        1 for item in registros if item["data_hora"].date() >= CORTE_FATO_FINANCEIRO
-    )
     print("\n== Resumo do arquivo ==")
     print(f"  transações:                  {len(registros)}")
     print(f"  linhas de saldo/ignoradas:    {ignoradas}")
     print(f"  hashes únicos:                {len(hashes)}")
     print(f"  duplicatas internas:          {len(registros) - len(hashes)}")
-    print(
-        f"  a partir de {CORTE_FATO_FINANCEIRO.isoformat()} "
-        f"(contam no calendário/despesas/DRE): {considerados} de {len(registros)}"
-    )
-    if considerados < len(registros):
-        print(
-            "  Os demais são gravados em raw_bs_cash para não perder o "
-            "histórico, mas NÃO entram no fato_financeiro (esse período já "
-            "é contado via a planilha histórico)."
-        )
+    print("  vigência nos painéis:         definida em Parâmetros > Fontes financeiras")
 
 
 def gravar(registros, periodo):

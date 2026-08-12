@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
 <link href="assets/dashboard-common.css" rel="stylesheet">
-<link href="assets/product-pages.css?v=20260714-1" rel="stylesheet">
+<link href="assets/product-pages.css" rel="stylesheet">
 <link href="assets/accessibility.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.108.2" integrity="sha384-JWEyvHh+lRf0sN/WWY+QTQwX+CyWqmNg4tkc8GQzAMEtR2wGNrCJlvnu1lHD1kDm" crossorigin="anonymous"></script>
 <script src="assets/supabase-client.js"></script>
@@ -20,7 +20,7 @@
 <body>
 <div class="app">
   <header>
-    <div class="head-row"><div class="brand"><div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M2 12s3-6 10-6 10 6 10 6-3 6-10 6S2 12 2 12z"/><circle cx="9" cy="12" r="1" fill="#fff"/></svg></div><div><h1 data-app-nome>Painel</h1><span data-app-subtitulo>Painel de Gestão</span></div></div><div class="head-meta"><div class="unidade">Sangrias em espécie</div></div></div>
+    <div class="head-row"><div class="brand"><div class="mark" aria-hidden="true">P</div><div><h1 data-app-nome>Painel</h1><span data-app-subtitulo>Painel de Gestão</span></div></div><div class="head-meta"><div class="unidade">Sangrias em espécie</div></div></div>
     <nav class="tabs"><a href="./">Visão Geral</a><a href="vendas.html">Faturamento</a><a href="caixa.html">Caixa</a><a href="dre.html">DRE</a><a href="despesas.html">Despesas</a><a href="conciliacao.html">Conciliação</a><a href="planejamento.html">Planejamento</a><a href="rotinas.html" class="routines">Rotinas</a></nav>
   </header>
   <main id="main">
@@ -343,7 +343,7 @@ function linha(dataISO, registro){
     ?'<span class="status ok">Depositado</span>'
     :recolhida
       ?`<span class="status warn">Com ${esc(registro.recolhida_por_nome||'responsável não informado')}</span>`
-      :registro?'<span class="status neutral">Quiosque</span>':'';
+      :registro?`<span class="status neutral">${esc(window.SirFisherApp.settings().unidade)}</span>`:'';
   const etapas=registro?[
     {classe:'registered',rotulo:'Cadastrada',nome:registro.cadastrado_por_nome,data:registro.criado_em},
     recolhida?{classe:'collected',rotulo:'Recolhida',nome:registro.recolhida_por_nome,data:registro.recolhida_em}:null,

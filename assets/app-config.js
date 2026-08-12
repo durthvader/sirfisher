@@ -17,6 +17,9 @@
     vazamento_aumento_perc: 35,
     vazamento_excesso_valor: 1500,
     vazamento_meses_base: 2,
+    fornecedor_meses_historico: 6,
+    fornecedor_recorrencia_presenca_perc: 60,
+    fornecedor_recorrencia_min_meses: 2,
     caixa_saldo_minimo: 100000,
     caixa_dias_critico: 30,
     caixa_dias_atencao: 60,
@@ -79,6 +82,13 @@
     });
   }
 
+  function monogram(value) {
+    const parts = String(value || '').trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return 'P';
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
+
   function apply() {
     document.querySelectorAll('[data-app-nome], header .brand h1').forEach((element) => {
       element.textContent = current.nome;
@@ -88,6 +98,10 @@
     });
     document.querySelectorAll('[data-app-unidade]').forEach((element) => {
       element.textContent = settings.unidade;
+    });
+    document.querySelectorAll('.brand .mark').forEach((element) => {
+      element.textContent = monogram(current.nome);
+      element.setAttribute('aria-hidden', 'true');
     });
     const separator = document.title.indexOf(' · ');
     document.title = current.nome + (separator >= 0 ? document.title.slice(separator) : '');
@@ -141,6 +155,7 @@
     ready,
     current: () => current,
     settings: () => settings,
+    monogram,
     number: (key, fallbackValue) => {
       const value = Number(settings[key]);
       return Number.isFinite(value) ? value : fallbackValue;

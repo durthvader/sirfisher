@@ -33,11 +33,48 @@
   const NEXT_KEY = 'sirfisher_auth_next';
   const PERMISSIONS_CACHE_KEY = 'finance_panel_permissions_v1';
   const PERMISSIONS_CACHE_TTL_MS = 5 * 60 * 1000;
+  const ROLE_CACHE_KEY = 'finance_panel_role_v1';
+  const ROLE_CACHE_TTL_MS = 5 * 60 * 1000;
+  const KNOWN_ROLES = new Set(['admin', 'socio', 'gerente']);
 
   let permissionsPromise = null;
   function clearPermissionsCache() {
     permissionsPromise = null;
     try { sessionStorage.removeItem(PERMISSIONS_CACHE_KEY); } catch (_error) {}
+  }
+
+  function clearRoleCache() {
+    try { sessionStorage.removeItem(ROLE_CACHE_KEY); } catch (_error) {}
+  }
+
+  function cachedRole(userId) {
+    try {
+      const cached = JSON.parse(sessionStorage.getItem(ROLE_CACHE_KEY) || 'null');
+      if (!cached || cached.userId !== userId) return null;
+      if (Date.now() - Number(cached.savedAt) >= ROLE_CACHE_TTL_MS) return null;
+      return KNOWN_ROLES.has(cached.role) ? cached.role : null;
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  async function currentRole(sb, userId) {
+    const cached = cachedRole(userId);
+    if (cached) return cached;
+    const result = await sb.rpc('papel_usuario_atual');
+    const role = result.error ? null : result.data;
+    if (KNOWN_ROLES.has(role)) {
+      try {
+        sessionStorage.setItem(ROLE_CACHE_KEY, JSON.stringify({
+          savedAt: Date.now(), userId, role
+        }));
+      } catch (_error) {
+        // Cache e apenas uma otimizacao; o servidor continua sendo a autoridade.
+      }
+      return role;
+    }
+    clearRoleCache();
+    return null;
   }
 
   function cachedPermissions() {
@@ -147,7 +184,7 @@
     card.className = 'sf-auth-card';
     const mark = document.createElement('div');
     mark.className = 'sf-auth-mark';
-    mark.textContent = 'S';
+    mark.textContent = window.SirFisherApp?.monogram?.(appName()) || 'P';
     const heading = document.createElement('h2');
     heading.textContent = title;
     const text = document.createElement('p');
@@ -246,6 +283,7 @@
     logout.className = 'sf-auth-google';
     logout.textContent = 'Sair desta conta';
     logout.addEventListener('click', async () => {
+      clearRoleCache();
       await sb.auth.signOut();
       window.location.replace('./');
     });
@@ -349,6 +387,7 @@
     logout.setAttribute('role', 'menuitem');
     logout.addEventListener('click', async () => {
       sessionStorage.removeItem(NEXT_KEY);
+      clearRoleCache();
       await sb.auth.signOut();
       window.location.replace('./');
     });
@@ -428,8 +467,7 @@
       return null;
     }
 
-    const roleResult = await sb.rpc('papel_usuario_atual');
-    const role = roleResult.error ? null : roleResult.data;
+    const role = await currentRole(sb, session.user.id);
     if (!role) {
       if (!settings.loginPage) {
         window.location.replace('./');
