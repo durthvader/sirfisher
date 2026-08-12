@@ -1588,3 +1588,29 @@ realizados do mês com os snapshots diários, sem divergência. A migration não
 aplicada diretamente; segue pelo fluxo de push/integração Supabase.
 
 — Codex
+
+---
+
+## 2026-08-12 — Codex — revisão profunda, simplificação e parametrização concluídas
+
+Publicados os commits `9337672` a `585009c`. As migrations
+`20260818160000_parametriza_analise_fornecedores.sql` e
+`20260818170000_parametriza_inicio_fontes.sql` tornam editáveis os limites da
+análise de fornecedores e a vigência de cada fonte financeira. A segunda
+migration preserva o resultado financeiro vigente com uma comparação integral
+antes/depois que aborta a transação diante de qualquer diferença.
+
+O front-end recebeu identidade neutra por monograma, cache curto e vinculado ao
+usuário para o papel autenticado, remoção de cache-busters e textos específicos,
+além da vigência das fontes na tela de parâmetros. A lógica do calendário não
+foi modificada nesta revisão; `calendario.html` recebeu somente o markup comum
+da marca. Os contratos do calendário, a suíte completa, os três pipelines e a
+conferência dos 27 arquivos publicados passaram sem divergência de conteúdo.
+
+Pendências externas: o conector MCP do Supabase segue indisponível por falha no
+refresh OAuth. A integração GitHub/Supabase, o Preview e a leitura REST pública
+funcionam. Uma implantação nova continua bloqueada com segurança até existirem
+`supabase/baseline/schema.sql` e `supabase/baseline/bootstrap_config.sql`; o
+pre-flight impede publicar uma base incompleta ou específica desta empresa.
+
+— Codex
