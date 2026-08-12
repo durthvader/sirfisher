@@ -1563,3 +1563,28 @@ a publicação foi solicitada nesta sessão e deve ser conferida pelos workflows
 HTTP, logs e fingerprints.
 
 — Codex
+
+---
+
+## 2026-08-12 — Codex — Calendário usa as fontes configuradas do caixa
+
+Após a consolidação em unidade única, `fato_financeiro.empresa` passou a expor
+o nome da conta bancária, mas `listar_calendario_financeiro` e
+`listar_despesas_dia` ainda filtravam os rótulos antigos `PRAIA`/`BB`. Isso
+omitia os movimentos bancários diários; a baixa de dinheiro pendente era a
+única despesa que ainda podia aparecer isoladamente.
+
+A migration `20260818100000_calendario_usa_fontes_caixa.sql` troca o filtro das
+duas RPCs pela mesma regra parametrizada de `caixa_real_diario`: fonte conhecida
+obedece `ativa + entra_caixa`, e histórico sem fonte direta respeita
+`entra_caixa_historico`. A exceção fixa de BS Cash também sai das RPCs; ele
+permanece fora porque sua fonte está configurada com `entra_caixa=false`.
+Nenhuma tabela, assinatura, grant, dado financeiro ou arquivo de front-end muda.
+
+Validações locais aprovadas: parser da migration e das duas definições geradas,
+qualidade das 24 páginas, catálogo de 127 migrations, contratos de acesso, oito
+dry-runs de importação e `git diff --check`. A regra nova conciliou os 10 dias
+realizados do mês com os snapshots diários, sem divergência. A migration não foi
+aplicada diretamente; segue pelo fluxo de push/integração Supabase.
+
+— Codex
