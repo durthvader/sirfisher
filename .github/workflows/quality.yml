@@ -37,3 +37,6 @@ jobs:
 
       - name: Access contracts
         run: python scripts/ci/test_access_contracts.py
+
+      - name: Financial and calendar contracts
+        run: python scripts/ci/test_financial_contracts.py

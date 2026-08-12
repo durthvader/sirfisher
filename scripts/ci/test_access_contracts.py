@@ -17,11 +17,67 @@ def fail(message: str) -> None:
     raise AssertionError(message)
 
 
+def mask_sql_literals(sql: str) -> str:
+    """Oculta strings/comentários preservando posições e quebras de linha.
+
+    Algumas migrations guardam um CREATE FUNCTION dentro de blocos $old$/$new$
+    para alterar pg_get_functiondef(). Esses textos não são definições diretas
+    e não podem vencer o contrato da função efetiva.
+    """
+    masked = list(sql)
+    index = 0
+    length = len(sql)
+
+    def hide(start: int, end: int) -> None:
+        for pos in range(start, end):
+            if masked[pos] not in "\r\n":
+                masked[pos] = " "
+
+    while index < length:
+        if sql.startswith("--", index):
+            end = sql.find("\n", index + 2)
+            end = length if end < 0 else end
+            hide(index, end)
+            index = end
+            continue
+        if sql.startswith("/*", index):
+            end = sql.find("*/", index + 2)
+            end = length if end < 0 else end + 2
+            hide(index, end)
+            index = end
+            continue
+        if sql[index] == "'":
+            end = index + 1
+            while end < length:
+                if sql[end] == "'":
+                    if end + 1 < length and sql[end + 1] == "'":
+                        end += 2
+                        continue
+                    end += 1
+                    break
+                end += 1
+            hide(index, end)
+            index = end
+            continue
+        if sql[index] == "$":
+            tag_match = re.match(r"\$[A-Za-z_0-9]*\$", sql[index:])
+            if tag_match:
+                tag = tag_match.group(0)
+                end = sql.find(tag, index + len(tag))
+                end = length if end < 0 else end + len(tag)
+                hide(index, end)
+                index = end
+                continue
+        index += 1
+    return "".join(masked)
+
+
 def latest_function(migrations: str, function_name: str) -> str:
+    searchable = mask_sql_literals(migrations)
     markers = list(
         re.finditer(
             rf"create\s+or\s+replace\s+function\s+public\.{function_name}\s*\(",
-            migrations,
+            searchable,
             re.I,
         )
     )
@@ -29,10 +85,22 @@ def latest_function(migrations: str, function_name: str) -> str:
         fail(f"RPC {function_name} não encontrada nas migrations")
     start = markers[-1].start()
     next_function = re.search(
-        r"\ncreate\s+or\s+replace\s+function\s+", migrations[start + 1 :], re.I
+        r"\ncreate\s+or\s+replace\s+function\s+", searchable[start + 1 :], re.I
     )
     end = start + 1 + next_function.start() if next_function else len(migrations)
     return migrations[start:end]
+
+
+def function_definition(block: str) -> str:
+    """Recorta a definição, sem migrations posteriores antes da próxima RPC."""
+    opener = re.search(r"\bas\s+(\$[A-Za-z_0-9]*\$)", block, re.I)
+    if not opener:
+        return block
+    tag = opener.group(1)
+    closing = block.find(tag, opener.end())
+    if closing < 0:
+        return block
+    return block[: closing + len(tag)]
 
 
 def main() -> int:
@@ -98,7 +166,7 @@ def main() -> int:
     ):
         fail("anon não deve executar parametro_valor diretamente")
 
-    empresa = latest_function(migrations, "app_configuracao_empresa")
+    empresa = function_definition(latest_function(migrations, "app_configuracao_empresa"))
     if not re.search(r"security\s+invoker", empresa, re.I):
         fail("app_configuracao_empresa precisa respeitar RLS")
     if re.search(r"\bwhere\s+[^;]*\bsingleton\b", empresa, re.I | re.S):
