@@ -26,7 +26,8 @@ A escrita usa `public.definir_acesso_usuario()`. A função:
 
 ## Qualidade das cargas
 
-O atraso é calculado pela última importação registrada nas tabelas brutas:
+O atraso é calculado pela última importação registrada nas tabelas brutas. Os
+valores iniciais são:
 
 - até 2 dias: `em dia`;
 - de 3 a 5 dias: `atenção`;
@@ -34,7 +35,9 @@ O atraso é calculado pela última importação registrada nas tabelas brutas:
 - sem importação: `sem carga`.
 
 A data final de recebíveis pode estar no futuro porque representa agenda, não
-erro de carga.
+erro de carga. Os dois prazos são alteráveis em **Parâmetros → Configurações
+gerais**. O Status lista as integrações importáveis ativas e usa o nome definido
+em **Fontes financeiras**, incluindo Inter e Fundopay quando habilitadas.
 
 ## Conciliação
 

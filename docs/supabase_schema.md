@@ -1113,6 +1113,11 @@ no repositório.
 - Alertas de indicadores e despesas, piso/horizonte do caixa, bonificação,
   conciliação, depósitos e faixas de referência da DRE são carregados pelo
   front-end por `app_configuracao_operacional()`.
+- Desde `20260818150000`, os prazos de qualidade das cargas, o período recente
+  das sangrias e a antecedência de vencimento das contas recorrentes também são
+  parâmetros editáveis. A função `private.ler_status_cargas()` usa o fuso da
+  empresa e monitora as integrações importáveis que estiverem ativas em
+  `fonte_financeira`, inclusive Inter e Fundopay.
 - A descrição é um título estável e não deve conter o valor atual do parâmetro.
   A migration `20260817000000` removeu os sufixos fixos “D+2” e “38%”, que
   ficavam incorretos quando o valor era alterado pela interface.

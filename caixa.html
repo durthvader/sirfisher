@@ -313,7 +313,7 @@ function renderMes(anoMes){
   let minVal=Infinity,minDia=null;
   fluxoRisco.forEach(r=>{const v=num(r.saldo_projetado!=null?r.saldo_projetado:r.saldo);if(v!=null&&v<minVal){minVal=v;minDia=r.dia;}});
   const temMin=!DADOS_PENDENTES&&!RISCO_ERRO&&minDia!==null;
-  const minColor=temMin?(minVal<0?C.red:(minVal<(shoje||0)*0.3?C.amber:C.green)):C.muted;
+  const minColor=temMin?(minVal<PISO?C.red:C.green):C.muted;
 
   // KPI: dias ate cruzar o piso de seguranca (primeiro dia projetado < PISO, a partir de hoje)
   let pisoDia=null,pisoDias=null;

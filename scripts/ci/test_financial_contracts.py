@@ -144,7 +144,26 @@ def main() -> int:
     if "from public.raw_bb" in latest_deposit_detail:
         fail("Conferência de depósito atual ainda consulta raw_bb diretamente")
 
-    print("FINANCIAL_CONTRACTS_OK calendar=2 derived=5 rollover=1 generic_balance=1 deposit_account=1")
+    operational_alerts = (
+        MIGRATIONS / "20260818150000_parametriza_alertas_operacionais.sql"
+    ).read_text(encoding="utf-8-sig")
+    require(
+        operational_alerts,
+        (
+            "carga_dias_em_dia",
+            "carga_dias_atencao",
+            "sangria_dias_recentes",
+            "conta_recorrente_alerta_dias",
+            "private.validar_limites_status_carga",
+            "'inter', 'Extrato Inter'",
+            "'fundopay', 'Vendas Fundopay'",
+            "join public.fonte_financeira f on f.chave = b.chave and f.ativa",
+            "current_timestamp at time zone c.fuso_horario",
+        ),
+        "Alertas operacionais voltaram a depender de fontes ou prazos fixos",
+    )
+
+    print("FINANCIAL_CONTRACTS_OK calendar=2 derived=5 rollover=1 generic_balance=1 deposit_account=1 operational_alerts=1")
     return 0
 
 

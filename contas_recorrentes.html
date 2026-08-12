@@ -34,6 +34,7 @@ const sb=SirFisherSupabase;
 const esc=SirFisherDOM.escapeHTML;
 const unidade=()=>window.SirFisherApp.settings().unidadeCodigo;
 const mesesMedia=()=>window.SirFisherApp.number('meses_media_fixa',3);
+const diasAlerta=()=>Math.max(1,Math.trunc(window.SirFisherApp.number('conta_recorrente_alerta_dias',5)));
 const CATEGORIAS={
   pessoal:'Pessoal e sócios',ocupacao:'Ocupação e utilidades',servicos:'Serviços e sistemas',
   operacao:'Operação',tributos:'Tributos',financeiro:'Financeiro',outros:'Outros'
@@ -57,7 +58,7 @@ function estado(row){
   const venc=vencimentoISO(row),hoje=hojeISO();
   if(venc<hoje)return{classe:'overdue',rotulo:'Vencida'};
   const dias=Math.ceil((new Date(venc+'T12:00:00')-new Date(hoje+'T12:00:00'))/86400000);
-  return dias<=5?{classe:'soon',rotulo:dias===0?'Vence hoje':`Vence em ${dias}d`}:{classe:'open',rotulo:'Pendente'};
+  return dias<=diasAlerta()?{classe:'soon',rotulo:dias===0?'Vence hoje':`Vence em ${dias}d`}:{classe:'open',rotulo:'Pendente'};
 }
 function optionCategorias(valor){return Object.entries(CATEGORIAS).map(([k,v])=>`<option value="${k}"${k===valor?' selected':''}>${v}</option>`).join('');}
 

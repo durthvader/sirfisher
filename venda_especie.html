@@ -35,7 +35,7 @@
     <div class="responsaveis-recolhido" id="responsaveisRecolhido"></div>
 
     <div class="panel">
-      <div class="panel-head"><div><h3>Sangrias em acompanhamento</h3><div class="hint">Últimos 14 dias e todas as recolhidas que ainda aguardam depósito.</div></div></div>
+      <div class="panel-head"><div><h3>Sangrias em acompanhamento</h3><div class="hint" id="sangriaPeriodoHint">Período recente e todas as recolhidas que ainda aguardam depósito.</div></div></div>
       <div id="lista" class="op-list"></div>
     </div>
 
@@ -63,6 +63,7 @@ const sb=SirFisherSupabase;
 const esc = SirFisherDOM.escapeHTML;
 const unidade=()=>window.SirFisherApp.settings().unidadeCodigo;
 const toleranciaDeposito=()=>window.SirFisherApp.number('deposito_tolerancia_valor',0.01);
+const diasRecentes=()=>Math.max(1,Math.trunc(window.SirFisherApp.number('sangria_dias_recentes',14)));
 let CARREGAR_SEQ=0,CONFERENCIA_SEQ=0;
 
 const DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
@@ -297,17 +298,20 @@ async function carregar(){
   document.getElementById('novaData').value = hojeISO();
   carregarConferencia();
 
-  // Últimos 14 dias e pendências da unidade principal configurada.
+  // Período recente e pendências da unidade principal configurada.
+  const periodo=diasRecentes();
+  document.getElementById('sangriaPeriodoHint').textContent=`Últimos ${periodo} dias e todas as recolhidas que ainda aguardam depósito.`;
   const dias = [];
   const base = new Date();
-  for (let i=0; i<14; i++){
+  for (let i=0; i<periodo; i++){
     const d = new Date(base);
     d.setDate(d.getDate() - i);
     dias.push(d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'));
   }
 
   const [recentes, pendentes] = await Promise.all([
-    sb.from('app_venda_especie_controle').select('*').eq('unidade',unidade()).in('data',dias),
+    sb.from('app_venda_especie_controle').select('*').eq('unidade',unidade())
+      .gte('data',dias[dias.length-1]).lte('data',dias[0]),
     sb.from('app_venda_especie_controle').select('*').eq('unidade',unidade())
       .is('depositada_em',null)
   ]);

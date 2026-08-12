@@ -31,6 +31,13 @@ def main() -> int:
     require(auth, "clearPermissionsCache", "Permissoes editadas nao invalidam o cache de navegacao")
     require(config, "CACHE_TTL_MS = 5 * 60 * 1000", "Configuracao publica perdeu o cache curto")
     require(config, "reload: () => load(true)", "Recarga administrativa precisa ignorar o cache")
+    for key in (
+        "carga_dias_em_dia",
+        "carga_dias_atencao",
+        "sangria_dias_recentes",
+        "conta_recorrente_alerta_dias",
+    ):
+        require(config, key, f"Configuracao publica perdeu parametro operacional: {key}")
 
     caixa = source("caixa.html")
     for fragment in (
@@ -44,6 +51,8 @@ def main() -> int:
         require(caixa, fragment, f"Caixa perdeu contrato: {fragment}")
     if "app_painel_fluxo_caixa').select('*').order('dia'" in caixa:
         fail("Caixa voltou a baixar todo o fluxo historico sem limite")
+    if "*0.3" in caixa:
+        fail("Cor do menor saldo voltou a usar percentual fixo em vez do piso configurado")
     cor_conta = caixa.split("function corConta", 1)[1].split("function drawContas", 1)[0]
     for specific in ("stone", "brasil", "inter", "btg", "bnb"):
         if specific in cor_conta.lower():
@@ -71,6 +80,10 @@ def main() -> int:
     }
     for page, fragment in guarded.items():
         require(source(page), fragment, f"{page} perdeu protecao contra resposta obsoleta")
+
+    require(source("status.html"), "carga_dias_atencao", "Status perdeu prazos configuraveis")
+    require(source("venda_especie.html"), "sangria_dias_recentes", "Sangria perdeu janela configuravel")
+    require(source("contas_recorrentes.html"), "conta_recorrente_alerta_dias", "Contas recorrentes perderam alerta configuravel")
 
     calendar = source("calendario.html")
     for fragment in (
