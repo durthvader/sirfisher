@@ -338,7 +338,7 @@ async function importar(){
   aviso(`✓ ${total} nova(s) linha(s) importada(s), saldo recalculado e painel atualizado.`,'var(--green)');
 }
 
-(async()=>{await window.SirFisherApp.ready;const auth=await SirFisherAuth.requireRole(sb);if(auth)render();})();
+(async()=>{const auth=await SirFisherAuth.requireRole(sb);if(auth)render();})();
 </script>
 </body>
 </html>

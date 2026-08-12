@@ -225,6 +225,7 @@ function linha(r){
     r.valor=novo;
     original=fmtNum(novo);
     input.value=original;
+    await window.SirFisherApp?.reload();
     carregarHistorico();
     toast('Salvo: '+r.chave);
   });

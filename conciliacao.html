@@ -45,6 +45,7 @@ const MESES=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agos
 let chart=null;
 let RESUMO_MENSAL=[];
 let ANO_MES_ATUAL=null;
+let RENDER_SEQ=0;
 
 function fmtDay(value){if(!value)return'—';return new Date(`${value}T12:00:00`).toLocaleDateString('pt-BR');}
 function nomeMes(anoMes){return MESES[+anoMes.slice(5,7)-1]+' de '+anoMes.slice(0,4);}
@@ -92,7 +93,9 @@ async function loadReconciliation(){
 }
 
 async function renderMes(anoMes){
+  const renderSeq=++RENDER_SEQ;
   const main=document.getElementById('main');
+  main.innerHTML='<div class="loading">Conciliando '+esc(nomeMes(anoMes))+'…</div>';
   const linhaMes=RESUMO_MENSAL.filter(r=>r.ano_mes===anoMes);
   const qtdPor=situacao=>Number(linhaMes.find(r=>r.situacao===situacao)?.qtd||0);
   const ok=qtdPor('ok');
@@ -113,6 +116,7 @@ async function renderMes(anoMes){
     .gte('mes_referencia',inicio).lt('mes_referencia',prox)
     .in('situacao',SITUACOES_ACIONAVEIS)
     .order('mes_referencia',{ascending:false}).limit(300);
+  if(renderSeq!==RENDER_SEQ)return;
   if(error){main.innerHTML='<div class="erro">Não foi possível carregar os detalhes.</div>';return;}
 
   main.innerHTML=`

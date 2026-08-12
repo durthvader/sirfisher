@@ -39,7 +39,7 @@ const CATEGORIAS={
   operacao:'Operação',tributos:'Tributos',financeiro:'Financeiro',outros:'Outros'
 };
 const MESES=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-let AUTH=null,ROWS=[],PAYMENTS=[],TOTALS=[],chart=null;
+let AUTH=null,ROWS=[],PAYMENTS=[],TOTALS=[],chart=null,LOAD_SEQ=0;
 let competencia=mesAtual(),filtroStatus='ativas',busca='';
 
 function mesAtual(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;}
@@ -176,6 +176,7 @@ function atualizarDatalist(){
 }
 
 async function load(){
+  const loadSeq=++LOAD_SEQ;
   document.getElementById('main').innerHTML='<div class="loading">Carregando contas…</div>';
   const inicio=new Date();inicio.setMonth(inicio.getMonth()-48);const corte=`${inicio.getFullYear()}-${String(inicio.getMonth()+1).padStart(2,'0')}-01`;
   const [contas,pagamentos,totais]=await Promise.all([
@@ -183,11 +184,12 @@ async function load(){
     sb.from('app_contas_recorrentes_pagamentos').select('*').gte('competencia',corte).order('competencia',{ascending:false}),
     sb.from('app_contas_recorrentes_totais').select('*').gte('competencia',corte).order('competencia',{ascending:true})
   ]);
+  if(loadSeq!==LOAD_SEQ)return;
   const error=contas.error||pagamentos.error||totais.error;if(error){document.getElementById('main').innerHTML='<div class="erro">Não foi possível carregar as contas recorrentes.</div>';toast(error.message,true);return;}
   ROWS=contas.data||[];PAYMENTS=pagamentos.data||[];TOTALS=totais.data||[];render();
 }
 
-(async()=>{await window.SirFisherApp.ready;AUTH=await SirFisherAuth.requireRole(sb);if(AUTH)await load();})();
+(async()=>{AUTH=await SirFisherAuth.requireRole(sb);if(AUTH)await load();})();
 </script>
 </body>
 </html>

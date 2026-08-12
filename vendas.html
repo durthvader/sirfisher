@@ -40,14 +40,6 @@
   /* estados */
   .aguardando{padding:34px 14px;text-align:center;color:var(--muted);font-size:12px;line-height:1.5;}
   .aguardando svg{width:22px;height:22px;opacity:.5;display:block;margin:0 auto 8px;}
-  /* placeholders em breve */
-  .soon-card{background:var(--card);border:1px dashed #d4cfc0;border-radius:12px;padding:18px 16px;margin-bottom:14px;position:relative;}
-  .soon-card .soon-badge{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#9a7c2e;background:#f6efdb;border:1px solid #e6d6a8;border-radius:20px;padding:3px 9px;margin-bottom:9px;}
-  .soon-card .soon-badge svg{width:11px;height:11px;}
-  .soon-card h3{font-size:14px;font-weight:700;margin-bottom:4px;color:#3a4750;}
-  .soon-card p{font-size:11.5px;color:var(--muted);line-height:1.5;}
-  .soon-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;}
-  .soon-grid .soon-card{margin-bottom:0;}
   @media (max-width:430px){.kpi .value{font-size:23px;}.kpi .value.txtval{font-size:19px;}}
 </style>
 </head>
@@ -75,7 +67,7 @@
   <main id="main"><div class="loading">Carregando recebimentos…</div></main>
   <footer id="rodape" style="display:none">
     <span id="rodapeAtt"></span>
-    <span>Fonte: Stone · iFood · 99food · Pix · lançamentos internos · <a href="#" id="verCargas" style="color:var(--teal);text-decoration:none">histórico de cargas</a></span>
+    <span>Fontes configuradas · <a href="#" id="verCargas" style="color:var(--teal);text-decoration:none">histórico de cargas</a></span>
   </footer>
 </div>
 <div id="cargasBox" style="display:none;position:fixed;inset:0;background:rgba(18,49,63,.45);z-index:60;align-items:center;justify-content:center;padding:20px">
@@ -96,7 +88,7 @@ const {brl,brl0,pct,rs,monthTrend}=SirFisherFormat;
 const C={header:'#12313F',teal:'#00A6A6',amber:'#D6A84F',green:'#2E7D5B',red:'#C94C4C',muted:'#6B7280',border:'#E5E7EB',brown:'#B98A2E',grey:'#9aa6b2'};
 const MESES=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const DOW_NOME=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
-let MONTHS=[],RESUMO=[],CHARTS=[],ULTIMA=null,CARGAS=[];
+let MONTHS=[],RESUMO=[],CHARTS=[],ULTIMA=null,CARGAS=[],RENDER_SEQ=0;
 
 const DESC={
   rec:'Faturamento bruto por data da venda, líquido de cancelamentos. No mês em andamento, o KPI mostra a tendência de fechamento; o detalhamento permanece realizado.',
@@ -106,7 +98,7 @@ const DESC={
 };
 
 function ic(p){return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+p+'</svg>';}
-const ICON={cash:'<path d="M2 7h20v10H2z"/><circle cx="12" cy="12" r="2.5"/>',orders:'<path d="M6 2l1.5 4h9L18 2"/><path d="M5 6h14l-1 14H6L5 6z"/>',ticket:'<path d="M3 8h18v8H3z"/><path d="M9 8v8"/>',star:'<path d="M12 3l2.5 6 6.5.5-5 4 1.6 6.4L12 16.8 5.9 19.9 7.5 13.5l-5-4 6.5-.5z"/>',clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',lock:'<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/>'};
+const ICON={cash:'<path d="M2 7h20v10H2z"/><circle cx="12" cy="12" r="2.5"/>',orders:'<path d="M6 2l1.5 4h9L18 2"/><path d="M5 6h14l-1 14H6L5 6z"/>',ticket:'<path d="M3 8h18v8H3z"/><path d="M9 8v8"/>',star:'<path d="M12 3l2.5 6 6.5.5-5 4 1.6 6.4L12 16.8 5.9 19.9 7.5 13.5l-5-4 6.5-.5z"/>',clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'};
 
 function deltaVal(c,p){if(p==null||c==null)return '<div class="sub">vs mês anterior: —</div>';const d=c-p;return '<div class="sub '+(d>=0?'up':'down')+'"><b>'+(d>=0?'+':'−')+brl(Math.abs(d))+'</b> vs mês anterior</div>';}
 function deltaPct(c,p){if(p==null||!isFinite(p)||p===0||c==null)return '<div class="sub">vs mês anterior: —</div>';const d=(c-p)/Math.abs(p)*100;return '<div class="sub '+(d>=0?'up':'down')+'"><b>'+(d>=0?'+':'')+d.toFixed(1).replace('.',',')+'%</b> vs mês anterior</div>';}
@@ -156,27 +148,29 @@ function montarSeletorPeriodo(anoMesList,selecionado){
 
 async function main(){
   try{
-    // meses para o seletor: reaproveita a view que ja existe (mantem a pagina viva mesmo sem as views de recebimento)
-    const mRes=await sb.from('app_painel_resumo_mensal').select('ano_mes,mes,faturamento,faturamento_proj').order('mes',{ascending:true});
+    // As duas bases sao independentes e podem chegar juntas.
+    const [mRes,rRes]=await Promise.all([
+      sb.from('app_painel_resumo_mensal').select('ano_mes,mes,faturamento,faturamento_proj').order('mes',{ascending:true}),
+      sb.from('app_painel_recebimento_resumo').select('*').order('mes',{ascending:true})
+    ]);
     if(mRes.error)throw mRes.error;
     MONTHS=(mRes.data||[]).filter(x=>Number(x.faturamento)>0);
-
-    // resumo de recebimento (pode ainda nao existir -> segue vazio, blocos mostram "aguardando")
-    const rRes=await sb.from('app_painel_recebimento_resumo').select('*').order('mes',{ascending:true});
     RESUMO=rRes.error?[]:(rRes.data||[]);
-
-    // footer: ultima carga + historico (views ja existentes)
-    const [uc,cg]=await Promise.all([
-      sb.from('app_painel_ultima_carga').select('ultima'),
-      sb.from('app_painel_cargas').select('*')
-    ]);
-    ULTIMA=(!uc.error&&uc.data&&uc.data[0])?uc.data[0].ultima:null;
-    CARGAS=cg.error?[]:(cg.data||[]);
-
     if(!MONTHS.length)throw new Error('Sem meses disponíveis.');
     montarSeletorPeriodo(MONTHS.map(x=>x.ano_mes), MONTHS[MONTHS.length-1].ano_mes);
     renderMes(document.getElementById('mesSel').value);
+    carregarRodape();
+  }catch(e){document.getElementById('main').innerHTML='<div class="erro">Não foi possível carregar os dados: '+esc(e.message||e)+'</div>';}
+}
 
+async function carregarRodape(){
+  try{
+    const [uc,cg]=await Promise.all([
+      sb.from('app_painel_ultima_carga').select('ultima'),
+      sb.from('app_painel_cargas').select('*').limit(50)
+    ]);
+    ULTIMA=(!uc.error&&uc.data&&uc.data[0])?uc.data[0].ultima:null;
+    CARGAS=cg.error?[]:(cg.data||[]);
     if(ULTIMA){const d=new Date(ULTIMA);document.getElementById('rodapeAtt').textContent='Atualizado em '+String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
     else{document.getElementById('rodapeAtt').textContent='Atualizado: —';}
     const lista=document.getElementById('cargasLista');
@@ -184,10 +178,13 @@ async function main(){
       ? CARGAS.map(c=>'<div style="padding:7px 0;border-bottom:1px solid var(--border)"><b>'+esc(c.quando)+'</b><br><span style="color:var(--muted)">'+esc(c.fontes)+'</span></div>').join('')
       : '<div style="color:var(--muted)">Ainda sem registros de carga.</div>';
     document.getElementById('rodape').style.display='flex';
-  }catch(e){document.getElementById('main').innerHTML='<div class="erro">Não foi possível carregar os dados: '+esc(e.message||e)+'</div>';}
+  }catch(_error){
+    // Rodape informativo: falha aqui nao deve apagar o painel ja carregado.
+  }
 }
 
 function renderMes(anoMes){
+  const renderSeq=++RENDER_SEQ;
   CHARTS.forEach(c=>{try{c.destroy()}catch(e){}});CHARTS=[];
   const idx=RESUMO.findIndex(r=>r.ano_mes===anoMes);
   const cur=idx>=0?RESUMO[idx]:null;
@@ -250,38 +247,21 @@ function renderMes(anoMes){
       <div class="chart-wrap h-hora"><canvas id="hora"></canvas></div>
     </div>
 
-    <div class="section-title">Venda item a item</div>
-    <div class="soon-grid">
-      <div class="soon-card">
-        <span class="soon-badge">${ic(ICON.lock)} Em breve</span>
-        <h3>Top produtos (Pareto)</h3>
-        <p>Ranking dos itens que mais faturam e quanto representam do total. Disponível quando o lançamento de vendas item a item for integrado.</p>
-      </div>
-      <div class="soon-card">
-        <span class="soon-badge">${ic(ICON.lock)} Em breve</span>
-        <h3>Mix de pratos</h3>
-        <p>Distribuição da venda entre categorias e pratos do cardápio, para decidir mix e encarte.</p>
-      </div>
-      <div class="soon-card">
-        <span class="soon-badge">${ic(ICON.lock)} Em breve</span>
-        <h3>Ticket médio por cliente</h3>
-        <p>Valor médio real por conta/mesa, somando todas as formas de pagamento de cada venda. Hoje só dá para estimar o ticket por transação de cartão/Pix.</p>
-      </div>
-    </div>
   `;
   document.getElementById('main').innerHTML=html;
 
-  drawCanal(anoMes);
-  drawDiario(anoMes);
-  drawHora(anoMes);
+  drawCanal(anoMes,renderSeq);
+  drawDiario(anoMes,renderSeq);
+  drawHora(anoMes,renderSeq);
 }
 
 Chart.defaults.font.family="'Roboto',Arial,sans-serif";Chart.defaults.color=C.muted;
 
-async function drawCanal(anoMes){
+async function drawCanal(anoMes,renderSeq){
   const wrap=document.getElementById('donut').parentElement;
   const tbl=document.getElementById('canalTbl');
   const {data,error}=await sb.from('app_painel_recebimento_canal').select('canal,valor,qtd').eq('ano_mes',anoMes);
+  if(renderSeq!==RENDER_SEQ)return;
   if(error||!data||!data.length){wrap.innerHTML=aguardando();tbl.innerHTML='';return;}
   // normaliza e MESCLA linhas que caem no mesmo canal (ex.: variações de "Credito")
   const norm=data.map(r=>{const n=normCanal(r.canal);return {label:n.label,cor:n.cor,valor:Number(r.valor)||0,qtd:r.qtd==null?null:Number(r.qtd)};});
@@ -304,11 +284,12 @@ async function drawCanal(anoMes){
     '</tbody><tfoot><tr><td>Total</td><td class="r">'+brl(total)+'</td><td class="r">100%</td><td class="r"></td></tr></tfoot></table>';
 }
 
-async function drawDiario(anoMes){
+async function drawDiario(anoMes,renderSeq){
   const wrapD=document.getElementById('diario').parentElement;
   const wrapW=document.getElementById('dow').parentElement;
   // Le painel_diario, a mesma fonte de faturamento diario usada na home.
   const {data,error}=await sb.from('app_painel_diario').select('dia,venda_dia').eq('mes',anoMes+'-01').order('dia',{ascending:true});
+  if(renderSeq!==RENDER_SEQ)return;
   if(error||!data||!data.length){wrapD.innerHTML=aguardando();wrapW.innerHTML=aguardando('Aguardando dados de faturamento diário.');return;}
   const d=data.filter(r=>r.venda_dia!=null).map(r=>({data:r.dia,valor:Number(r.venda_dia)||0}));
   if(!d.length){wrapD.innerHTML=aguardando('Sem dias realizados neste mês ainda.');wrapW.innerHTML=aguardando('Sem dias realizados neste mês ainda.');return;}
@@ -330,9 +311,10 @@ async function drawDiario(anoMes){
       scales:{y:{grid:{color:C.border},ticks:{callback:v=>brl(v),font:{size:10}}},x:{grid:{display:false},ticks:{font:{size:11},color:C.text}}}}}));
 }
 
-async function drawHora(anoMes){
+async function drawHora(anoMes,renderSeq){
   const wrap=document.getElementById('hora').parentElement;
   const {data,error}=await sb.from('app_painel_recebimento_hora').select('hora,valor').eq('ano_mes',anoMes).order('hora',{ascending:true});
+  if(renderSeq!==RENDER_SEQ)return;
   if(error||!data||!data.length){wrap.innerHTML=aguardando('Aguardando hora do pagamento por transação.');return;}
   const d=data.map(r=>({hora:Number(r.hora),valor:Number(r.valor)||0})).sort((a,b)=>a.hora-b.hora);
   CHARTS.push(new Chart(document.getElementById('hora'),{type:'bar',

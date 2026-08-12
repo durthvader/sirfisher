@@ -119,7 +119,7 @@ const GCOR={
 function corGrupo(g){return GCOR[g]||'#B0A99A';}
 function nomeGrupo(g){return g==='DESPESA DIRETA DE VENDA'?'Despesa direta (CMV)':g==='MARKETING E PUBLICIDADE'?'Marketing':(g.charAt(0)+g.slice(1).toLowerCase());}
 
-let CHARTS=[],ROWS=[],RESUMO=[],DESP_FIXA=[],DESP_DIRETA=[],ULTIMA=null,CARGAS=[];
+let CHARTS=[],EVOLUCAO=[],RESUMO=[],DESP_FIXA=[],DESP_DIRETA=[],ULTIMA=null,CARGAS=[];
 let MESES_LISTA=[],POR_MES=new Map();
 
 const param=(chave,padrao)=>window.SirFisherApp.number(chave,padrao);
@@ -143,10 +143,10 @@ const ICON={out:'<path d="M12 3v12"/><path d="M7 8l5-5 5 5"/><path d="M5 21h14"/
 async function q(build,tries=3){
   let res;
   for(let i=0;i<tries;i++){
-    res=await build();
+    try{res=await build();}catch(error){res={data:null,error};}
     if(!res.error)return res;
     const msg=(res.error.message||'')+(res.error.code||'');
-    if(!/statement timeout|57014/i.test(msg))break;
+    if(!/statement timeout|57014|failed to fetch|network/i.test(msg))break;
     await new Promise(r=>setTimeout(r,250*(i+1)));
   }
   return res;
@@ -209,60 +209,75 @@ function montarSeletorPeriodo(anoMesList,selecionado){
 
 async function main(){
   try{
-    // historico completo, paginado (contorna o limite de 1000 linhas do PostgREST)
-    const [dd,res,df,dp]=await Promise.all([
-      fetchPaginado(()=>sb.from('app_mv_despesa_mensal').select('*')
-        .order('mes',{ascending:true}).order('grupo',{ascending:true}).order('categoria',{ascending:true}).order('fornecedor',{ascending:true})),
+    // O historico do grafico vem agregado. O detalhe por fornecedor e
+    // buscado sob demanda apenas para o mes aberto e seu comparativo.
+    const [evo,res,df,dp]=await Promise.all([
+      q(()=>sb.from('app_painel_composicao_despesa').select('mes,ano_mes,grupo,valor').order('mes',{ascending:true})),
       q(()=>sb.from('app_painel_resumo_mensal').select('ano_mes,faturamento,faturamento_proj').order('ano_mes',{ascending:true})),
       q(()=>sb.from('app_projecao_despesa_fixa').select('dia,valor')),
       q(()=>sb.from('app_projecao_despesa_direta').select('dia,valor'))
     ]);
-    if(dd.error)throw dd.error;
+    if(evo.error)throw evo.error;
     if(res.error)throw res.error;
     if(df.error)throw df.error;
     if(dp.error)throw dp.error;
-    ROWS=dd.data||[];RESUMO=res.data||[];
+    EVOLUCAO=evo.data||[];RESUMO=res.data||[];
     DESP_FIXA=df.data||[];DESP_DIRETA=dp.data||[];
-    const [uc,cg]=await Promise.all([
-      q(()=>sb.from('app_painel_ultima_carga').select('ultima')),
-      q(()=>sb.from('app_painel_cargas').select('*'))
-    ]);
-    ULTIMA=(!uc.error&&uc.data&&uc.data[0])?uc.data[0].ultima:null;
-    CARGAS=cg.error?[]:(cg.data||[]);
-
-    if(!ROWS.length)throw new Error('Sem dados de despesas.');
-
-    // pre-processa: agrupa por mes (o historico por fornecedor agora vem
-    // da RPC, que colapsa folha e corta no mesmo dia do mes)
-    POR_MES=new Map();
-    ROWS.forEach(r=>{
-      if(!POR_MES.has(r.ano_mes))POR_MES.set(r.ano_mes,[]);
-      POR_MES.get(r.ano_mes).push(r);
-    });
-    MESES_LISTA=[...POR_MES.keys()].sort();
+    if(!EVOLUCAO.length)throw new Error('Sem dados de despesas.');
+    MESES_LISTA=[...new Set(EVOLUCAO.map(r=>r.ano_mes).filter(Boolean))].sort();
 
     montarSeletorPeriodo(MESES_LISTA, MESES_LISTA[MESES_LISTA.length-1]);
     renderMes(document.getElementById('mesSel').value);
+    carregarRodape();
+  }catch(e){document.getElementById('main').innerHTML='<div class="erro">Não foi possível carregar os dados: '+esc(e.message||e)+'</div>';}
+}
 
+async function carregarRodape(){
+  try{
+    const [uc,cg]=await Promise.all([
+      q(()=>sb.from('app_painel_ultima_carga').select('ultima')),
+      q(()=>sb.from('app_painel_cargas').select('*').limit(50))
+    ]);
+    ULTIMA=(!uc.error&&uc.data&&uc.data[0])?uc.data[0].ultima:null;
+    CARGAS=cg.error?[]:(cg.data||[]);
     if(ULTIMA){const d=new Date(ULTIMA);document.getElementById('rodapeAtt').textContent='Atualizado em '+String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
     else{document.getElementById('rodapeAtt').textContent='Atualizado: —';}
     const lista=document.getElementById('cargasLista');
     lista.innerHTML=CARGAS.length?CARGAS.map(c=>'<div style="padding:7px 0;border-bottom:1px solid var(--border)"><b>'+esc(c.quando)+'</b><br><span style="color:var(--muted)">'+esc(c.fontes)+'</span></div>').join(''):'<div style="color:var(--muted)">Ainda sem registros de carga.</div>';
     document.getElementById('rodape').style.display='flex';
-  }catch(e){document.getElementById('main').innerHTML='<div class="erro">Não foi possível carregar os dados: '+esc(e.message||e)+'</div>';}
+  }catch(_error){
+    // O historico de cargas e informativo e nao deve apagar o painel.
+  }
 }
 
 Chart.defaults.font.family="'Roboto',Arial,sans-serif";Chart.defaults.color=C.muted;
 
 let RENDER_SEQ=0;
 
+async function carregarDetalheMes(anoMes){
+  if(!anoMes)return {data:[],error:null};
+  if(POR_MES.has(anoMes))return {data:POR_MES.get(anoMes),error:null};
+  const resposta=await fetchPaginado(()=>sb.from('app_mv_despesa_mensal').select('*')
+    .eq('ano_mes',anoMes)
+    .order('mes',{ascending:true}).order('grupo',{ascending:true}).order('categoria',{ascending:true}).order('fornecedor',{ascending:true}));
+  if(!resposta.error)POR_MES.set(anoMes,resposta.data||[]);
+  return resposta;
+}
+
 async function renderMes(anoMes){
   const seq=++RENDER_SEQ;
   // Ranking, vazamentos, concentracao e recorrencia saem todos da mesma
   // RPC: folha colapsada e corte no mesmo dia do mes. Busca antes de
   // desenhar para os quatro blocos nao discordarem entre si.
-  const rk=await q(()=>sb.rpc('listar_ranking_fornecedor',{p_ano_mes:anoMes}));
+  const idx=MESES_LISTA.indexOf(anoMes);
+  const prevAm=idx>0?MESES_LISTA[idx-1]:null;
+  const [rk,atual,anterior]=await Promise.all([
+    q(()=>sb.rpc('listar_ranking_fornecedor',{p_ano_mes:anoMes})),
+    carregarDetalheMes(anoMes),
+    carregarDetalheMes(prevAm)
+  ]);
   if(seq!==RENDER_SEQ)return; // o usuario ja pediu outro mes
+  if(atual.error){document.getElementById('main').innerHTML='<div class="erro">Não foi possível carregar as despesas deste mês: '+esc(atual.error.message||atual.error)+'</div>';return;}
 
   const RK=rk.error?null:(rk.data||[]).map(r=>({
     fornecedor:r.fornecedor, grupo:r.grupo||'',
@@ -276,10 +291,8 @@ async function renderMes(anoMes){
   }));
 
   CHARTS.forEach(c=>{try{c.destroy()}catch(e){}});CHARTS=[];
-  const rows=POR_MES.get(anoMes)||[];
-  const idx=MESES_LISTA.indexOf(anoMes);
-  const prevAm=idx>0?MESES_LISTA[idx-1]:null;
-  const prevRows=prevAm?POR_MES.get(prevAm):[];
+  const rows=atual.data||[];
+  const prevRows=anterior.error?[]:(anterior.data||[]);
   const [ano,mm]=anoMes.split('-');
   const total=rows.reduce((s,r)=>s+(Number(r.valor)||0),0);
   const totalPrev=prevRows.reduce((s,r)=>s+(Number(r.valor)||0),0);
@@ -501,11 +514,11 @@ function drawRecorrencia(rows){
 function drawEvolucao(){
   const labels=MESES_LISTA.map(am=>{const[a,m]=am.split('-');return MES3[+m-1]+'/'+a.slice(2);});
   // grupos presentes, ordenados pelo total do periodo
-  const totG=aggBy(ROWS,r=>r.grupo);
+  const totG=aggBy(EVOLUCAO,r=>r.grupo);
   const grupos=[...totG.entries()].sort((a,b)=>b[1].valor-a[1].valor).map(e=>e[0]);
   const datasets=grupos.map(g=>({
     label:g,
-    data:MESES_LISTA.map(am=>{const rs=(POR_MES.get(am)||[]).filter(r=>r.grupo===g).reduce((s,r)=>s+(Number(r.valor)||0),0);return SirFisherFormat.monthTrend(RESUMO,am).value(rs);}),
+    data:MESES_LISTA.map(am=>{const rs=EVOLUCAO.filter(r=>r.ano_mes===am&&r.grupo===g).reduce((s,r)=>s+(Number(r.valor)||0),0);return SirFisherFormat.monthTrend(RESUMO,am).value(rs);}),
     backgroundColor:corGrupo(g),stack:'d',borderWidth:0,maxBarThickness:34
   }));
   CHARTS.push(new Chart(document.getElementById('evo'),{type:'bar',
@@ -546,7 +559,7 @@ document.getElementById('verCargas').addEventListener('click',e=>{e.preventDefau
 document.getElementById('fecharCargas').addEventListener('click',()=>cargasBox.style.display='none');
 cargasBox.addEventListener('click',e=>{if(e.target===cargasBox)cargasBox.style.display='none';});
 
-(async()=>{await window.SirFisherApp.ready;const ctx=await SirFisherAuth.requireRole(sb);if(ctx)main();})();
+(async()=>{const ctx=await SirFisherAuth.requireRole(sb);if(ctx)main();})();
 </script>
 </body>
 </html>

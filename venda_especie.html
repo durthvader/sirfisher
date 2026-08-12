@@ -63,6 +63,7 @@ const sb=SirFisherSupabase;
 const esc = SirFisherDOM.escapeHTML;
 const unidade=()=>window.SirFisherApp.settings().unidadeCodigo;
 const toleranciaDeposito=()=>window.SirFisherApp.number('deposito_tolerancia_valor',0.01);
+let CARREGAR_SEQ=0,CONFERENCIA_SEQ=0;
 
 const DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
 
@@ -137,11 +138,13 @@ function fmtDia(iso){
 }
 
 async function carregarConferencia(){
+  const conferenciaSeq=++CONFERENCIA_SEQ;
   const [resumo,lotes,ajustes]=await Promise.all([
     sb.from('app_conferencia_deposito_especie_resumo').select('*').maybeSingle(),
     sb.from('app_conferencia_deposito_especie').select('*').order('data',{ascending:false}),
     sb.from('app_conferencia_deposito_ajustes').select('*').is('desfeito_em',null)
   ]);
+  if(conferenciaSeq!==CONFERENCIA_SEQ)return;
   const erro=resumo.error||lotes.error||ajustes.error;
   if(erro){
     document.getElementById('conferenciaSaldo').innerHTML='<div class="detalhe">Não foi possível carregar a conferência: '+esc(erro.message)+'</div>';
@@ -290,6 +293,7 @@ async function desfazerJustificativa(id,btn){
 }
 
 async function carregar(){
+  const carregarSeq=++CARREGAR_SEQ;
   document.getElementById('novaData').value = hojeISO();
   carregarConferencia();
 
@@ -307,6 +311,7 @@ async function carregar(){
     sb.from('app_venda_especie_controle').select('*').eq('unidade',unidade())
       .is('depositada_em',null)
   ]);
+  if(carregarSeq!==CARREGAR_SEQ)return;
   const error=recentes.error||pendentes.error;
 
   if (error){
@@ -448,7 +453,7 @@ document.getElementById('btnNovo').addEventListener('click', async () => {
   carregar();
 });
 
-(async()=>{await window.SirFisherApp.ready;const ctx=await SirFisherAuth.requireRole(sb);if(ctx)carregar();})();
+(async()=>{const ctx=await SirFisherAuth.requireRole(sb);if(ctx)carregar();})();
 </script>
 </body>
 </html>

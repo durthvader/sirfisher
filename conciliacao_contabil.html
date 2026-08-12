@@ -55,6 +55,7 @@ const requestedMonth=/^\d{4}-\d{2}$/.test(query.get('mes')||'')?query.get('mes')
 const requestedFilter=FILTROS_VALIDOS.has(query.get('filtro'))?query.get('filtro'):null;
 const requestedDecision=/^\d+$/.test(query.get('decisao')||'')?query.get('decisao'):null;
 let RESUMO=[];
+let RENDER_SEQ=0;
 const param=(chave,padrao)=>window.SirFisherApp.number(chave,padrao);
 
 function nomeMes(anoMes){return MESES[Number(anoMes.slice(5,7))-1]+' de '+anoMes.slice(0,4);}
@@ -111,20 +112,24 @@ async function montarSeletor(){
 }
 
 async function renderMes(anoMes,navigation){
+  const renderSeq=++RENDER_SEQ;
   const main=document.getElementById('main');
   main.innerHTML='<div class="loading">Auditando '+esc(nomeMes(anoMes))+'…</div>';
   const targetQuery=navigation&&navigation.decisionId
     ?sb.from('app_conciliacao_contabil_decisoes').select('*').eq('id',navigation.decisionId).maybeSingle()
     :Promise.resolve({data:null,error:null});
-  const [movimentosResult,decisoesResult,targetResult]=await Promise.all([
+  const settled=await Promise.allSettled([
     sb.from('app_conciliacao_contabil').select('*').eq('ano_mes',anoMes).order('data_caixa',{ascending:false}).order('valor',{ascending:true}).limit(500),
     sb.from('app_conciliacao_contabil_decisoes').select('*').eq('ano_mes',anoMes).order('decidido_em',{ascending:false}).limit(50),
     targetQuery
   ]);
-  const error=movimentosResult.error||decisoesResult.error||targetResult.error;
-  if(error){main.innerHTML='<div class="erro">Não foi possível carregar a conciliação: '+esc(error.message)+'</div>';return;}
+  if(renderSeq!==RENDER_SEQ)return;
+  const resposta=index=>settled[index].status==='fulfilled'?settled[index].value:{data:null,error:settled[index].reason};
+  const [movimentosResult,decisoesResult,targetResult]=[0,1,2].map(resposta);
+  if(movimentosResult.error){main.innerHTML='<div class="erro">Não foi possível carregar a conciliação: '+esc(movimentosResult.error.message||String(movimentosResult.error))+'</div>';return;}
+  const parcial=!!(decisoesResult.error||targetResult.error);
   const rows=movimentosResult.data||[];
-  const decisoes=[...(decisoesResult.data||[])];
+  const decisoes=[...(decisoesResult.error?[]:(decisoesResult.data||[]))];
   if(targetResult.data&&targetResult.data.ano_mes===anoMes&&!decisoes.some(item=>String(item.id)===String(targetResult.data.id)))decisoes.push(targetResult.data);
   const zera=rows.filter(row=>row.espera_zerar);
   const conciliados=zera.filter(row=>row.status_conciliacao==='conciliado');
@@ -154,6 +159,7 @@ async function renderMes(anoMes,navigation){
 
   main.innerHTML=`
     <div class="page-intro"><div><h2>Conciliação contábil</h2><p>Confira os pares e conclua cada caso como estorno ou como movimentos não relacionados.</p></div><button id="reload" class="button secondary">Atualizar</button></div>
+    ${parcial?'<div class="notice">Os movimentos foram carregados, mas o histórico de decisões está temporariamente incompleto.</div>':''}
     <div class="summary-grid">
       <div class="summary-card"><div class="label">Créditos que devem zerar</div><div class="value">${rs(creditos)}</div></div>
       <div class="summary-card"><div class="label">Débitos que devem zerar</div><div class="value">${rs(debitos)}</div></div>
@@ -219,7 +225,7 @@ async function desfazerDecisao(item,anoMes,button){
   await renderMes(anoMes);
 }
 
-(async()=>{await window.SirFisherApp.ready;const auth=await SirFisherAuth.requireRole(sb);if(!auth)return;try{await montarSeletor();}catch(error){document.getElementById('main').innerHTML='<div class="erro">Não foi possível carregar a rotina: '+esc(error.message||String(error))+'</div>';}})();
+(async()=>{const auth=await SirFisherAuth.requireRole(sb);if(!auth)return;try{await montarSeletor();}catch(error){document.getElementById('main').innerHTML='<div class="erro">Não foi possível carregar a rotina: '+esc(error.message||String(error))+'</div>';}})();
 </script>
 </body>
 </html>

@@ -169,23 +169,29 @@ async function main(){
     if(dd.error)throw dd.error;
     ROWS=r.data||[];RESUMO=res.data||[];
     DESP_FIXA=df.data||[];DESP_DIRETA=dd.data||[];
-    const [uc,cg]=await Promise.all([
-      sb.from('app_painel_ultima_carga').select('ultima'),
-      sb.from('app_painel_cargas').select('*')
-    ]);
-    ULTIMA=(!uc.error&&uc.data&&uc.data[0])?uc.data[0].ultima:null;
-    CARGAS=cg.error?[]:(cg.data||[]);
-
     if(!ROWS.length)throw new Error('Sem dados de DRE.');
     montarSeletorPeriodo(ROWS.map(x=>x.ano_mes), ROWS[ROWS.length-1].ano_mes);
     renderMes(document.getElementById('mesSel').value);
+    carregarRodape();
+  }catch(e){document.getElementById('main').innerHTML='<div class="erro">Não foi possível carregar os dados: '+esc(e.message||e)+'</div>';}
+}
 
+async function carregarRodape(){
+  try{
+    const [uc,cg]=await Promise.all([
+      sb.from('app_painel_ultima_carga').select('ultima'),
+      sb.from('app_painel_cargas').select('*').limit(50)
+    ]);
+    ULTIMA=(!uc.error&&uc.data&&uc.data[0])?uc.data[0].ultima:null;
+    CARGAS=cg.error?[]:(cg.data||[]);
     if(ULTIMA){const d=new Date(ULTIMA);document.getElementById('rodapeAtt').textContent='Atualizado em '+String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
     else{document.getElementById('rodapeAtt').textContent='Atualizado: —';}
     const lista=document.getElementById('cargasLista');
     lista.innerHTML=CARGAS.length?CARGAS.map(c=>'<div style="padding:7px 0;border-bottom:1px solid var(--border)"><b>'+esc(c.quando)+'</b><br><span style="color:var(--muted)">'+esc(c.fontes)+'</span></div>').join(''):'<div style="color:var(--muted)">Ainda sem registros de carga.</div>';
     document.getElementById('rodape').style.display='flex';
-  }catch(e){document.getElementById('main').innerHTML='<div class="erro">Não foi possível carregar os dados: '+esc(e.message||e)+'</div>';}
+  }catch(_error){
+    // O rodape e informativo e nao pode atrasar nem apagar a DRE.
+  }
 }
 
 function renderMes(anoMes){
@@ -398,7 +404,7 @@ document.getElementById('verCargas').addEventListener('click',e=>{e.preventDefau
 document.getElementById('fecharCargas').addEventListener('click',()=>cargasBox.style.display='none');
 cargasBox.addEventListener('click',e=>{if(e.target===cargasBox)cargasBox.style.display='none';});
 
-(async()=>{await window.SirFisherApp.ready;const ctx=await SirFisherAuth.requireRole(sb);if(ctx)main();})();
+(async()=>{const ctx=await SirFisherAuth.requireRole(sb);if(ctx)main();})();
 </script>
 </body>
 </html>

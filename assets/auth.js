@@ -31,14 +31,51 @@
   ]);
   const KNOWN_PAGES = new Set([...ADMIN_ONLY_PAGES, ...CONFIGURABLE_PAGES]);
   const NEXT_KEY = 'sirfisher_auth_next';
+  const PERMISSIONS_CACHE_KEY = 'finance_panel_permissions_v1';
+  const PERMISSIONS_CACHE_TTL_MS = 5 * 60 * 1000;
 
   let permissionsPromise = null;
+  function clearPermissionsCache() {
+    permissionsPromise = null;
+    try { sessionStorage.removeItem(PERMISSIONS_CACHE_KEY); } catch (_error) {}
+  }
+
+  function cachedPermissions() {
+    try {
+      const cached = JSON.parse(sessionStorage.getItem(PERMISSIONS_CACHE_KEY) || 'null');
+      if (!cached || Date.now() - Number(cached.savedAt) >= PERMISSIONS_CACHE_TTL_MS) return null;
+      const map = new Map();
+      (cached.rows || []).forEach(row => map.set(row.pagina, new Set(row.papeis || [])));
+      return map;
+    } catch (_error) {
+      return null;
+    }
+  }
+
   function fetchPermissions(sb) {
     if (!permissionsPromise) {
+      const cached = cachedPermissions();
+      if (cached) {
+        permissionsPromise = Promise.resolve(cached);
+        return permissionsPromise;
+      }
       permissionsPromise = sb.from('pagina_permissao').select('pagina, papeis').then(({ data, error }) => {
         const map = new Map();
-        if (!error) (data || []).forEach(row => map.set(row.pagina, new Set(row.papeis || [])));
+        if (error) {
+          permissionsPromise = null;
+          return map;
+        }
+        const rows = data || [];
+        rows.forEach(row => map.set(row.pagina, new Set(row.papeis || [])));
+        try {
+          sessionStorage.setItem(PERMISSIONS_CACHE_KEY, JSON.stringify({ savedAt: Date.now(), rows }));
+        } catch (_error) {
+          // Cache e apenas uma otimizacao.
+        }
         return map;
+      }).catch(() => {
+        permissionsPromise = null;
+        return new Map();
       });
     }
     return permissionsPromise;
@@ -369,9 +406,16 @@
 
   async function requireRole(sb, options) {
     injectStyles();
-    if (window.SirFisherApp?.ready) await window.SirFisherApp.ready;
     const settings = options || {};
-    const { data, error } = await sb.auth.getSession();
+    // Identidade/configuracao e restauracao da sessao sao independentes.
+    // Executa as duas em paralelo para nao somar duas esperas de rede a cada pagina.
+    const appReady = window.SirFisherApp?.ready || Promise.resolve();
+    const sessionRequest = sb.auth.getSession();
+    const startup = await Promise.allSettled([appReady, sessionRequest]);
+    const sessionResult = startup[1].status === 'fulfilled'
+      ? startup[1].value
+      : { data: null, error: startup[1].reason };
+    const { data, error } = sessionResult;
     const session = data?.session || null;
 
     if (error || !session) {
@@ -416,6 +460,7 @@
 
   window.SirFisherAuth = {
     requireRole,
-    pageAllowsRole
+    pageAllowsRole,
+    clearPermissionsCache
   };
 })();

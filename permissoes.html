@@ -96,6 +96,7 @@ async function salvar(pagina,row,button){
   }
   const idx=ROWS.findIndex(r=>r.pagina===pagina);
   if(idx>=0)ROWS[idx]={pagina,papeis};else ROWS.push({pagina,papeis});
+  SirFisherAuth.clearPermissionsCache();
   button.disabled=false;
   button.textContent='Salvo';
   setTimeout(()=>{button.textContent='Salvar';},1500);

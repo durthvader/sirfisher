@@ -40,3 +40,6 @@ jobs:
 
       - name: Financial and calendar contracts
         run: python scripts/ci/test_financial_contracts.py
+
+      - name: Front-end performance and resilience contracts
+        run: python scripts/ci/test_frontend_contracts.py

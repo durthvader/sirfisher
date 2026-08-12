@@ -68,7 +68,7 @@
   <main id="main"><div class="loading">Carregando indicadores…</div></main>
   <footer id="rodape" style="display:none">
     <span id="rodapeAtt"></span>
-    <span>Fonte: Stone · Banco do Brasil · lançamentos internos · <a href="#" id="verCargas" style="color:var(--teal);text-decoration:none">histórico de cargas</a></span>
+    <span>Fontes configuradas · <a href="#" id="verCargas" style="color:var(--teal);text-decoration:none">histórico de cargas</a></span>
   </footer>
 </div>
 <div id="cargasBox" style="display:none;position:fixed;inset:0;background:rgba(18,49,63,.45);z-index:60;align-items:center;justify-content:center;padding:20px">
@@ -173,7 +173,7 @@ async function main(){
       sb.from('app_painel_saldo_atual').select('*'),
       sb.from('app_painel_margem_contribuicao').select('ano_mes,mc_perc'),
       sb.from('app_painel_ultima_carga').select('ultima'),
-      sb.from('app_painel_cargas').select('*')
+      sb.from('app_painel_cargas').select('*').limit(50)
     ]);
     applyResult(apoio[0],'composição das despesas',data=>{COMP=data;});
     applyResult(apoio[1],'saldo projetado',data=>{data.forEach(x=>SALDO[x.ano_mes]={v:Number(x.saldo_fim),s:x.situacao});});
@@ -411,7 +411,6 @@ document.getElementById('fecharCargas').addEventListener('click',()=>cargasBox.s
 cargasBox.addEventListener('click',e=>{if(e.target===cargasBox)cargasBox.style.display='none';});
 
 (async()=>{
-  await window.SirFisherApp.ready;
   const ctx=await SirFisherAuth.requireRole(sb,{loginPage:true});
   if(!ctx)return;
   if(ctx.role==='admin'||ctx.role==='socio')main();

@@ -2,6 +2,8 @@
   'use strict';
 
   const fallback = Object.freeze({ nome: 'Painel', subtitulo: 'Painel de Gestão' });
+  const CACHE_KEY = 'finance_panel_config_v1';
+  const CACHE_TTL_MS = 5 * 60 * 1000;
   const settingsFallback = Object.freeze({
     unidade: 'PRINCIPAL',
     unidadeCodigo: 'PRINCIPAL',
@@ -31,6 +33,38 @@
   });
   let current = fallback;
   let settings = settingsFallback;
+  let cachedAt = 0;
+
+  function restoreCache() {
+    try {
+      const cached = JSON.parse(sessionStorage.getItem(CACHE_KEY) || 'null');
+      if (!cached || typeof cached !== 'object') return;
+      const nome = String(cached.current?.nome || '').trim();
+      const subtitulo = String(cached.current?.subtitulo || '').trim();
+      if (nome && subtitulo) current = Object.freeze({ nome, subtitulo });
+      if (cached.settings && typeof cached.settings === 'object') {
+        settings = Object.freeze(Object.assign({}, settingsFallback, cached.settings));
+      }
+      cachedAt = Number(cached.savedAt) || 0;
+    } catch (_error) {
+      // sessionStorage pode estar desabilitado; a configuracao remota segue normal.
+    }
+  }
+
+  function saveCache() {
+    try {
+      cachedAt = Date.now();
+      sessionStorage.setItem(CACHE_KEY, JSON.stringify({
+        savedAt: cachedAt,
+        current,
+        settings
+      }));
+    } catch (_error) {
+      // Cache e apenas uma otimizacao.
+    }
+  }
+
+  restoreCache();
 
   function normalized(row) {
     const nome = String(row?.nome || '').trim();
@@ -55,13 +89,27 @@
     document.title = current.nome + (separator >= 0 ? document.title.slice(separator) : '');
   }
 
-  async function load() {
+  async function load(force) {
+    if (!force && cachedAt && Date.now() - cachedAt < CACHE_TTL_MS) {
+      apply();
+      return current;
+    }
+    if (force) {
+      cachedAt = 0;
+      try { sessionStorage.removeItem(CACHE_KEY); } catch (_error) {}
+    }
     const client = window.SirFisherSupabase;
     if (client) {
-      const [empresa, operacional] = await Promise.all([
+      const settled = await Promise.allSettled([
         client.rpc('app_configuracao_empresa'),
         client.rpc('app_configuracao_operacional')
       ]);
+      const empresa = settled[0].status === 'fulfilled'
+        ? settled[0].value
+        : { data: null, error: settled[0].reason };
+      const operacional = settled[1].status === 'fulfilled'
+        ? settled[1].value
+        : { data: null, error: settled[1].reason };
       const row = Array.isArray(empresa.data) ? empresa.data[0] : empresa.data;
       if (!empresa.error && row) current = normalized(row);
       const op = Array.isArray(operacional.data) ? operacional.data[0] : operacional.data;
@@ -72,6 +120,7 @@
           unidadeCodigo: String(op.unidade_codigo || settingsFallback.unidadeCodigo).trim() || settingsFallback.unidadeCodigo
         }));
       }
+      if (!empresa.error && row && !operacional.error && op) saveCache();
     }
     apply();
     return current;
@@ -92,6 +141,6 @@
       const value = Number(settings[key]);
       return Number.isFinite(value) ? value : fallbackValue;
     },
-    reload: load
+    reload: () => load(true)
   });
 })();

@@ -63,7 +63,7 @@
   <main id="main"><div class="loading">Carregando caixa…</div></main>
   <footer id="rodape" style="display:none">
     <span id="rodapeAtt"></span>
-    <span>Fonte: Stone · Banco do Brasil · lançamentos internos · <a href="#" id="verCargas" style="color:var(--teal);text-decoration:none">histórico de cargas</a></span>
+    <span>Fontes configuradas · <a href="#" id="verCargas" style="color:var(--teal);text-decoration:none">histórico de cargas</a></span>
   </footer>
 </div>
 <div id="cargasBox" style="display:none;position:fixed;inset:0;background:rgba(18,49,63,.45);z-index:60;align-items:center;justify-content:center;padding:20px">
@@ -83,10 +83,12 @@ const esc=SirFisherDOM.escapeHTML;
 const C={header:'#12313F',teal:'#00A6A6',amber:'#D6A84F',green:'#2E7D5B',red:'#C94C4C',muted:'#6B7280',border:'#E5E7EB',brown:'#B98A2E',grey:'#9aa6b2'};
 const MESES=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 let CHARTS=[],SALDO_ATUAL=null,FIMMES=[],FLUXO=[],RC=[],RP=[],DF=[],DD=[],CONTAS=[],HOJE=null,ULTIMA=null,CARGAS=[];
+let CARGA_DADOS=0,DADOS_PENDENTES=false,PROJECAO_ERRO=false,RISCO_ERRO=false;
+const CACHE_MESES=new Map();
 let PISO=100000,DIAS_CRITICO=30,DIAS_ATENCAO=60,HORIZONTE_DIAS=90;
 
 const DESC={
-  satual:'Saldo consolidado das contas no último dia com dado real (Stone + bancos).',
+  satual:'Saldo consolidado das contas configuradas no último dia com dado real.',
   sfech:'Saldo no fechamento do mês selecionado. Em mês encerrado, é realizado; em mês futuro, é projetado.',
   sinicial:'Saldo projetado no início do mês selecionado, trazido do fechamento do mês anterior.',
   svar:'Diferença entre o saldo de fechamento do mês selecionado e o fechamento do mês anterior.',
@@ -117,15 +119,28 @@ function kpi(label,iconKey,value,sub,color,descKey){
 
 function sumMes(arr,anoMes){return arr.filter(r=>r.dia&&r.dia.slice(0,7)===anoMes).reduce((s,r)=>s+(Number(r.valor)||0),0);}
 
+function isoUTC(data){return data.toISOString().slice(0,10);}
+function limitesMes(anoMes){
+  const inicio=new Date(anoMes+'-01T00:00:00Z');
+  const proximo=new Date(inicio);proximo.setUTCMonth(proximo.getUTCMonth()+1);
+  const fim=new Date(proximo);fim.setUTCDate(fim.getUTCDate()-1);
+  return {inicio:isoUTC(inicio),proximo:isoUTC(proximo),fim};
+}
+function fimHorizonte(){
+  if(!HOJE)return null;
+  const fim=new Date(HOJE+'T00:00:00Z');fim.setUTCDate(fim.getUTCDate()+HORIZONTE_DIAS);
+  return isoUTC(fim);
+}
+
 // re-tenta a consulta quando o erro e um timeout transitorio do banco
 // (57014 / "statement timeout"). Erros nao-transitorios saem na hora.
 async function q(build,tries=3){
   let res;
   for(let i=0;i<tries;i++){
-    res=await build();
+    try{res=await build();}catch(error){res={data:null,error};}
     if(!res.error)return res;
     const msg=(res.error.message||'')+(res.error.code||'');
-    if(!/statement timeout|57014/i.test(msg))break;
+    if(!/statement timeout|57014|failed to fetch|network/i.test(msg))break;
     await new Promise(r=>setTimeout(r,250*(i+1)));
   }
   return res;
@@ -149,43 +164,18 @@ function montarSeletorPeriodo(anoMesList,selecionado){
     mesSel.value=(alvo&&meses.includes(alvo))?alvo:meses[0];
   }
   fillMeses(anoSel.value,selecionado);
-  anoSel.onchange=function(){fillMeses(anoSel.value,null);renderMes(mesSel.value);};
-  mesSel.onchange=function(){renderMes(mesSel.value);};
+  anoSel.onchange=function(){fillMeses(anoSel.value,null);selecionarMes(mesSel.value,true);};
+  mesSel.onchange=function(){selecionarMes(mesSel.value,true);};
 }
 
-async function main(){
+async function carregarRodape(){
   try{
-    const [sa,fm,fx,rc,rp,df,dd,uc,cg]=await Promise.all([
-      q(()=>sb.from('app_painel_saldo_atual').select('*')),
-      q(()=>sb.from('app_painel_saldo_fim_mes').select('*').order('mes',{ascending:true})),
-      q(()=>sb.from('app_painel_fluxo_caixa').select('*').order('dia',{ascending:true})),
-      q(()=>sb.from('app_recebimento_conhecido').select('*')),
-      q(()=>sb.from('app_recebimento_projetado').select('*')),
-      q(()=>sb.from('app_projecao_despesa_fixa').select('*')),
-      q(()=>sb.from('app_projecao_despesa_direta').select('*')),
+    const [uc,cg]=await Promise.all([
       q(()=>sb.from('app_painel_ultima_carga').select('ultima')),
-      q(()=>sb.from('app_painel_cargas').select('*'))
+      q(()=>sb.from('app_painel_cargas').select('*').limit(50))
     ]);
-    const ct=await q(()=>sb.from('app_painel_saldo_por_conta').select('*'));
-    CONTAS=ct.error?[]:(ct.data||[]);
-    // uma falha no fluxo nao derruba mais a pagina: mostra o resto e um
-    // aviso no grafico da curva. So aborta se nada essencial carregou.
-    FLUXO_ERRO=!!fx.error;
-    SALDO_ATUAL=(!sa.error&&sa.data&&sa.data[0])?sa.data[0]:null;
-    FIMMES=fm.error?[]:(fm.data||[]);
-    FLUXO=fx.data||[];
-    RC=rc.error?[]:(rc.data||[]); RP=rp.error?[]:(rp.data||[]);
-    DF=df.error?[]:(df.data||[]); DD=dd.error?[]:(dd.data||[]);
     ULTIMA=(!uc.error&&uc.data&&uc.data[0])?uc.data[0].ultima:null;
     CARGAS=cg.error?[]:(cg.data||[]);
-    HOJE=SALDO_ATUAL?SALDO_ATUAL.data_ref:(FLUXO.filter(r=>r.tipo==='real').slice(-1)[0]||{}).dia;
-
-    if(!FIMMES.length)throw new Error('Sem meses de projeção disponíveis.');
-    const mesHoje=HOJE?HOJE.slice(0,7):FIMMES[FIMMES.length-1].ano_mes;
-    const mesDefault=FIMMES.some(x=>x.ano_mes===mesHoje)?mesHoje:FIMMES[FIMMES.length-1].ano_mes;
-    montarSeletorPeriodo(FIMMES.map(x=>x.ano_mes), mesDefault);
-    renderMes(document.getElementById('mesSel').value);
-
     if(ULTIMA){const d=new Date(ULTIMA);document.getElementById('rodapeAtt').textContent='Atualizado em '+String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
     else{document.getElementById('rodapeAtt').textContent='Atualizado: —';}
     const lista=document.getElementById('cargasLista');
@@ -193,6 +183,87 @@ async function main(){
       ? CARGAS.map(c=>'<div style="padding:7px 0;border-bottom:1px solid var(--border)"><b>'+esc(c.quando)+'</b><br><span style="color:var(--muted)">'+esc(c.fontes)+'</span></div>').join('')
       : '<div style="color:var(--muted)">Ainda sem registros de carga.</div>';
     document.getElementById('rodape').style.display='flex';
+  }catch(_error){
+    // O historico e apenas informativo e nao deve substituir o painel por erro.
+  }
+}
+
+async function buscarMes(anoMes){
+  if(CACHE_MESES.has(anoMes))return CACHE_MESES.get(anoMes);
+  const limites=limitesMes(anoMes);
+  const referencia=new Date(limites.fim);
+  const inicioCurva=new Date(referencia);inicioCurva.setUTCMonth(inicioCurva.getUTCMonth()-6);
+  const fimCurva=new Date(referencia);fimCurva.setUTCDate(fimCurva.getUTCDate()+HORIZONTE_DIAS);
+  const riscoFim=fimHorizonte();
+  const inicioCurvaISO=isoUTC(inicioCurva),fimCurvaISO=isoUTC(fimCurva);
+  const riscoCoberto=HOJE&&riscoFim&&HOJE>=inicioCurvaISO&&riscoFim<=fimCurvaISO;
+  const [fx,fxRisco,rc,rp,df,dd]=await Promise.all([
+    q(()=>sb.from('app_painel_fluxo_caixa').select('*').gte('dia',inicioCurvaISO).lte('dia',fimCurvaISO).order('dia',{ascending:true})),
+    riscoCoberto||!HOJE||!riscoFim
+      ? Promise.resolve({data:[],error:null})
+      : q(()=>sb.from('app_painel_fluxo_caixa').select('*').gte('dia',HOJE).lte('dia',riscoFim).order('dia',{ascending:true})),
+    q(()=>sb.from('app_recebimento_conhecido').select('dia,valor').gte('dia',limites.inicio).lt('dia',limites.proximo)),
+    q(()=>sb.from('app_recebimento_projetado').select('dia,valor').gte('dia',limites.inicio).lt('dia',limites.proximo)),
+    q(()=>sb.from('app_projecao_despesa_fixa').select('dia,valor').gte('dia',limites.inicio).lt('dia',limites.proximo)),
+    q(()=>sb.from('app_projecao_despesa_direta').select('dia,valor').gte('dia',limites.inicio).lt('dia',limites.proximo))
+  ]);
+  const fluxoPorDia=new Map();
+  [...(fx.error?[]:(fx.data||[])),...(fxRisco.error?[]:(fxRisco.data||[]))].forEach(row=>fluxoPorDia.set(row.dia,row));
+  const resultado={
+    fluxo:[...fluxoPorDia.values()].sort((a,b)=>a.dia.localeCompare(b.dia)),
+    rc:rc.error?[]:(rc.data||[]),rp:rp.error?[]:(rp.data||[]),
+    df:df.error?[]:(df.data||[]),dd:dd.error?[]:(dd.data||[]),
+    fluxoErro:!!fx.error,
+    riscoErro:riscoCoberto?!!fx.error:!!fxRisco.error,
+    projecaoErro:!!(rc.error||rp.error||df.error||dd.error)
+  };
+  if(!resultado.fluxoErro&&!resultado.riscoErro&&!resultado.projecaoErro)CACHE_MESES.set(anoMes,resultado);
+  return resultado;
+}
+
+async function selecionarMes(anoMes,mostrarCarregando){
+  const carga=++CARGA_DADOS;
+  const anoSel=document.getElementById('anoSel'),mesSel=document.getElementById('mesSel');
+  anoSel.disabled=true;mesSel.disabled=true;
+  DADOS_PENDENTES=true;FLUXO_ERRO=false;PROJECAO_ERRO=false;RISCO_ERRO=false;
+  if(mostrarCarregando){
+    CHARTS.forEach(c=>{try{c.destroy()}catch(_error){}});CHARTS=[];
+    document.getElementById('main').innerHTML='<div class="loading">Carregando '+esc(MESES[+anoMes.slice(5,7)-1]+' '+anoMes.slice(0,4))+'…</div>';
+  }
+  try{
+    const dados=await buscarMes(anoMes);
+    if(carga!==CARGA_DADOS)return;
+    FLUXO=dados.fluxo;RC=dados.rc;RP=dados.rp;DF=dados.df;DD=dados.dd;
+    FLUXO_ERRO=dados.fluxoErro;PROJECAO_ERRO=dados.projecaoErro;RISCO_ERRO=dados.riscoErro;DADOS_PENDENTES=false;
+    if(!SALDO_ATUAL){const ultimoReal=FLUXO.filter(r=>r.tipo==='real').slice(-1)[0];if(ultimoReal)HOJE=ultimoReal.dia;}
+    renderMes(anoMes);
+  }catch(_error){
+    if(carga!==CARGA_DADOS)return;
+    FLUXO=[];RC=[];RP=[];DF=[];DD=[];FLUXO_ERRO=true;PROJECAO_ERRO=true;RISCO_ERRO=true;DADOS_PENDENTES=false;
+    renderMes(anoMes);
+  }finally{
+    if(carga===CARGA_DADOS){anoSel.disabled=false;mesSel.disabled=false;}
+  }
+}
+
+async function main(){
+  try{
+    const [sa,fm,ct]=await Promise.all([
+      q(()=>sb.from('app_painel_saldo_atual').select('*')),
+      q(()=>sb.from('app_painel_saldo_fim_mes').select('*').order('mes',{ascending:true})),
+      q(()=>sb.from('app_painel_saldo_por_conta').select('*'))
+    ]);
+    SALDO_ATUAL=(!sa.error&&sa.data&&sa.data[0])?sa.data[0]:null;
+    FIMMES=fm.error?[]:(fm.data||[]);
+    CONTAS=ct.error?[]:(ct.data||[]);
+    HOJE=SALDO_ATUAL?SALDO_ATUAL.data_ref:new Date().toISOString().slice(0,10);
+    if(!FIMMES.length)throw new Error('Sem meses de projeção disponíveis.');
+    const mesHoje=HOJE.slice(0,7);
+    const mesDefault=FIMMES.some(x=>x.ano_mes===mesHoje)?mesHoje:FIMMES[FIMMES.length-1].ano_mes;
+    montarSeletorPeriodo(FIMMES.map(x=>x.ano_mes),mesDefault);
+    DADOS_PENDENTES=true;renderMes(mesDefault);
+    carregarRodape();
+    await selecionarMes(mesDefault,false);
   }catch(e){document.getElementById('main').innerHTML='<div class="erro">Não foi possível carregar os dados: '+esc(e.message||e)+'</div>';}
 }
 
@@ -237,18 +308,22 @@ function renderMes(anoMes){
   const arecSub=ehPassado?'mês encerrado':(ehAtual?'a liquidar até o fim do mês':'já vendido com vencimento no mês');
 
   // KPI menor saldo projetado no horizonte
+  const riscoFim=fimHorizonte();
+  const fluxoRisco=FLUXO.filter(r=>r.tipo!=='real'&&(!HOJE||r.dia>=HOJE)&&(!riscoFim||r.dia<=riscoFim));
   let minVal=Infinity,minDia=null;
-  FLUXO.forEach(r=>{if(r.tipo!=='real'){const v=num(r.saldo_projetado!=null?r.saldo_projetado:r.saldo);if(v!=null&&v<minVal){minVal=v;minDia=r.dia;}}});
-  const temMin=minDia!==null;
+  fluxoRisco.forEach(r=>{const v=num(r.saldo_projetado!=null?r.saldo_projetado:r.saldo);if(v!=null&&v<minVal){minVal=v;minDia=r.dia;}});
+  const temMin=!DADOS_PENDENTES&&!RISCO_ERRO&&minDia!==null;
   const minColor=temMin?(minVal<0?C.red:(minVal<(shoje||0)*0.3?C.amber:C.green)):C.muted;
 
   // KPI: dias ate cruzar o piso de seguranca (primeiro dia projetado < PISO, a partir de hoje)
   let pisoDia=null,pisoDias=null;
-  const cruz=FLUXO.find(r=>r.tipo!=='real'&&HOJE&&r.dia>HOJE&&num(r.saldo_projetado!=null?r.saldo_projetado:r.saldo)<PISO);
+  const cruz=fluxoRisco.find(r=>HOJE&&r.dia>HOJE&&num(r.saldo_projetado!=null?r.saldo_projetado:r.saldo)<PISO);
   if(cruz){pisoDia=cruz.dia;const d1=new Date(HOJE),d2=new Date(pisoDia);pisoDias=Math.round((d2-d1)/86400000);}
   const jaAbaixo=shoje!=null&&shoje<PISO;
   let pisoColor=C.green,pisoVal='—',pisoSub='<div class="sub">não cruza no horizonte</div>';
-  if(jaAbaixo){pisoColor=C.red;pisoVal='Abaixo';pisoSub='<div class="sub down">saldo de hoje já está sob o piso</div>';}
+  if(DADOS_PENDENTES){pisoColor=C.muted;pisoSub='<div class="sub">carregando…</div>';}
+  else if(RISCO_ERRO){pisoColor=C.muted;pisoSub='<div class="sub">temporariamente indisponível</div>';}
+  else if(jaAbaixo){pisoColor=C.red;pisoVal='Abaixo';pisoSub='<div class="sub down">saldo de hoje já está sob o piso</div>';}
   else if(pisoDia){pisoColor=pisoDias<=DIAS_CRITICO?C.red:(pisoDias<=DIAS_ATENCAO?C.amber:C.green);pisoVal=pisoDias+' dias';pisoSub='<div class="sub">cruza em <b>'+ddmm(pisoDia)+'</b></div>';}
 
   const html=`
@@ -261,7 +336,7 @@ function renderMes(anoMes){
 
     <div class="section-title">Risco de caixa a partir de hoje</div>
     <div class="kpis">
-      ${kpi('Menor saldo no horizonte','low',temMin?brl(minVal):'—',temMin?('<div class="sub">em <b>'+ddmm(minDia)+'</b></div>'):'<div class="sub">—</div>',minColor,'smin')}
+      ${kpi('Menor saldo no horizonte','low',temMin?brl(minVal):'—',temMin?('<div class="sub">em <b>'+ddmm(minDia)+'</b></div>'):(DADOS_PENDENTES?'<div class="sub">carregando…</div>':(RISCO_ERRO?'<div class="sub">temporariamente indisponível</div>':'<div class="sub">—</div>')),minColor,'smin')}
       ${kpi('Até o piso de segurança','alert',pisoVal,pisoSub,pisoColor,'piso')}
     </div>
 
@@ -320,7 +395,9 @@ function marks(hojeIdx,hojeVal,minIdx,minVal,refIdx,refLabel,refVal){return {id:
 
 function drawCurva(anoMes){
   if(!FLUXO.length){
-    document.getElementById('curva').parentElement.innerHTML=FLUXO_ERRO
+    document.getElementById('curva').parentElement.innerHTML=DADOS_PENDENTES
+      ? '<div class="aguardando">Carregando projeção de caixa…</div>'
+      : FLUXO_ERRO
       ? '<div class="aguardando">Não foi possível carregar a projeção de caixa agora.<br><a href="#" onclick="location.reload();return false" style="color:var(--teal);text-decoration:none">Tentar novamente</a></div>'
       : '<div class="aguardando">Sem dados de fluxo de caixa.</div>';
     return;
@@ -334,7 +411,7 @@ function drawCurva(anoMes){
   const fim=new Date(ref);fim.setDate(fim.getDate()+HORIZONTE_DIAS);
   const iniStr=ini.toISOString().slice(0,10), fimStr=fim.toISOString().slice(0,10);
   win=FLUXO.filter(r=>r.dia>=iniStr&&r.dia<=fimStr);
-  if(!win.length)win=FLUXO;
+  if(!win.length){document.getElementById('curva').parentElement.innerHTML=FLUXO_ERRO?'<div class="aguardando">Não foi possível carregar a projeção deste período agora.</div>':'<div class="aguardando">Sem dados de fluxo para o período selecionado.</div>';return;}
   const hintEl=document.getElementById('curvaHint');
   if(hintEl){
     const diasProjetados=win.filter(r=>r.tipo!=='real').length;
@@ -369,6 +446,8 @@ function drawCurva(anoMes){
 
 function drawFlow(anoMes){
   const box=document.getElementById('flowBox');
+  if(DADOS_PENDENTES){box.innerHTML='<div class="aguardando">Carregando entradas e saídas…</div>';return;}
+  if(PROJECAO_ERRO){box.innerHTML='<div class="aguardando">Não foi possível carregar a composição deste mês agora.<br><a href="#" onclick="selecionarMes(\''+anoMes+'\',true);return false" style="color:var(--teal);text-decoration:none">Tentar novamente</a></div>';return;}
   const recCon=sumMes(RC,anoMes), recProj=sumMes(RP,anoMes);
   const despFix=sumMes(DF,anoMes), despDir=sumMes(DD,anoMes);
   const entradas=recCon+recProj, saidas=despFix+despDir, net=entradas-saidas;
@@ -406,14 +485,9 @@ function drawFlow(anoMes){
 }
 
 function corConta(nome){
-  const s=(nome||'').toLowerCase();
-  if(s.includes('stone'))return C.teal;
-  if(s.includes('brasil')||s==='bb')return C.amber;
-  if(s.includes('btg'))return C.header;
-  if(s.includes('inter'))return C.green;
-  if(s.includes('nordeste')||s.includes('bnb'))return C.red;
-  if(s.includes('espéc')||s.includes('espec')||s.includes('dinheiro'))return C.brown;
-  return C.grey;
+  const paleta=[C.teal,C.amber,C.header,C.green,C.red,C.brown,C.grey];
+  let hash=0;for(const char of String(nome||''))hash=((hash*31)+char.codePointAt(0))>>>0;
+  return paleta[hash%paleta.length];
 }
 
 function drawContas(){
@@ -449,7 +523,7 @@ document.getElementById('verCargas').addEventListener('click',e=>{e.preventDefau
 document.getElementById('fecharCargas').addEventListener('click',()=>cargasBox.style.display='none');
 cargasBox.addEventListener('click',e=>{if(e.target===cargasBox)cargasBox.style.display='none';});
 
-(async()=>{await window.SirFisherApp.ready;PISO=window.SirFisherApp.number('caixa_saldo_minimo',100000);DIAS_CRITICO=window.SirFisherApp.number('caixa_dias_critico',30);DIAS_ATENCAO=window.SirFisherApp.number('caixa_dias_atencao',60);HORIZONTE_DIAS=window.SirFisherApp.number('caixa_horizonte_dias',90);const ctx=await SirFisherAuth.requireRole(sb);if(ctx)main();})();
+(async()=>{const ctx=await SirFisherAuth.requireRole(sb);if(!ctx)return;PISO=window.SirFisherApp.number('caixa_saldo_minimo',100000);DIAS_CRITICO=window.SirFisherApp.number('caixa_dias_critico',30);DIAS_ATENCAO=window.SirFisherApp.number('caixa_dias_atencao',60);HORIZONTE_DIAS=window.SirFisherApp.number('caixa_horizonte_dias',90);main();})();
 </script>
 </body>
 </html>

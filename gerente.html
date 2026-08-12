@@ -66,6 +66,7 @@ const MESES=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agos
 let CHARTS=[];
 let rowsResumo=[];
 let mesAtualPainel=null;
+let TROCA_SEQ=0;
 
 function hojeISO(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function nomeMes(anoMes){return MESES[+anoMes.slice(5,7)-1]+' de '+anoMes.slice(0,4);}
@@ -85,19 +86,27 @@ async function carregar(){
     const mesAtual=hojeISO().slice(0,7);
     mesAtualPainel=(rowsResumo.find(x=>x.ano_mes===mesAtual)||rowsResumo[rowsResumo.length-1]).ano_mes;
     await trocarMes(mesAtualPainel);
+    carregarRodape();
+  }catch(e){main.innerHTML='<div class="erro">Não foi possível carregar o painel: '+esc(e.message||String(e))+'</div>';}
+}
 
+async function carregarRodape(){
+  try{
     const uc=await sb.from('app_gerente_ultima_carga').select('ultima');
-    if(uc.error)throw uc.error;
+    if(uc.error)return;
     const ultima=(uc.data&&uc.data[0])?uc.data[0].ultima:null;
     if(ultima){
       const d=new Date(ultima);
       document.getElementById('rodapeAtt').textContent='Atualizado em '+String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
       document.getElementById('rodape').style.display='flex';
     }
-  }catch(e){main.innerHTML='<div class="erro">Não foi possível carregar o painel: '+esc(e.message||String(e))+'</div>';}
+  }catch(_error){
+    // A data de atualizacao e informativa e nao pode apagar o painel.
+  }
 }
 
 async function trocarMes(mes){
+  const trocaSeq=++TROCA_SEQ;
   const main=document.getElementById('main');
   const cur=rowsResumo.find(x=>x.ano_mes===mes);
   if(!cur)return;
@@ -105,21 +114,22 @@ async function trocarMes(mes){
     CHARTS.forEach(chart=>chart.destroy());
     CHARTS=[];
     main.innerHTML='<div class="loading">Carregando painel…</div>';
-    const[dia,gasto,hora,saldoVar,cascata]=await Promise.all([
+    const resultados=await Promise.allSettled([
       sb.from('app_gerente_meta_diaria').select('dia,venda_dia,meta_dia').eq('mes',mes+'-01').order('dia',{ascending:true}),
       sb.from('app_gerente_gasto_grupo').select('grupo,participacao_perc').eq('ano_mes',mes),
       sb.from('app_gerente_movimento_hora').select('hora,qtd').eq('ano_mes',mes).order('hora',{ascending:true}),
       sb.from('app_gerente_saldo_variacao').select('ano_mes,variacao_perc,previsao_bonificacao').eq('ano_mes',mes).maybeSingle(),
       sb.from('app_gerente_dre_cascata_perc').select('*').eq('ano_mes',mes).maybeSingle()
     ]);
-    const respostas=[dia,gasto,hora,saldoVar,cascata];
-    const erro=respostas.find(x=>x.error);
-    if(erro)throw erro.error;
-    render(cur,rowsResumo,dia.data||[],gasto.data||[],hora.data||[],saldoVar.data||null,cascata.data||null);
-  }catch(e){main.innerHTML='<div class="erro">Não foi possível carregar o painel: '+esc(e.message||String(e))+'</div>';}
+    if(trocaSeq!==TROCA_SEQ)return;
+    const resposta=index=>resultados[index].status==='fulfilled'?resultados[index].value:{data:null,error:resultados[index].reason};
+    const [dia,gasto,hora,saldoVar,cascata]=[0,1,2,3,4].map(resposta);
+    const parcial=[dia,gasto,hora,saldoVar,cascata].some(item=>item.error);
+    render(cur,rowsResumo,dia.error?[]:(dia.data||[]),gasto.error?[]:(gasto.data||[]),hora.error?[]:(hora.data||[]),saldoVar.error?null:(saldoVar.data||null),cascata.error?null:(cascata.data||null),parcial);
+  }catch(e){if(trocaSeq===TROCA_SEQ)main.innerHTML='<div class="erro">Não foi possível carregar o painel: '+esc(e.message||String(e))+'</div>';}
 }
 
-function render(cur,rowsHist,dias,gastos,horas,saldoVar,cascata){
+function render(cur,rowsHist,dias,gastos,horas,saldoVar,cascata,parcial){
   const N=v=>v==null?null:Number(v);
   const hoje=hojeISO();
   let rowDia=dias.find(x=>x.dia===hoje&&x.venda_dia!=null);
@@ -153,6 +163,7 @@ function render(cur,rowsHist,dias,gastos,horas,saldoVar,cascata){
 
   document.getElementById('main').innerHTML=`
     <div class="page-intro gerente-intro"><div><h2>Painel do Gerente</h2><div class="gerente-periodo" aria-label="Período exibido: ${esc(nomeMes(cur.ano_mes))}"><span class="gerente-periodo-label">Mês exibido</span><strong>${esc(nomeMes(cur.ano_mes))}</strong><span class="gerente-periodo-status${vendoAnterior?' historico':''}">${vendoAnterior?'Histórico':'Atual'}</span></div><p>Resumo operacional: acompanhamento de meta, caixa, resultado realizado e movimento para organizar salão e cozinha.</p></div>${acaoMes}</div>
+    ${parcial?'<div class="notice">O resumo foi carregado, mas um dos detalhamentos está temporariamente indisponível.</div>':''}
     <div class="summary-grid">
       <div class="summary-card"><div class="label">${esc(labelDia)}</div><div class="value" title="Valor exato: ${rs(vendaDia)}">${brl(vendaDia)}</div><div class="hint">${metaDia!=null?'Meta do dia: '+brl(metaDia)+(percDia!=null?' · '+pct(percDia):''):'Sem meta definida para o dia'}</div></div>
       <div class="summary-card"><div class="label">Ticket médio</div><div class="value">${rs(cur.ticket_medio)}</div><div class="hint">${(cur.qtd_vendas||0).toLocaleString('pt-BR')} vendas no mês</div></div>
@@ -302,7 +313,6 @@ function drawMetaHistorico(rowsHist){
 }
 
 (async()=>{
-  await window.SirFisherApp.ready;
   const auth=await SirFisherAuth.requireRole(sb);
   if(!auth)return;
   carregar();
