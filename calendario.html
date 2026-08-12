@@ -134,7 +134,7 @@ async function mostrarDetalhe(button){
     if(!caixaRealizado){
       html=`<h3>Recebimentos · ${dataBR(r.dia)}</h3>${linha('Crédito conhecido',r.recebimento_credito)}${linha('Débito conhecido',r.recebimento_debito)}${linha('Projeção adicional',r.recebimento_projetado)}${linha('Total',r.recebimento_total)}<div class="detail-note">Crédito e débito seguem o vencimento líquido dos recebíveis; o restante usa a projeção de entradas.</div>`;
     }else{
-      html=`<h3>Recebimentos · ${dataBR(r.dia)}</h3>${linha('Cartões liquidados',r.recebimento_credito)}${linha('Vendas via QR Code',r.recebimento_pix)}${linha('Outras entradas / transferências',r.recebimento_projetado)}${linha('Total',r.recebimento_total)}<div class="detail-note">QR Code aparece como “Transação” no extrato Stone. “Pix” é transferência; aumento do dinheiro em espécie também entra em outras entradas.</div>`;
+      html=`<h3>Recebimentos · ${dataBR(r.dia)}</h3>${linha('Cartões liquidados',r.recebimento_credito)}${linha('Vendas via QR Code',r.recebimento_pix)}${linha('Outras entradas / transferências',r.recebimento_projetado)}${linha('Total',r.recebimento_total)}<div class="detail-note">As descrições seguem a classificação das fontes financeiras importadas; transferências e aumento do dinheiro em espécie entram em outras entradas.</div>`;
     }
   }
   if(tipo==='saldo'){

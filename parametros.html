@@ -10,12 +10,6 @@
 <link href="assets/dashboard-common.css" rel="stylesheet">
 <link href="assets/product-pages.css" rel="stylesheet">
 <link href="assets/accessibility.css" rel="stylesheet">
-<style>
-  .routine-card.soon{opacity:.62;cursor:default}
-  .routine-card.soon:hover{border-color:var(--border);transform:none}
-  .soon-badge{display:inline-block;margin-left:7px;font-size:9.5px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;color:#80611c;background:#fbf3df;border-radius:999px;padding:2px 7px;vertical-align:middle}
-  .routine-card h3{display:flex;align-items:center;flex-wrap:wrap;gap:2px}
-</style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.108.2" integrity="sha384-JWEyvHh+lRf0sN/WWY+QTQwX+CyWqmNg4tkc8GQzAMEtR2wGNrCJlvnu1lHD1kDm" crossorigin="anonymous"></script>
 <script src="assets/supabase-client.js"></script>
 <script src="assets/app-config.js"></script>
@@ -35,76 +29,69 @@
 const sb=SirFisherSupabase;
 const esc=SirFisherDOM.escapeHTML;
 
-// Cada card aponta para o editor de uma tabela de parametros. Quando o editor
-// existir, defina "pagina" e "pronto:true" que o card vira link (o .href e
-// atribuido via JS para nao acionar o link-checker do CI).
 const PARAMS=[
   {
     grupo:'Ajustes',
     icone:'<line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>',
-    titulo:'Parâmetros gerais',
+    titulo:'Configurações gerais',
     texto:'Identidade da empresa, projeções de caixa, despesas, estoque, feriados e auditoria.',
-    tabela:'parametros', pagina:'parametros_gerais.html', pronto:true
+    pagina:'parametros_gerais.html'
   },
   {
     grupo:'Ajustes',
     icone:'<rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>',
     titulo:'Regras de recebimento',
     texto:'Como cada forma de pagamento cai no caixa: percentual, prazo (dias) e taxa.',
-    tabela:'recebimento_regra', pagina:'parametros_editor.html?t=recebimento_regra', pronto:true
+    pagina:'parametros_editor.html?t=recebimento_regra'
   },
   {
     grupo:'Ajustes',
     icone:'<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/>',
     titulo:'Peso por dia da semana',
     texto:'Peso de venda de cada dia da semana usado nas projeções.',
-    tabela:'peso_dia_semana', pagina:'parametros_editor.html?t=peso_dia_semana', pronto:true
+    pagina:'parametros_editor.html?t=peso_dia_semana'
   },
   {
     grupo:'Ajustes',
     icone:'<path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/>',
     titulo:'Grupos variáveis',
     texto:'Quais grupos de despesa são variáveis (vs. fixos).',
-    tabela:'grupo_variavel', pagina:'parametros_editor.html?t=grupo_variavel', pronto:true
+    pagina:'parametros_editor.html?t=grupo_variavel'
   },
   {
     grupo:'Metas e saldos',
     icone:'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/>',
     titulo:'Metas mensais',
     texto:'Meta de faturamento bruto por mês.',
-    tabela:'meta_mensal', pagina:'parametros_editor.html?t=meta_mensal', pronto:true
+    pagina:'parametros_editor.html?t=meta_mensal'
   },
   {
     grupo:'Cadastros',
     icone:'<path d="M3 21h18"/><path d="M5 21V10l7-5 7 5v11"/><line x1="9" y1="21" x2="9" y2="13"/><line x1="15" y1="21" x2="15" y2="13"/>',
     titulo:'Contas e saldos',
     texto:'Cadastro das contas e do saldo-base usado no caixa.',
-    tabela:'conta', pagina:'parametros_editor.html?t=conta', pronto:true
+    pagina:'parametros_editor.html?t=conta'
   },
   {
     grupo:'Cadastros',
     icone:'<path d="M4 7h16M4 12h16M4 17h16"/><circle cx="8" cy="7" r="1" fill="currentColor"/><circle cx="14" cy="12" r="1" fill="currentColor"/><circle cx="10" cy="17" r="1" fill="currentColor"/>',
     titulo:'Fontes financeiras',
     texto:'Conta padrão e participação de cada fonte no faturamento, caixa e DRE.',
-    tabela:'fonte_financeira', pagina:'parametros_editor.html?t=fonte_financeira', pronto:true
+    pagina:'parametros_editor.html?t=fonte_financeira'
   },
   {
     grupo:'Cadastros',
     icone:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 9h10M7 13h6"/>',
     titulo:'Contas Stone',
     texto:'Vincule cada código de origem Stone a uma conta bancária da unidade única.',
-    tabela:'stone_conta', pagina:'parametros_editor.html?t=stone_conta', pronto:true
+    pagina:'parametros_editor.html?t=stone_conta'
   }
 ];
 
 function card(p){
-  const pronto = p.pronto && p.pagina;
-  const badge = pronto ? '' : '<span class="soon-badge">em breve</span>';
-  const cls = pronto ? 'routine-card' : 'routine-card soon';
-  const data = pronto ? ` data-pagina="${esc(p.pagina)}"` : '';
-  return `<a class="${cls}"${data}>
+  return `<a class="routine-card" data-pagina="${esc(p.pagina)}">
       <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${p.icone}</svg></div>
-      <h3>${esc(p.titulo)}${badge}</h3>
+      <h3>${esc(p.titulo)}</h3>
       <p>${esc(p.texto)}</p>
     </a>`;
 }

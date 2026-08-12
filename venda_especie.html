@@ -24,12 +24,12 @@
     <nav class="tabs"><a href="./">Visão Geral</a><a href="vendas.html">Faturamento</a><a href="caixa.html">Caixa</a><a href="dre.html">DRE</a><a href="despesas.html">Despesas</a><a href="conciliacao.html">Conciliação</a><a href="planejamento.html">Planejamento</a><a href="rotinas.html" class="routines">Rotinas</a></nav>
   </header>
   <main id="main">
-    <div class="page-intro"><div><h2>Sangrias em espécie</h2><p>Registre o valor informado no grupo e acompanhe onde o dinheiro está até o depósito no Banco do Brasil. Os marcadores são apenas para controle operacional.</p></div></div>
+    <div class="page-intro"><div><h2>Sangrias em espécie</h2><p>Registre e acompanhe o dinheiro recolhido até a entrada na conta de depósito configurada. Os marcadores são apenas para controle operacional.</p></div></div>
 
     <div class="summary-grid sangria-summary">
-      <div class="summary-card kiosk"><div class="label">No quiosque</div><div class="value" id="totalARecolher">—</div><div class="note">Aguardando recolhimento</div></div>
-      <div class="summary-card collected"><div class="label">Recolhido</div><div class="value" id="totalRecolhido">—</div><div class="note">Fora do quiosque, aguardando depósito</div></div>
-      <div class="summary-card pending"><div class="label">Pendente de depósito</div><div class="value" id="totalPendente">—</div><div class="note">No quiosque + recolhido</div></div>
+      <div class="summary-card kiosk"><div class="label">A recolher</div><div class="value" id="totalARecolher">—</div><div class="note">Ainda na operação</div></div>
+      <div class="summary-card collected"><div class="label">Recolhido</div><div class="value" id="totalRecolhido">—</div><div class="note">Aguardando depósito</div></div>
+      <div class="summary-card pending"><div class="label">Pendente de depósito</div><div class="value" id="totalPendente">—</div><div class="note">A recolher + recolhido</div></div>
     </div>
 
     <div class="responsaveis-recolhido" id="responsaveisRecolhido"></div>
@@ -40,7 +40,7 @@
     </div>
 
     <div class="panel">
-      <div class="panel-head"><div><h3>Conferência com o Banco do Brasil</h3><div class="hint" id="conferenciaHint">Compara o que foi marcado como depositado com os depósitos em dinheiro que entraram no extrato.</div></div></div>
+      <div class="panel-head"><div><h3>Conferência dos depósitos</h3><div class="hint" id="conferenciaHint">Compara o que foi marcado como depositado com as entradas em dinheiro da conta configurada.</div></div></div>
       <div class="conferencia-saldo" id="conferenciaSaldo"><div class="detalhe">Carregando…</div></div>
       <div id="conferenciaLotes" class="op-list"></div>
     </div>

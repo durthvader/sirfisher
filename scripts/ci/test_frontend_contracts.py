@@ -83,7 +83,23 @@ def main() -> int:
     ):
         require(calendar, fragment, f"Calendario perdeu contrato de regressao: {fragment}")
 
-    print("FRONTEND_CONTRACTS_OK pages=8 cache=2 calendar=1")
+    generic_copy = {
+        "index.html": ("Banco do Brasil", "Inter e dinheiro"),
+        "venda_especie.html": ("No quiosque", "Conferência com o Banco do Brasil"),
+        "calendario.html": ("extrato Stone",),
+    }
+    for page, fixed_terms in generic_copy.items():
+        content = source(page)
+        for term in fixed_terms:
+            if term in content:
+                fail(f"{page} voltou a exibir regra operacional fixa: {term}")
+
+    parameter_hub = source("parametros.html")
+    for obsolete in ("soon-badge", "pronto:true", "p.pronto", "p.tabela"):
+        if obsolete in parameter_hub:
+            fail(f"Menu de parametros voltou a manter complexidade sem uso: {obsolete}")
+
+    print("FRONTEND_CONTRACTS_OK pages=8 cache=2 calendar=1 generic_copy=3")
     return 0
 
 
