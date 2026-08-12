@@ -106,6 +106,17 @@ def main() -> int:
     if not re.search(r"\blimit\s+1\b", empresa, re.I):
         fail("app_configuracao_empresa perdeu o contrato singleton")
 
+    schema_acl = re.findall(
+        r"(?:grant\s+usage\s+on\s+schema\s+public\s+to\s+anon|"
+        r"revoke\s+all\s+privileges\s+on\s+schema\s+public\s+from\s+[^;]*\banon\b)\s*;",
+        migrations,
+        re.I | re.S,
+    )
+    if not schema_acl or not schema_acl[-1].lower().startswith("grant usage"):
+        fail("Configuração pré-login perdeu USAGE no schema public")
+    if "Somente nome e subtitulo podem ter SELECT anonimo por coluna" not in migrations:
+        fail("Liberação pré-login perdeu a allowlist de colunas anônimas")
+
     print(f"ACCESS_CONTRACTS_OK pages={len(pages)} roles=admin,socio,gerente")
     return 0
 

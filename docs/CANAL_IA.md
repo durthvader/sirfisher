@@ -1541,6 +1541,13 @@ preservando o acesso somente leitura do MCP. A mesma migration corrige
 `app_configuracao_empresa()` sem conceder a coluna administrativa `singleton`.
 Nenhum valor de parâmetro ou fato financeiro é alterado.
 
+Na auditoria pós-deploy, uma chamada realmente anônima revelou o bloqueio
+histórico de `USAGE` no schema `public`. A migration `20260818090000` libera esse
+pré-requisito mantendo como única leitura anônima de relação as colunas públicas
+`nome`/`subtitulo` da identidade. Somente
+`app_configuracao_empresa()` e `app_configuracao_operacional()` permanecem como
+RPCs da aplicação disponíveis pré-login; auxiliares de baixo nível continuam fechadas.
+
 O `index.html` passa a abrir após o resumo mensal e carrega DRE/projeções e,
 depois, saldos/detalhamentos em ondas menores. Consultas secundárias usam
 `Promise.allSettled`; uma falha localizada não apaga mais o painel. KPIs

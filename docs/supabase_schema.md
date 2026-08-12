@@ -1155,6 +1155,11 @@ no repositório.
   de escopo mínimo, com `search_path` fechado e tabela qualificada. Ela também
   corrige `app_configuracao_empresa()` para ler apenas as duas colunas públicas,
   preservando RLS e o contrato de linha única sem exigir acesso a `singleton`.
+- A migration `20260818090000` restaura para `anon` somente o `USAGE` necessário
+  no schema `public` e o `EXECUTE` das duas RPCs de configuração pré-login. Ela
+  mantém relações financeiras/administrativas sem privilégios anônimos, preserva
+  apenas o `SELECT` público já intencional de `nome`/`subtitulo` e remove o acesso
+  direto às auxiliares `parametro_valor` e `unidade_principal_nome`.
 
 ## Observações
 - O front-end autenticado usa views `app_*` e RPCs protegidas; tabelas internas
