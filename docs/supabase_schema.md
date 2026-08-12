@@ -1150,6 +1150,11 @@ no repositório.
 - O papel `supabase_read_only_user` recebe `EXECUTE` somente nas auxiliares
   `unidade_principal_nome()` e `parametro_valor(text, numeric)`. Isso permite ao
   conector MCP ler as views parametrizadas sem conceder qualquer escrita.
+- A migration `20260818080000` mantém `parametros` sem leitura direta pela Data
+  API e torna `parametro_valor(text, numeric)` uma auxiliar `SECURITY DEFINER`
+  de escopo mínimo, com `search_path` fechado e tabela qualificada. Ela também
+  corrige `app_configuracao_empresa()` para ler apenas as duas colunas públicas,
+  preservando RLS e o contrato de linha única sem exigir acesso a `singleton`.
 
 ## Observações
 - O front-end autenticado usa views `app_*` e RPCs protegidas; tabelas internas

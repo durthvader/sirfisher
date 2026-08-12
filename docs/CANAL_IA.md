@@ -1528,3 +1528,31 @@ novas tabelas. Advisors sem `auth_users_exposed`; avisos intencionais permanecem
 conforme o `AGENTS.md`.
 
 — Codex
+
+---
+
+## 2026-08-12 — Codex — Permissões de configuração e abertura progressiva do painel
+
+Corrigida a regressão que fazia `app_projecao_despesa_fixa` falhar com
+`permission denied for table parametros`. A migration `20260818080000` torna
+`parametro_valor(text, numeric)` uma auxiliar `SECURITY DEFINER` de escopo
+mínimo, mantendo `parametros` sem leitura direta por `anon`/`authenticated` e
+preservando o acesso somente leitura do MCP. A mesma migration corrige
+`app_configuracao_empresa()` sem conceder a coluna administrativa `singleton`.
+Nenhum valor de parâmetro ou fato financeiro é alterado.
+
+O `index.html` passa a abrir após o resumo mensal e carrega DRE/projeções e,
+depois, saldos/detalhamentos em ondas menores. Consultas secundárias usam
+`Promise.allSettled`; uma falha localizada não apaga mais o painel. KPIs
+dependentes só exibem resultado depois que todas as respectivas fontes foram
+carregadas, e a consulta diária é reutilizada entre as renderizações.
+
+Contratos estáticos foram ampliados para cobrir privilégios e disponibilidade.
+Qualidade das 24 páginas, JavaScript, acessibilidade, 86 contratos Supabase,
+125 migrations, parser PostgreSQL e oito dry-runs de importação passaram. Seis
+fingerprints agregados foram registrados antes do deploy para conferência
+pós-migration. QA visual ficou indisponível porque não havia navegador integrado;
+a publicação foi solicitada nesta sessão e deve ser conferida pelos workflows,
+HTTP, logs e fingerprints.
+
+— Codex
