@@ -122,7 +122,29 @@ def main() -> int:
     if "parametros_editor.html?t=saldo_inicial" in parameters_html:
         fail("Parâmetros voltou a exibir o cadastro duplicado de saldo inicial")
 
-    print("FINANCIAL_CONTRACTS_OK calendar=2 derived=5 rollover=1 generic_balance=1")
+    configured_deposit = (
+        MIGRATIONS / "20260818140000_conferencia_deposito_usa_conta_configurada.sql"
+    ).read_text(encoding="utf-8-sig")
+    require(
+        configured_deposit,
+        (
+            "private.extrato_bancario_configuravel",
+            "'bb:' || b.id::text",
+            "'inter:' || i.id::text",
+            "'bs_cash:' || c.id::text",
+            "'stone_extrato:' || e.id::text",
+            "A conta de deposito configurada mudaria os lancamentos conciliados",
+            "e.conta_id = cfg.conta_deposito_id",
+        ),
+        "Conferência de depósito voltou a depender de uma conta fixa",
+    )
+    latest_deposit_detail = configured_deposit.split(
+        "create or replace view public.app_conferencia_deposito_especie", 1
+    )[1]
+    if "from public.raw_bb" in latest_deposit_detail:
+        fail("Conferência de depósito atual ainda consulta raw_bb diretamente")
+
+    print("FINANCIAL_CONTRACTS_OK calendar=2 derived=5 rollover=1 generic_balance=1 deposit_account=1")
     return 0
 
 
