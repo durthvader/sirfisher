@@ -17,6 +17,8 @@ try {
   # Requer `npx supabase link` previamente. O dump padrao e schema-only e
   # exclui schemas gerenciados pelo Supabase, como auth e storage.
   npx $supabaseCli db dump --linked --schema public,private --file $schemaPath
+
+  python scripts/implantacao/preparar_nova_empresa.py registrar-baseline
 }
 finally {
   Pop-Location

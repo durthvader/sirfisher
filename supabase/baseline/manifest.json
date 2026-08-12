@@ -1,6 +1,9 @@
 {
   "generated_at": "2026-07-03",
   "scope": ["public", "private"],
+  "schema_file": null,
+  "bootstrap_config_file": null,
+  "migration_cutoff": null,
   "contract_file": "database.types.ts",
   "contract_sha256": "6199d1d739c9381107e6e13f907376a08b5830333c9808cde73bbe2aa89c00b7",
   "contract_bytes": 52319,

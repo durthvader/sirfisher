@@ -32,6 +32,9 @@ jobs:
       - name: Importer dry-runs
         run: python scripts/ci/test_importacao.py
 
+      - name: New installation safeguards
+        run: python scripts/ci/test_implantacao.py
+
       - name: Migration catalog checks
         run: python scripts/ci/test_migrations.py
 
