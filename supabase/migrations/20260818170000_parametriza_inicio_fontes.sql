@@ -50,18 +50,13 @@ begin
   -- O padrão tolera os parênteses que variam entre versões do PostgreSQL.
   v_sem_corte := regexp_replace(
     v_def,
-    $regex$[[:space:]]+where[[:space:]]+[(]*c\.data_hora[)]*::date[[:space:]]*>=[[:space:]]*[(]*'2026-01-01'::date[)]*$regex$,
+    $regex$[[:space:]]+where[[:space:]]+[(]*c(_[[:digit:]]+)?\.data_hora[)]*::date[[:space:]]*>=[[:space:]]*[(]*'2026-01-01'::date[)]*$regex$,
     '',
     'i'
   );
 
   if v_sem_corte = v_def or position('2026-01-01' in v_sem_corte) > 0 then
-    raise exception 'Não foi possível remover com segurança o corte fixo do BS Cash. Trecho normalizado: %',
-      substring(
-        v_def
-        from greatest(position('2026-01-01' in v_def) - 140, 1)
-        for 320
-      );
+    raise exception 'Não foi possível remover com segurança o corte fixo do BS Cash.';
   end if;
 
   execute 'create or replace view public.fato_financeiro as
