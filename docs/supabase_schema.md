@@ -1027,7 +1027,8 @@ no repositório.
 - `projecao_despesa_fixa` → `caixa.html`, `dre.html`, `index.html`, `despesas.html`
 - `projecao_despesa_direta` → `caixa.html`, `dre.html`, `index.html`, `despesas.html`
 - `painel_ultima_carga` → `caixa.html`, `dre.html`, `index.html`, `vendas.html`
-- `painel_cargas` → `caixa.html`, `dre.html`, `index.html`, `vendas.html`
+- `painel_cargas` → `caixa.html`, `dre.html`, `index.html`, `vendas.html`,
+  `despesas.html`
 - `painel_saldo_por_conta` → `caixa.html`
 - `excecoes` → `classificar_excecoes.html`
 - `de_para` → estado atual das regras criadas em `classificar_excecoes.html` e
@@ -1039,7 +1040,10 @@ no repositório.
   individual e compatibilidade com os fluxos antigos
 - `painel_dre_cascata` → `dre.html`, `index.html`
 - `painel_resumo_mensal` → `index.html`, `vendas.html`, `dre.html`, `despesas.html`
-- `painel_composicao_despesa` → `index.html`
+- `painel_composicao_despesa` → `index.html`, `despesas.html`; desde
+  `20260818130000`, a página de despesas usa essa visão agregada para o gráfico
+  histórico e consulta `app_mv_despesa_mensal` somente para o mês aberto e seu
+  comparativo, evitando baixar o histórico detalhado completo.
 - `painel_margem_contribuicao` → `index.html`
 - `painel_diario` → `index.html`, `vendas.html`
 - `mv_saldo_caixa_diario_detalhado` / `detalhar_saldo_caixa_dia(date)` → saldo

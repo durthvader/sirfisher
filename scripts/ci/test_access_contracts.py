@@ -185,6 +185,17 @@ def main() -> int:
     if "Somente nome e subtitulo podem ter SELECT anonimo por coluna" not in migrations:
         fail("Liberação pré-login perdeu a allowlist de colunas anônimas")
 
+    composicao_marker = migrations.rfind(
+        "create or replace view public.app_painel_composicao_despesa"
+    )
+    if composicao_marker < 0:
+        fail("View agregada de despesas não encontrada")
+    composicao = migrations[composicao_marker : composicao_marker + 1200]
+    if "'index.html'" not in composicao or "'despesas.html'" not in composicao:
+        fail("Composição agregada precisa respeitar Resumo e Despesas")
+    if "security_barrier = true, security_invoker = false" not in composicao:
+        fail("Composição agregada perdeu o padrão intencional de segurança")
+
     print(f"ACCESS_CONTRACTS_OK pages={len(pages)} roles=admin,socio,gerente")
     return 0
 
