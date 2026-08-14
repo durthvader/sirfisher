@@ -1776,3 +1776,63 @@ existem, então implantação nova segue bloqueada pelo pré-flight. `db dump`
 precisa da CLI; o MCP não substitui.
 
 — Claude
+
+---
+
+## 2026-08-14 — Claude — o PUB estava dentro da DRE da Praia
+
+Achado sério, encontrado enquanto eu investigava outra coisa. **A consolidação
+de unidade única (20260818000000) fez a DRE somar o PUB e a Imprensa dentro do
+resultado da Praia.**
+
+A consulta interna de `fato_financeiro` classificava a unidade a partir de
+`empresa` — `'PUB'` virava unidade PUB, `'IMPRENSA'` virava IMPRENSA, o resto
+virava a unidade do painel. A consolidação acrescentou um `SELECT` externo que
+sobrescreve isso com `unidade_principal_nome()` para **toda** linha, inclusive
+as que a consulta de dentro já havia marcado como de outra unidade.
+
+O caixa não sofreu, porque filtra por `empresa`. A DRE sofreu, porque filtra por
+`unidade`. Medido: R$ 1.262.057,63 de despesa do PUB e R$ 49.024,20 da Imprensa
+entrando na Praia, com pico de 17,3% da despesa de nov/2025. De março/2026 em
+diante já estava limpo. A projeção de despesa fixa usa a média de mai/jun/jul de
+2026, todos limpos — Calendário e projeção não estavam afetados.
+
+**A armadilha que quase me pegou, e que vale para quem vier depois:** no
+histórico, `empresa` mistura dois conceitos. Tem **outra unidade** (PUB,
+IMPRENSA) e tem **conta da mesma unidade** (BB, BTG, CART_BB, BNB, MercadoP,
+Inter). Eu ia aplicar um filtro do tipo "empresa <> PRAIA" — que teria removido
+1.057 despesas legítimas do cartão do BB, 191 do BNB e mais. E, antes disso, eu
+já tinha proposto apagar as contas BNB, BTG e Cartão BB como órfãs: elas têm
+zero linhas nas tabelas novas, mas 1.251 + 1.057 + 191 linhas no consolidado.
+Por isso a exclusão virou tabela explícita (`unidade_externa`), não regra
+deduzida.
+
+`20260818210000` faz três coisas:
+
+1. `fonte_financeira.encerrada_em`, simétrica a `considerar_desde`. Inter e
+   Fundopay foram encerrados no banco; a única forma de calar o alerta de carga
+   seria desmarcar `ativa`, mas `ativa` também decide se a fonte entra no caixa
+   e na DRE — desativar a Inter apagaria 656 lançamentos retroativamente.
+   Com a coluna nova, a fonte segue ativa, o histórico vale, e só o
+   monitoramento para de cobrar.
+2. `unidade_externa` + a unidade deixa de ser achatada em `fato_financeiro`.
+   Troca textual na view (18 mil caracteres — reescrever à mão seria risco
+   desnecessário), exigindo exatamente uma ocorrência do trecho.
+3. `stone_estabelecimento` removida: substituída por `stone_conta`, sem nenhum
+   consumidor.
+
+A migration mede a despesa da DRE mês a mês antes e depois e **aborta se algum
+mês mudar além do PUB + Imprensa**. Nenhuma linha de dado é apagada — o
+histórico das duas unidades continua no banco, só deixa de ser somado.
+
+Fica em aberto o item que discutimos e adiei de propósito: generalizar
+`stone_conta` em `origem_codigo (fonte, codigo, conta_id, ...)` e inverter o
+default para **código desconhecido não entra no faturamento**. Hoje a proteção
+existe porque alguém cadastrou manualmente PUB e Imprensa apontando para contas
+"não compõe"; o gatilho `definir_conta_stone`, sem correspondência, mantém a
+conta padrão da fonte — ou seja, um arquivo do PUB importado por engano entraria
+na Praia em silêncio. Mexe em importador, então merece janela própria. Atenção:
+as 9.994 linhas **sem** stonecode não podem cair na quarentena, ou o histórico
+muda.
+
+— Claude

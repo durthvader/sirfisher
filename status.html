@@ -32,7 +32,7 @@ const diasCargaEmDia=()=>Math.max(0,Math.trunc(window.SirFisherApp.number('carga
 const diasCargaAtencao=()=>Math.max(diasCargaEmDia()+1,Math.trunc(window.SirFisherApp.number('carga_dias_atencao',5)));
 function fmtDate(value){return value?new Date(value).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'}):'—';}
 function fmtDay(value){if(!value)return'—';return new Date(`${value}T12:00:00`).toLocaleDateString('pt-BR');}
-function statusInfo(value){if(value==='em dia')return['Em dia','ok'];if(value==='atenção')return['Atenção','warn'];return[value==='atrasada'?'Atrasada':'Sem carga','bad'];}
+function statusInfo(value){if(value==='em dia')return['Em dia','ok'];if(value==='atenção')return['Atenção','warn'];if(value==='encerrada')return['Encerrada','neutral'];return[value==='atrasada'?'Atrasada':'Sem carga','bad'];}
 function esperar(ms){return new Promise(resolve=>setTimeout(resolve,ms));}
 
 async function aguardarRecalculo(id,onWait){
@@ -53,11 +53,14 @@ async function loadStatus(){
   main.innerHTML='<div class="loading">Analisando cargas…</div>';
   const {data,error}=await sb.from('app_status_cargas').select('*').order('fonte');
   if(error){main.innerHTML='<div class="erro">Não foi possível carregar o status das fontes.</div>';return;}
-  const rows=data||[];const ok=rows.filter(row=>row.situacao==='em dia').length;const warn=rows.filter(row=>row.situacao==='atenção').length;const bad=rows.length-ok-warn;
+  const rows=data||[];const ok=rows.filter(row=>row.situacao==='em dia').length;const warn=rows.filter(row=>row.situacao==='atenção').length;
+  // Fonte encerrada continua listada pelo histórico, mas não é cobrada nem
+  // contada como problema.
+  const encerradas=rows.filter(row=>row.situacao==='encerrada').length;const bad=rows.length-ok-warn-encerradas;
   const emDia=diasCargaEmDia(),atencao=diasCargaAtencao();
   main.innerHTML=`<div class="page-intro"><div><h2>Status do site</h2><p>Cobertura, última importação e atraso das fontes que alimentam o painel.</p></div><button id="reloadStatus" class="button secondary">Atualizar</button></div>
-    <div class="summary-grid"><div class="summary-card"><div class="label">Fontes monitoradas</div><div class="value">${rows.length}</div></div><div class="summary-card"><div class="label">Em dia</div><div class="value">${ok}</div></div><div class="summary-card"><div class="label">Atenção</div><div class="value">${warn}</div></div><div class="summary-card"><div class="label">Atrasadas/sem carga</div><div class="value">${bad}</div></div></div>
-    <div class="notice">Critério configurado: até ${emDia} dia(s) sem nova importação = em dia; de ${emDia+1} a ${atencao} dias = atenção; acima disso = atrasada. Recebíveis podem ter período futuro porque representam agenda.</div>
+    <div class="summary-grid"><div class="summary-card"><div class="label">Fontes monitoradas</div><div class="value">${rows.length-encerradas}</div></div><div class="summary-card"><div class="label">Em dia</div><div class="value">${ok}</div></div><div class="summary-card"><div class="label">Atenção</div><div class="value">${warn}</div></div><div class="summary-card"><div class="label">Atrasadas/sem carga</div><div class="value">${bad}</div></div></div>
+    <div class="notice">Critério configurado: até ${emDia} dia(s) sem nova importação = em dia; de ${emDia+1} a ${atencao} dias = atenção; acima disso = atrasada. Recebíveis podem ter período futuro porque representam agenda.${encerradas?` ${encerradas} fonte(s) encerrada(s) seguem listadas pelo histórico, sem cobrança de carga.`:''}</div>
     <section class="panel"><div class="panel-head"><div><h3>Fontes</h3><div class="hint">A contagem representa linhas disponíveis na origem bruta.</div></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Fonte</th><th>Estado</th><th class="right">Linhas</th><th>Cobertura</th><th>Última importação</th><th>Log de carga</th><th class="right">Atraso</th></tr></thead><tbody>${rows.map(row=>{const [label,klass]=statusInfo(row.situacao);return`<tr><td><b>${esc(row.fonte)}</b></td><td><span class="status ${klass}">${label}</span></td><td class="right">${Number(row.linhas||0).toLocaleString('pt-BR')}</td><td>${fmtDay(row.periodo_inicio)} a ${fmtDay(row.periodo_fim)}</td><td>${fmtDate(row.ultima_importacao)}</td><td>${fmtDate(row.ultima_carga)}</td><td class="right">${row.atraso_dias==null?'—':`${row.atraso_dias} dia(s)`}</td></tr>`;}).join('')||'<tr><td colspan="7" class="empty">Nenhuma fonte encontrada.</td></tr>'}</tbody></table></div></section>
     <section class="panel"><div class="panel-head"><div><h3>Manutenção do painel</h3><div class="hint">Sincroniza as classificações históricas com o DE-Para, recalcula o saldo projetado do mês atual e atualiza os snapshots de Despesas e Caixa, em sequência. Rode depois de classificar exceções, editar contas recorrentes ou lançar transações, para os números refletirem na hora — senão eles só atualizam na próxima importação.</div></div></div><div class="actions"><button id="atualizarTudo" class="button">Atualizar tudo agora</button><span id="atualizarTudoMsg" class="hint"></span></div></section>`;
   document.getElementById('reloadStatus').addEventListener('click',loadStatus);

@@ -140,12 +140,13 @@ const TABELAS={
   },
   fonte_financeira:{
     titulo:'Fontes financeiras',
-    subtitulo:'Configure a conta, a vigência, o formato de saldo e em quais demonstrativos cada origem participa. Data vazia inclui todo o histórico.',
+    subtitulo:'Configure a conta, a vigência, o formato de saldo e em quais demonstrativos cada origem participa. Considerar desde vazio inclui todo o histórico. Encerrada em marca a fonte que não é mais movimentada: o histórico continua valendo e o status para de cobrar carga — não desative a fonte para isso, ela sairia do caixa e da DRE retroativamente.',
     listRpc:'admin_listar_fonte_financeira', saveRpc:'admin_salvar_fonte_financeira_com_vigencia',
     colunas:[
       {key:'chave',label:'Fonte',readOnly:true},
       {key:'nome',label:'Nome',type:'text'},
       {key:'considerar_desde',label:'Considerar desde',type:'date'},
+      {key:'encerrada_em',label:'Encerrada em',type:'date'},
       {key:'conta_id',label:'Conta padrão',type:'select',options:[]},
       {key:'saldo_adaptador',label:'Formato do saldo',type:'select',options:[
         {value:'nenhum',label:'Não calcula saldo'},
@@ -161,7 +162,7 @@ const TABELAS={
       {key:'entra_caixa_historico',label:'Caixa histórico',type:'boolean'},
       {key:'entra_dre',label:'DRE',type:'boolean'}
     ],
-    toParams:v=>({p_chave:v.chave,p_nome:v.nome,p_considerar_desde:v.considerar_desde||null,p_conta_id:v.conta_id?int(v.conta_id):null,p_ativa:!!v.ativa,p_entra_faturamento:!!v.entra_faturamento,p_entra_caixa:!!v.entra_caixa,p_entra_caixa_historico:!!v.entra_caixa_historico,p_entra_dre:!!v.entra_dre,p_saldo_adaptador:v.saldo_adaptador||'nenhum'}),
+    toParams:v=>({p_chave:v.chave,p_nome:v.nome,p_considerar_desde:v.considerar_desde||null,p_encerrada_em:v.encerrada_em||null,p_conta_id:v.conta_id?int(v.conta_id):null,p_ativa:!!v.ativa,p_entra_faturamento:!!v.entra_faturamento,p_entra_caixa:!!v.entra_caixa,p_entra_caixa_historico:!!v.entra_caixa_historico,p_entra_dre:!!v.entra_dre,p_saldo_adaptador:v.saldo_adaptador||'nenhum'}),
     prepare:async(cfg)=>{
       const {data}=await sb.rpc('admin_listar_conta');
       cfg.colunas.find(c=>c.key==='conta_id').options=[{value:'',label:'Sem conta'}].concat((data||[]).filter(c=>c.ativa).map(c=>({value:c.id,label:c.nome})));
