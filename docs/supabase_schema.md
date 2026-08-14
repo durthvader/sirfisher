@@ -549,8 +549,8 @@ no repositório.
 ### corte_venda / corte_caixa
 - Tipo: views de corte (1 linha, coluna `dia`).
 - Uso: base de todas as views de tendência/projeção (`tendencia_mes`,
-  `projecao_venda_diaria`, `painel_diario`, `painel_tendencia_diaria`,
-  fluxo de caixa e `listar_calendario_financeiro`).
+  `projecao_venda_diaria`, `painel_diario`, fluxo de caixa,
+  `listar_calendario_financeiro` e `resumo_corte_caixa`).
 - Propósito: definir o último **dia completo** de dados. Dias após o corte são
   tratados como "projetado"; dias até o corte como "real".
 - Regra (desde `20260745000000_corte_considera_dia_completo.sql`):
@@ -579,7 +579,8 @@ no repositório.
   `private.mv_saldo_conta_diario` guarda uma linha por conta/dia; e
   `private.saldo_caixa_diario` soma apenas as contas configuradas para o caixa.
 - `listar_saldo_contas_dia(date)` devolve a lista dinâmica usada pela interface.
-  `detalhar_saldo_caixa_dia(date)` permanece como compatibilidade transitória.
+  A antiga `detalhar_saldo_caixa_dia(date)`, fixa por banco, foi removida em
+  `20260818200000` depois de ficar sem chamador.
 - O dinheiro pendente é reconstituído pelos eventos de custódia: entra na data
   da venda em espécie e sai na data local em que a sangria é marcada como
   depositada. Assim, o pendente atual não é reaplicado retroativamente aos
@@ -783,7 +784,7 @@ no repositório.
   forma, recebimentos, despesas recorrentes/não recorrentes e saldo de caixa.
 - O saldo realizado vem de `private.saldo_caixa_diario` (sobre
   `private.mv_saldo_conta_diario`) desde `20260818120000`; até então vinha de
-  `mv_saldo_caixa_diario_detalhado`, hoje aposentada. Traz os
+  `mv_saldo_caixa_diario_detalhado`, removida em `20260818200000`. Traz os
   componentes efetivamente mantidos em cada data. Depois do corte das cargas,
   a RPC preserva o último saldo realizado e calcula cada saldo futuro
   pela mesma memória exibida na linha: `saldo anterior + recebimentos -
@@ -841,11 +842,11 @@ no repositório.
   `refresh_painel()` não rodou ou falhou depois da última importação, caso em
   que DRE, Despesas e Conciliação também podem estar defasados.
 - Criada em `20260818180000_projecao_respeita_corte_de_caixa.sql`. Nasceu lendo
-  `public.mv_saldo_caixa_diario_detalhado`, que **está aposentada desde
-  `20260818120000`** e congelada no último refresh anterior — o aviso dava falso
-  positivo permanente. Corrigido em
-  `20260818190000_resumo_corte_usa_snapshot_vigente.sql`. Ao mexer em qualquer
-  coisa ligada a saldo diário, confira antes qual snapshot está vivo.
+  `public.mv_saldo_caixa_diario_detalhado`, aposentada em `20260818120000` e
+  congelada no último refresh anterior — o aviso dava falso positivo permanente.
+  Corrigido em `20260818190000_resumo_corte_usa_snapshot_vigente.sql`; a MV foi
+  removida em `20260818200000`. Ao mexer em qualquer coisa ligada a saldo
+  diário, confira no catálogo qual snapshot está vivo.
 
 ### venda_especie
 - Tipo: tabela de vendas por espécie
@@ -937,9 +938,12 @@ no repositório.
   `media_3` por compatibilidade.
 - Escritas usam as RPCs `salvar_conta_recorrente`,
   `salvar_pagamento_recorrente` e `excluir_pagamento_recorrente`.
-- O histórico da planilha antiga pode ser enviado uma única vez pela RPC admin
-  `importar_contas_recorrentes_legado(jsonb, jsonb)`. A importação é idempotente
-  e não sobrescreve pagamentos posteriormente corrigidos de forma manual.
+- O histórico da planilha antiga foi enviado uma única vez pela RPC admin
+  `importar_contas_recorrentes_legado(jsonb, jsonb)`, idempotente e sem
+  sobrescrever pagamentos corrigidos à mão. A carga já ocorreu e a RPC foi
+  removida em `20260818200000`: ficou sem chamador, mas seguia com `execute`
+  para `authenticated` e escrevia em massa. Uma nova carga legada exige
+  recriá-la a partir do histórico de migrations.
 - As views protegidas `app_contas_recorrentes_pagamentos` e
   `app_contas_recorrentes_totais` alimentam histórico e gráfico mensal.
 
@@ -1087,11 +1091,10 @@ no repositório.
 - `painel_margem_contribuicao` → `index.html`
 - `painel_diario` → `index.html`, `vendas.html`
 - `private.saldo_caixa_diario` (sobre `private.mv_saldo_conta_diario`) /
-  `detalhar_saldo_caixa_dia(date)` → saldo realizado e memória por conta de
+  `listar_saldo_contas_dia(date)` → saldo realizado e memória por conta de
   `calendario.html`. A antiga `mv_saldo_caixa_diario_detalhado` foi aposentada
-  em `20260818120000`: continua no banco, mas **ninguém a atualiza nem a lê** —
-  está congelada no último refresh anterior àquela migration. Candidata a
-  remoção pelo processo de `OBJETOS_SEM_CONSUMIDOR.md`.
+  em `20260818120000` e **removida em `20260818200000`**: ficou meses parada no
+  banco parecendo dado vivo e chegou a induzir a um diagnóstico errado.
 - `listar_calendario_financeiro(date)` → `calendario.html`
 - `listar_despesas_dia(date)` → `calendario.html`
 - `resumo_corte_caixa()` → faixa de aviso de `calendario.html`

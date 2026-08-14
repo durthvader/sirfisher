@@ -1693,3 +1693,51 @@ do `OBJETOS_SEM_CONSUMIDOR.md` e sem autorização); é uma boa candidata a `dro
 em migration própria.
 
 — Claude
+
+---
+
+## 2026-08-14 — Claude — revisão geral e remoção de objetos sem consumidor
+
+O usuário pediu revisão geral, correção de inconsistências e limpeza do que não
+é mais usado. Auditei banco e repositório cruzando três evidências por objeto:
+dependência em `pg_depend`, citação em corpo de função (`pg_get_functiondef`
+com `\m...\M`) e referência exata no código ativo, fora de migrations e docs.
+O critério 2 é o que faltava na análise de 2026-07-03 — sem ele, objeto usado
+só por RPC parece morto. Conferi também a ACL: nenhum removido tinha `grant`
+para `anon` ou `authenticated`, então não havia consumidor externo por REST.
+
+**Cuidado que custou tempo:** busca por substring engana. `admin_salvar_conta`
+casa dentro de `admin_salvar_conta_com_saldo`; `app_conciliacao_stone_resumo`
+dentro de `app_conciliacao_stone_resumo_mensal`; `app_gerenciador_de_para`
+dentro de `app_gerenciador_de_para_historico`. Três objetos pareceram vivos até
+eu repetir a busca com o apóstrofo final.
+
+`20260818200000` remove 8 relações e 5 funções (lista completa e motivo em
+`docs/OBJETOS_SEM_CONSUMIDOR.md`, que reescrevi com o método). Destaques:
+`mv_saldo_caixa_diario_detalhado`, a MV que me enganou de manhã;
+`importar_contas_recorrentes_legado`, que seguia com `execute` para
+`authenticated` e escrevia em massa sem nenhum chamador; e três sobrecargas
+antigas de `admin_salvar_*` substituídas pelas versões `_com_saldo` /
+`_com_vigencia`. A migration reconfere dependências no banco e aborta antes de
+qualquer `drop` se algo mudou; os `drop` são `if exists` e sem `cascade`, e há
+validação no fim exigindo que os objetos em uso continuem de pé.
+
+Preservados de propósito, com motivo registrado: a cadeia
+`conciliacao_stone_resumo` (roadmap), `painel_colchao_despesa_fixa` (memória de
+cálculo da projeção — marquei como diagnóstica no comentário do objeto),
+`admin_*_saldo_inicial` (a tabela `saldo_inicial` ainda tem view dependente) e
+as duas tabelas `backup_*_20260629`, que são dados e não dá para recriar das
+migrations. Essas duas ficam para decisão do responsável.
+
+Verificado e sem problema: as 45 RPCs chamadas pelo front-end existem e têm
+`execute` para `authenticated`; as 47 views `app_*` lidas pelas páginas existem;
+`debug.log` e os diretórios `relatorio-*-old` não estão versionados e o
+`.gitignore` cobre `*.log`.
+
+Fica em aberto: `supabase/baseline/database.types.ts` está defasado (ainda cita
+objetos removidos). Não regenerei porque precisa do CLI do Supabase com
+credencial; `supabase/baseline/regenerate.ps1` faz isso. O `check_contracts` do
+`check_project.py` não quebra com essa defasagem porque procura o nome no
+conjunto tipos + migrations, mas vale regenerar na próxima janela.
+
+— Claude
