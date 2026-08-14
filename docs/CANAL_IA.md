@@ -1614,3 +1614,49 @@ funcionam. Uma implantação nova continua bloqueada com segurança até existir
 pre-flight impede publicar uma base incompleta ou específica desta empresa.
 
 — Codex
+
+---
+
+## 2026-08-14 — Claude — projeção sumia com despesa lançada depois do corte
+
+O Calendário projetava fechar agosto em R$ 190.062,34 logo depois de um
+pagamento de contas feito no mesmo dia. Estava inflado em R$ 28.398,71 —
+exatamente o que saiu do caixa naquele dia.
+
+Causa, e não é a que parece: o extrato importado **já trazia** as movimentações
+do próprio dia (14/08), mas `corte_caixa` é `least(max(data_caixa), hoje - 1)` e
+estava em 13/08. Então o mesmo dinheiro **saía da projeção** (porque
+`projecao_despesa_fixa` subtraía da média todo o realizado da competência,
+inclusive `data_caixa` posterior ao corte) e **não entrava no realizado**
+(porque o Calendário ignora dia > corte, o que é proposital: o dia corrente está
+incompleto). Medido: realizado de agosto por competência R$ 88.513,08, dos quais
+R$ 28.398,71 com `data_caixa` fora do corte.
+
+Marcar conta como paga na rotina **não era a causa** — vale a pena guardar isso:
+`greatest(média − realizado − contas_abertas, 0) + contas_abertas` é neutro no
+total do mês enquanto o resíduo é positivo. A marcação só muda a distribuição
+por dia.
+
+`20260818180000`: (1) `realizado_mes` conta só `data_caixa <= corte`; (2)
+`contas_abertas` deixa de descartar toda conta com registro de pagamento — a
+paga com `data_pagamento > corte` volta para a projeção, pelo **valor real** e no
+**dia do pagamento**. As duas juntas mantêm `total do mês = média − realizado
+dentro do corte`, e a transição não dá degrau quando o corte avança.
+`painel_colchao_despesa_fixa` recebeu a mesma regra.
+
+Medido por leitura antes de publicar: agosto R$ 21.720,15 → R$ 50.118,88;
+setembro e outubro inalterados; fechamento projetado ~R$ 161,7 mil.
+
+Também nova: `resumo_corte_caixa()` + faixa de aviso em `calendario.html`. A
+divergência de hoje passou silenciosa porque a prova de conciliação da tela só
+fecha dentro do mês. O aviso mostra o que já foi lançado depois do corte e
+avisa quando `mv_saldo_caixa_diario_detalhado` fica atrás do corte (sinal de que
+`refresh_painel()` não rodou depois da importação — hoje estava em 11/08 com
+corte em 13/08; o cron horário `sirfisher-virada-financeira` corrige sozinho).
+
+Pendência que fica: as views `app_*` de saldo já leem `private.saldo_caixa_diario`
+(viva), então a MV defasada não afeta o Calendário — mas afeta DRE/Despesas/
+Conciliação, que dependem das outras MVs do mesmo `refresh_painel()`. Não mexi
+no fluxo de refresh.
+
+— Claude

@@ -131,6 +131,14 @@ no repositório.
 - Tipo: painel / view agregada
 - Uso: `caixa.html`, `dre.html`, `index.html`, `despesas.html`
 - Propósito: mostra projeção de despesas fixas por dia. A quantidade de meses fechados usada na média vem de `meses_media_fixa`. Subtrai o realizado nos mesmos grupos e distribui o restante pelos dias após o corte. Contas recorrentes abertas entram no vencimento com a média do mesmo período configurado, reduzindo antes o colchão genérico para evitar dupla contagem. Parametrizada em `20260818010000`.
+- **Corte de caixa (`20260818180000`).** O realizado subtraído da média conta
+  apenas lançamentos com `data_caixa <= corte_caixa`, e conta recorrente já
+  marcada como paga com `data_pagamento > corte_caixa` continua projetada, pelo
+  valor real e no dia do pagamento. Sem isso, despesa já lançada no extrato do
+  dia corrente saía da projeção (o corte é `hoje - 1`, então ela ainda não conta
+  como realizada no Calendário) e o saldo projetado do mês inflava exatamente
+  esse valor — em 14/08/2026, R$ 28,4 mil. `painel_colchao_despesa_fixa` segue a
+  mesma regra, senão a memória de cálculo contradiz a projeção que descreve.
 - Colunas importantes:
   - `dia`
   - `valor`
@@ -817,6 +825,21 @@ no repositório.
   `20260762000000_calendario_realizado_concilia_caixa.sql` e à configuração de
   fontes em `20260818100000_calendario_usa_fontes_caixa.sql`.
 
+### resumo_corte_caixa()
+- Tipo: RPC de leitura `SECURITY DEFINER`, protegida pela permissão de `calendario.html`.
+- Uso: faixa de aviso de `calendario.html`.
+- Colunas: `corte_caixa`, `snapshot_saldo`, `dias_apos_corte`,
+  `resultado_apos_corte`.
+- Propósito: tornar visível o que o corte esconde. O extrato importado costuma
+  trazer movimentos do próprio dia, mas `corte_caixa` para em `hoje - 1`; esses
+  lançamentos existem em `fato_financeiro` e continuam fora do realizado do
+  Calendário. A RPC soma esses dias por `caixa_real_diario` (mesma regra de
+  fontes que entram no caixa, sem duplicar o predicado) e informa se o snapshot
+  de `mv_saldo_caixa_diario_detalhado` ficou atrás do corte — sinal de que
+  `refresh_painel()` não rodou depois da última importação e de que DRE,
+  Despesas e Conciliação podem estar defasados.
+- Criada em `20260818180000_projecao_respeita_corte_de_caixa.sql`.
+
 ### venda_especie
 - Tipo: tabela de vendas por espécie
 - Uso: `venda_especie.html`
@@ -1058,6 +1081,7 @@ no repositório.
   realizado e memória por conta de `calendario.html`
 - `listar_calendario_financeiro(date)` → `calendario.html`
 - `listar_despesas_dia(date)` → `calendario.html`
+- `resumo_corte_caixa()` → faixa de aviso de `calendario.html`
 - `venda_especie` → `venda_especie.html`
 - `app_conferencia_deposito_especie`, `app_conferencia_deposito_especie_resumo`
   e `app_conferencia_deposito_ajustes` → `venda_especie.html`
