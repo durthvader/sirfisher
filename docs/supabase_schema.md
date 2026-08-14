@@ -781,7 +781,9 @@ no repositório.
 - Uso: `calendario.html`.
 - Propósito: consolidar, por dia, meta e faturamento acumulados, vendas por
   forma, recebimentos, despesas recorrentes/não recorrentes e saldo de caixa.
-- O saldo realizado vem de `mv_saldo_caixa_diario_detalhado`, com os
+- O saldo realizado vem de `private.saldo_caixa_diario` (sobre
+  `private.mv_saldo_conta_diario`) desde `20260818120000`; até então vinha de
+  `mv_saldo_caixa_diario_detalhado`, hoje aposentada. Traz os
   componentes efetivamente mantidos em cada data. Depois do corte das cargas,
   a RPC preserva o último saldo realizado e calcula cada saldo futuro
   pela mesma memória exibida na linha: `saldo anterior + recebimentos -
@@ -835,10 +837,15 @@ no repositório.
   lançamentos existem em `fato_financeiro` e continuam fora do realizado do
   Calendário. A RPC soma esses dias por `caixa_real_diario` (mesma regra de
   fontes que entram no caixa, sem duplicar o predicado) e informa se o snapshot
-  de `mv_saldo_caixa_diario_detalhado` ficou atrás do corte — sinal de que
-  `refresh_painel()` não rodou depois da última importação e de que DRE,
-  Despesas e Conciliação podem estar defasados.
-- Criada em `20260818180000_projecao_respeita_corte_de_caixa.sql`.
+  de `private.mv_saldo_conta_diario` ficou atrás do corte — sinal de que
+  `refresh_painel()` não rodou ou falhou depois da última importação, caso em
+  que DRE, Despesas e Conciliação também podem estar defasados.
+- Criada em `20260818180000_projecao_respeita_corte_de_caixa.sql`. Nasceu lendo
+  `public.mv_saldo_caixa_diario_detalhado`, que **está aposentada desde
+  `20260818120000`** e congelada no último refresh anterior — o aviso dava falso
+  positivo permanente. Corrigido em
+  `20260818190000_resumo_corte_usa_snapshot_vigente.sql`. Ao mexer em qualquer
+  coisa ligada a saldo diário, confira antes qual snapshot está vivo.
 
 ### venda_especie
 - Tipo: tabela de vendas por espécie
@@ -865,8 +872,10 @@ no repositório.
 - Na implantação do controle de responsáveis, os registros preexistentes foram
   marcados como recolhidos e depositados, sem atribuição retroativa de usuário.
 - Salvar um valor ou alterar o status solicita a atualização assíncrona apenas
-  de `mv_saldo_caixa_diario_detalhado`, por job temporário e auto-removível. A
-  ação não executa o refresh pesado do painel e não mantém cron permanente.
+  do snapshot de saldo, por job temporário e auto-removível. A função guardou o
+  nome antigo (`refresh_saldo_caixa_diario_detalhado`), mas desde
+  `20260818120000` atualiza `private.mv_saldo_conta_diario`. A ação não executa
+  o refresh pesado do painel e não mantém cron permanente.
 
 ### Conferência do depósito em espécie
 
@@ -1077,8 +1086,12 @@ no repositório.
   comparativo, evitando baixar o histórico detalhado completo.
 - `painel_margem_contribuicao` → `index.html`
 - `painel_diario` → `index.html`, `vendas.html`
-- `mv_saldo_caixa_diario_detalhado` / `detalhar_saldo_caixa_dia(date)` → saldo
-  realizado e memória por conta de `calendario.html`
+- `private.saldo_caixa_diario` (sobre `private.mv_saldo_conta_diario`) /
+  `detalhar_saldo_caixa_dia(date)` → saldo realizado e memória por conta de
+  `calendario.html`. A antiga `mv_saldo_caixa_diario_detalhado` foi aposentada
+  em `20260818120000`: continua no banco, mas **ninguém a atualiza nem a lê** —
+  está congelada no último refresh anterior àquela migration. Candidata a
+  remoção pelo processo de `OBJETOS_SEM_CONSUMIDOR.md`.
 - `listar_calendario_financeiro(date)` → `calendario.html`
 - `listar_despesas_dia(date)` → `calendario.html`
 - `resumo_corte_caixa()` → faixa de aviso de `calendario.html`

@@ -1660,3 +1660,36 @@ Conciliação, que dependem das outras MVs do mesmo `refresh_painel()`. Não mex
 no fluxo de refresh.
 
 — Claude
+
+---
+
+## 2026-08-14 — Claude — correção da correção: MV aposentada me enganou
+
+O parágrafo acima sobre "snapshot defasado" estava errado e o aviso que publiquei
+dava falso positivo. **Não havia defasagem nenhuma.**
+
+`public.mv_saldo_caixa_diario_detalhado` foi **aposentada em `20260818120000`**:
+views e funções migraram para `private.saldo_caixa_diario` /
+`private.mv_saldo_conta_diario`, e `refresh_painel()` e
+`processar_virada_financeira()` deixaram de atualizá-la — aquela migration tem
+até uma validação que proíbe voltarem a citá-la. A MV velha continua no banco,
+congelada no último refresh anterior (11/08/2026), e nunca mais anda. Eu li
+`max(dia) = 11/08` contra `corte_caixa = 13/08` e concluí "painel desatualizado".
+O snapshot que vale, `private.mv_saldo_conta_diario`, estava em 13/08 — em dia.
+
+`20260818190000`: `resumo_corte_caixa()` passa a ler o snapshot vigente.
+Confirmei por catálogo que ela era **a única função no banco** ainda citando a
+MV aposentada. `refresh_saldo_caixa_diario_detalhado()` guardou o nome antigo mas
+já atualiza a MV certa — o caminho da sangria está correto, só o nome engana.
+
+Lição para quem vier depois: `docs/supabase_schema.md` ainda descrevia a MV velha
+como fonte do Calendário e do saldo realizado (três pontos), o que reforçou meu
+erro. Corrigi os três. **Antes de tocar em qualquer coisa de saldo diário,
+confira no catálogo qual snapshot está vivo, não no doc.**
+
+Fica em aberto: `public.mv_saldo_caixa_diario_detalhado` é peso morto — sem
+consumidor, sem refresh, ocupando espaço e induzindo a erro. Não removi (regra
+do `OBJETOS_SEM_CONSUMIDOR.md` e sem autorização); é uma boa candidata a `drop`
+em migration própria.
+
+— Claude
