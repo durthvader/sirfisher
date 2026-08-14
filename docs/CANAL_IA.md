@@ -1734,10 +1734,45 @@ Verificado e sem problema: as 45 RPCs chamadas pelo front-end existem e têm
 `debug.log` e os diretórios `relatorio-*-old` não estão versionados e o
 `.gitignore` cobre `*.log`.
 
-Fica em aberto: `supabase/baseline/database.types.ts` está defasado (ainda cita
-objetos removidos). Não regenerei porque precisa do CLI do Supabase com
-credencial; `supabase/baseline/regenerate.ps1` faz isso. O `check_contracts` do
-`check_project.py` não quebra com essa defasagem porque procura o nome no
-conjunto tipos + migrations, mas vale regenerar na próxima janela.
+Baseline regenerado na sequência (ver recado seguinte).
+
+— Claude
+
+---
+
+## 2026-08-14 — Claude — baseline do Supabase regenerado sem a CLI
+
+`supabase/baseline/database.types.ts` estava congelado em 2026-07-03: 1.874
+linhas contra as 3.690 de agora. Seis semanas e dezenas de migrations de
+defasagem, ainda citando objetos já removidos.
+
+**Não precisa da CLI para isso.** Esta máquina não tem Node nem `supabase` no
+PATH, então `regenerate.ps1` (que chama `npx supabase@2.108.0`) não roda. A
+ferramenta de tipos do MCP do Supabase faz a mesma introspecção, com o mesmo
+recorte de `--schema public` — confirmei que a saída traz só a chave `public`,
+o mesmo cabeçalho `__InternalSupabase` e `PostgrestVersion: "14.5"`. Ela
+devolve `{"types": "..."}`; extraí o campo preservando encoding e fim de linha
+do arquivo original. Nenhuma credencial foi necessária ou tocada.
+
+Conferido no arquivo novo, com limite de palavra: os 9 objetos removidos em
+`20260818200000` não aparecem; `resumo_corte_caixa`, `listar_saldo_contas_dia`,
+`painel_colchao_despesa_fixa`, `app_conciliacao_stone_resumo` e
+`app_gerenciador_de_para_historico` aparecem. Varredura de segredo no gerado deu
+zero para `eyJ`, `service_role`, `postgresql://`, `password`, `sbp_` e afins.
+
+**Cuidado ao conferir:** busca por `nome"` dá falso negativo, porque a chave em
+TypeScript é `nome: {`, sem aspas. Quase dei um objeto por removido por causa
+disso — use limite de palavra.
+
+`manifest.json` também estava descrevendo o arquivo antigo (checksum e bytes de
+52.319). Atualizei checksum, bytes, data e as contagens do catálogo, que
+estavam igualmente paradas em julho (tabelas 24→46, views 70→91, índices
+38→100). E documentei em `supabase/baseline/README.md` **como** cada campo é
+calculado: `registrar-baseline` só preenche os campos de `schema.sql`, o resto
+não era reproduzível, e foi por isso que ficou seis semanas errado.
+
+Continua em aberto o que já estava: `schema.sql` e `bootstrap_config.sql` não
+existem, então implantação nova segue bloqueada pelo pré-flight. `db dump`
+precisa da CLI; o MCP não substitui.
 
 — Claude

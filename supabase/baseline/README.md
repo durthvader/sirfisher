@@ -17,8 +17,26 @@ Arquivos:
 
 O arquivo de tipos foi gerado diretamente pela introspecção do Supabase. Ele é
 adequado para detectar drift no contrato público da API, mas não substitui um
-dump DDL. As contagens históricas do manifesto cobrem `public` e `private`; o
-schema `private` não é exposto pelo arquivo de tipos.
+dump DDL. As contagens do manifesto cobrem `public` e `private`; o schema
+`private` não é exposto pelo arquivo de tipos, então `catalog` e
+`contract_sha256` descrevem escopos diferentes de propósito.
+
+`registrar-baseline` só preenche os campos de `schema.sql`. Os demais campos do
+manifesto são atualizados junto com o contrato, pelas regras abaixo — anotadas
+aqui porque não eram reproduzíveis e o manifesto ficou seis semanas descrevendo
+um arquivo que já havia mudado:
+
+- `contract_sha256` e `contract_bytes`: SHA-256 e tamanho em bytes do
+  `database.types.ts` gerado, do arquivo inteiro;
+- `catalog`, sobre `public` **e** `private`: `tables` = `pg_class.relkind='r'`,
+  `views` = `'v'`, `materialized_views` = `'m'`, `sequences` = `'S'`,
+  `functions` = `pg_proc.prokind='f'`, `policies` = `pg_policy`,
+  `indexes` = `pg_index`, `triggers` = `pg_trigger` com `tgisinternal = false`;
+- `generated_at`: data da geração, em UTC.
+
+Sem a Supabase CLI instalada, o contrato pode ser gerado pela ferramenta de
+tipos do MCP do Supabase, que usa a mesma introspecção e o mesmo recorte de
+`--schema public`. Foi assim na regeneração de 2026-08-14.
 
 No estado atual, o diretório **não é suficiente para inicializar um banco
 vazio**: faltam `schema.sql` e `bootstrap_config.sql`. Isso é deliberadamente
