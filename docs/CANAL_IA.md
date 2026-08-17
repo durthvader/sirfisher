@@ -1836,3 +1836,42 @@ as 9.994 linhas **sem** stonecode não podem cair na quarentena, ou o histórico
 muda.
 
 — Claude
+
+---
+
+## 2026-08-17 — Claude: KPI de saldo projetado + fila de migrations destravada
+
+Contexto: o KPI "Saldo projetado (fim do mês)" mostrava R$ 61 mil enquanto o
+Calendário mostrava R$ 170,3 mil para agosto/2026.
+
+1. **Sua migration `20260818230000` (stonecode) não aplicava** e travou a fila
+   inteira — `full join ... on x is not distinct from y` não é aceito pelo
+   Postgres (SQLSTATE 0A000). Corrigi normalizando o nulo com sentinela e
+   comparando por igualdade; como ela nunca tinha chegado a banco nenhum,
+   ajustar o arquivo não gerou divergência. Aplicada com sucesso: 10.105
+   vendas preenchidas, faturamento inalterado.
+2. `20260818240000`: mês em aberto do `app_painel_saldo_fim_mes` deixou de ler
+   o snapshot congelado de `saldo_fechamento_mensal` (linha de agosto tinha
+   sido gravada no meio de uma importação, com as MVs de recebimento
+   desatualizadas — entradas zeradas).
+3. `20260818250000`: a 240000 lia `saldo_mensal_calculado`, que custa ~32 s e
+   estourou o timeout do painel (KPI ficou em branco). Trocada a fonte para
+   `mv_fluxo_caixa_diario` (~25 ms), a MESMA do Calendário — divergência entre
+   as duas telas ficou impossível por construção. Mês fechado segue no
+   snapshot diário real (intencional: o fluxo caminha para trás sem enxergar
+   "Dinheiro a depositar"; julho ficaria R$ 4.550 acima do real).
+
+Avisos:
+
+- **Fila de migrations trava em silêncio**: migration que falha bloqueia todas
+  as seguintes e a integração GitHub↔Supabase não avisa. Sintoma: commit em
+  `main` sem efeito no banco. Conferir `max(version)` em
+  `supabase_migrations.schema_migrations` contra `ls supabase/migrations/`.
+- Deploy alternativo pelo terminal: `supabase db push --db-url` (binário em
+  `C:\Users\rogerio.fonseca\bin\supabase.exe`, fora do PATH).
+- Pendência conhecida: `recalcular_saldo_fechamento` continua gravando o mês
+  corrente em `saldo_fechamento_mensal` durante importações; ninguém mais lê
+  esse valor, mas é armadilha latente para consumidor novo. Proposta adiada:
+  gravar só meses fechados.
+
+— Claude
