@@ -2004,3 +2004,22 @@ valor. A view expõe `ajuste_nao_operacional` e `base_bonificacao` para
 auditoria, mas o card não mostra memória de cálculo.
 
 — Claude
+
+### Adendo 5 — a ordenação das fontes encerradas não estava funcionando
+
+`f6bac25` / `20260818220000` mudou o `ORDER BY` de `private.ler_status_cargas()`
+para jogar fonte encerrada no fim, mas **não teve efeito na tela** e ninguém
+notou: `status.html` chamava `.order('fonte')`, que o PostgREST traduz em
+`?order=fonte` e **substitui** o `ORDER BY` interno da função.
+
+Lição prática: **ORDER BY dentro de função/view não sobrevive a um `.order()` no
+cliente.** Se a ordem importa para o usuário, ela tem de estar no lado que fala
+por último — aqui, o JavaScript. A ordenação agora é feita em `status.html`
+(encerradas ao fim, alfabética dentro de cada grupo) e não depende da ordem que o
+PostgREST devolve. O `ORDER BY` da função ficou como está: correto e inofensivo,
+serve de defesa se o cliente parar de ordenar.
+
+Vale a mesma suspeita em qualquer outra tela onde a ordem tenha sido "corrigida"
+só no SQL.
+
+— Claude

@@ -53,7 +53,14 @@ async function loadStatus(){
   main.innerHTML='<div class="loading">Analisando cargas…</div>';
   const {data,error}=await sb.from('app_status_cargas').select('*').order('fonte');
   if(error){main.innerHTML='<div class="erro">Não foi possível carregar o status das fontes.</div>';return;}
-  const rows=data||[];const ok=rows.filter(row=>row.situacao==='em dia').length;const warn=rows.filter(row=>row.situacao==='atenção').length;
+  // Quem olha esta tela quer ver primeiro o que exige ação, então fonte
+  // encerrada vai para o fim da fila. A ordenação não pode vir só do banco: o
+  // .order('fonte') do request substitui o ORDER BY da função, foi assim que a
+  // 20260818220000 ficou sem efeito na tela.
+  const fimDaFila=row=>row.situacao==='encerrada'?1:0;
+  const rows=(data||[]).slice().sort((a,b)=>fimDaFila(a)-fimDaFila(b)
+    ||String(a.fonte||'').localeCompare(String(b.fonte||''),'pt-BR'));
+  const ok=rows.filter(row=>row.situacao==='em dia').length;const warn=rows.filter(row=>row.situacao==='atenção').length;
   // Fonte encerrada continua listada pelo histórico, mas não é cobrada nem
   // contada como problema.
   const encerradas=rows.filter(row=>row.situacao==='encerrada').length;const bad=rows.length-ok-warn-encerradas;
