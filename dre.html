@@ -217,7 +217,7 @@ function renderMes(anoMes){
   const resultadoOpProj=trend.active
     ? N('resultado_operacional')+receitaFutura-despDiretaFutura-despFixaFutura
     : N('resultado_operacional');
-  const abaixoOperacional=N('nao_operacional')+N('contabil')+N('capex')+N('nao_categorizado');
+  const abaixoOperacional=N('nao_operacional')+N('contabil')+N('capex')+N('outros')+N('nao_categorizado');
   const resultadoLiqProj=trend.active?resultadoOpProj+abaixoOperacional:N('resultado_liquido');
   const margemMcProj=receitaProj?margemContribProj/receitaProj*100:null;
   const margemOpProj=receitaProj?resultadoOpProj/receitaProj*100:null;
@@ -316,7 +316,7 @@ function drawWaterfall(r){
   [['Pessoal','pessoal'],['Infraestrutura','infraestrutura'],['Marketing','marketing']].forEach(([lab,k])=>{const v=N(k);if(Math.abs(v)>0.5){steps.push({label:lab,base:run,end:run+v});run+=v;}});
   steps.push({label:'Resultado operac.',base:0,end:ro,total:true,fin:true});
   run=ro;
-  [['Não operacional','nao_operacional'],['Contábil','contabil'],['Investim. (CAPEX)','capex'],['Não categorizado','nao_categorizado']].forEach(([lab,k])=>{const v=N(k);if(Math.abs(v)>0.5){steps.push({label:lab,base:run,end:run+v});run+=v;}});
+  [['Não operacional','nao_operacional'],['Contábil','contabil'],['Investim. (CAPEX)','capex'],['Outros','outros'],['Não categorizado','nao_categorizado']].forEach(([lab,k])=>{const v=N(k);if(Math.abs(v)>0.5){steps.push({label:lab,base:run,end:run+v});run+=v;}});
   steps.push({label:'Resultado líquido',base:0,end:rl,total:true,fin:true});
 
   const cor=s=>{ if(s.total){ return s.fin?(s.end>=0?C.green:C.red):C.header; } return s.end>=s.base?C.green:C.red; };
@@ -345,6 +345,7 @@ function drawTabela(r){
   if(Math.abs(N('nao_operacional'))>0.5)h+=line('Não operacional',N('nao_operacional'),'',true);
   if(Math.abs(N('contabil'))>0.5)h+=line('Contábil',N('contabil'),'',true);
   if(Math.abs(N('capex'))>0.5)h+=line('Investimentos (CAPEX)',N('capex'),'',true);
+  if(Math.abs(N('outros'))>0.5)h+=line('Outros grupos',N('outros'),'',true);
   if(Math.abs(N('nao_categorizado'))>0.5)h+=line('⚠️ Não categorizado',N('nao_categorizado'),'',true);
   h+=line('= Resultado líquido',N('resultado_liquido'),'fin');
   h+='</table>';

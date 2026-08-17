@@ -265,7 +265,7 @@ function drawCascata(row){
   [['Pessoal','pessoal_perc'],['Infraestrutura','infraestrutura_perc'],['Marketing','marketing_perc']].forEach(([lab,k])=>{const v=N(k);if(Math.abs(v)>0.05){steps.push({label:lab,base:run,end:run+v});run+=v;}});
   steps.push({label:'Resultado operac.',base:0,end:ro,total:true,fin:true});
   run=ro;
-  [['Não operacional','nao_operacional_perc'],['Contábil','contabil_perc'],['Investim. (CAPEX)','capex_perc'],['Não categorizado','nao_categorizado_perc']].forEach(([lab,k])=>{const v=N(k);if(Math.abs(v)>0.05){steps.push({label:lab,base:run,end:run+v});run+=v;}});
+  [['Não operacional','nao_operacional_perc'],['Contábil','contabil_perc'],['Investim. (CAPEX)','capex_perc'],['Outros','outros_perc'],['Não categorizado','nao_categorizado_perc']].forEach(([lab,k])=>{const v=N(k);if(Math.abs(v)>0.05){steps.push({label:lab,base:run,end:run+v});run+=v;}});
   steps.push({label:'Resultado líquido',base:0,end:rl,total:true,fin:true});
 
   const cor=s=>{ if(s.total){ return s.fin?(s.end>=0?C.green:C.red):C.header; } return s.end>=s.base?C.green:C.red; };

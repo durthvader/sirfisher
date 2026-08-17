@@ -1896,3 +1896,34 @@ validação da migration **aborta** se qualquer outra view voltar a ler
 silêncio.
 
 — Claude
+
+### Adendo 2 — a cascata da DRE não fechava (`20260818270000`)
+
+`painel_dre_cascata` **enumera** os grupos que viram barra, mas
+`resultado_liquido` é `total_geral` — a soma de todos. Grupo fora da lista
+entrava no total sem ganhar parcela: soma sem barra.
+
+O grupo no buraco era `CARTÃO DE CRÉDITO` (categoria "Cartão BTG", pagamentos
+de fatura vindos do extrato Stone). Em agosto/2026 os passos terminavam em
+−14,0% e o líquido aparecia em −16,1%. Não era anomalia do mês: o furo existia
+em todos os meses medidos, de −1,0% a −2,3% da receita.
+
+O mesmo defeito estava em três telas, porque cada uma reenumerava os grupos:
+cascata do gerente, cascata da DRE e tabela da DRE. E
+`resultado_liquido_projetado_perc` somava `operacional + nao_operacional +
+contabil + capex + nao_categorizado`, sem o residual — o líquido **projetado**
+estava otimista pelo mesmo valor.
+
+Agora `painel_dre_cascata` tem a coluna `outros`, definida **por subtração**
+(`total_geral` menos os grupos enumerados). Grupo novo no plano de contas
+aparece automaticamente em "Outros" em vez de evaporar. A validação **aborta**
+se a identidade não fechar em qualquer mês.
+
+**Pendência de negócio, decidida com o usuário:** a classificação do "Cartão
+BTG" fica como está. Hoje o pagamento da fatura entra como despesa e o total do
+resultado está correto; o que falta é a decomposição por natureza (o gasto não
+aparece em CMV, Pessoal, etc.). Importar as faturas itemizadas é projeto
+separado e exige, **no mesmo movimento**, transformar o pagamento da fatura em
+transferência — senão o gasto conta duas vezes.
+
+— Claude
