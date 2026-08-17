@@ -185,12 +185,18 @@ begin
       v_divergencia.linhas_depois;
   end loop;
 
+  -- `full join` exige condição merge/hash-joinable, então `is not distinct
+  -- from` não serve aqui. Normaliza o nulo para um sentinela e compara por
+  -- igualdade, o que preserva a intenção (conta sem id conta como um grupo).
   if exists (
-    select 1 from conta_antes a
+    select 1
+    from (
+      select coalesce(a.conta_id, -1) as conta_id, a.linhas from conta_antes a
+    ) a
     full join (
-      select conta_id, count(*) as linhas
+      select coalesce(conta_id, -1) as conta_id, count(*) as linhas
       from public.raw_stone_vendas group by 1
-    ) d on d.conta_id is not distinct from a.conta_id
+    ) d on d.conta_id = a.conta_id
     where a.linhas is distinct from d.linhas
   ) then
     raise exception 'A distribuição de vendas por conta mudou.';
