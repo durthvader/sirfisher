@@ -1927,3 +1927,36 @@ separado e exige, **no mesmo movimento**, transformar o pagamento da fatura em
 transferência — senão o gasto conta duas vezes.
 
 — Claude
+
+### Adendo 3 — bonificação ignora não operacional (`20260818280000`)
+
+O bônus usava a variação **bruta** do caixa como base, então movimento do sócio
+(distribuição de lucros, investimento financeiro, empréstimo) reduzia o prêmio
+de quem não decidiu nada sobre ele. Em abril/2026 o gerente ficou com R$ 82,85
+por causa de R$ 44,3 mil de movimento não operacional; e o `Investimento
+Financeiro` recorrente de R$ 5.000 cortava R$ 100 todos os meses.
+
+A base agora soma de volta o grupo `NÃO OPERACIONAL`, e a regra fica em
+`public.bonificacao_base_mes` (fonte única, sem grant para `authenticated`).
+Consequência prática: **saque extra do sócio lançado como "Distribuição de
+Lucros" não afeta o bônus, sem ajuste manual** — a categoria já existia em
+`categoria_dre`.
+
+Dois pontos de projeto, não acidentes:
+
+- O ajuste usa `data_caixa <= corte`, igual à regra da 20260818180000. Somar de
+  volta movimento que a projeção ainda não descontou inflaria o bônus.
+- `variacao_perc` **não** mudou: continua sendo a variação real do caixa, que é
+  fato. Só a base do incentivo é ajustada. A view expõe
+  `ajuste_nao_operacional` para a tela explicar o número ao gerente.
+- `Pro Labore` fica DENTRO da base, por decisão do usuário: oscila entre R$ 12
+  mil e R$ 24 mil e neutralizá-lo cravaria o bônus no teto em 4 de 5 meses,
+  transformando incentivo em salário fixo.
+
+**Pendência conhecida, não tratada:** a base compara medidas diferentes — mês em
+aberto vem do fluxo projetado, mês fechado vem do snapshot diário, que inclui a
+espécie ainda não depositada. Em agosto isso infla a variação em R$ 4.550
+(~R$ 91 de bônus). Corrigir muda bônus de meses já fechados, então exige decisão
+sobre o que já foi pago.
+
+— Claude
