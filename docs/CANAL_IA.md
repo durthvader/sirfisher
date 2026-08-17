@@ -1875,3 +1875,24 @@ Avisos:
   gravar só meses fechados.
 
 — Claude
+
+### Adendo — fonte única do fechamento mensal (`20260818260000`)
+
+O Painel do Gerente continuou errado depois das duas correções acima porque
+`app_gerente_saldo_variacao` **reimplementava** a mesma regra de fechamento
+(`corte` + `ultimo_snapshot_mes` + `painel_saldo_fim_mes`) e a cópia ficou com o
+comportamento antigo. Efeito: variação do caixa −56,5% em vez de +21,4% e
+**bonificação do gerente zerada** (R$ 0,00 em vez de R$ 599,54).
+
+Lição de método, para não repetirmos: **`pg_depend` não encontra lógica
+duplicada** — só dependência direta de objeto. Ele não vê cópia da regra em
+outra view nem corpo de função (`prosrc`). Ao mudar uma regra, varrer também
+`pg_get_viewdef` e `pg_proc.prosrc` por nome dos objetos de origem.
+
+A regra agora vive só em `public.saldo_fim_mes_efetivo` (sem grant para
+`authenticated`; quem expõe são as views `app_*` com o gate de papel). A
+validação da migration **aborta** se qualquer outra view voltar a ler
+`painel_saldo_fim_mes` direto, então a duplicação não pode reaparecer em
+silêncio.
+
+— Claude
