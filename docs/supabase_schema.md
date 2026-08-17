@@ -1231,6 +1231,63 @@ no repositório.
   apenas o `SELECT` público já intencional de `nome`/`subtitulo` e remove o acesso
   direto às auxiliares `parametro_valor` e `unidade_principal_nome`.
 
+## Escalas (20260819000000)
+
+Rotina `escalas.html`. Dimensiona a jornada da equipe contra a curva de
+movimento real da casa.
+
+### escala_config
+- Tipo: tabela de parâmetros (chave/valor).
+- Chaves: `defasagem_venda_pagamento_min` (75), `capacidade_vendas_hora_pessoa`
+  (4.18), `carga_semanal_horas` (44), `margem_intervalo_min` (90),
+  `meses_historico` (12). Mudar aqui muda a régua de toda a página.
+
+### escala_funcionamento
+- Tipo: tabela. Uma linha por dia da semana.
+- Horário ao público mais `pre_abertura_min` (produção) e `pos_fechamento_min`
+  (limpeza/encerramento), que definem a janela em que precisa haver gente.
+
+### escala_funcionario / escala_turno
+- Tipo: tabelas. Cadastro da equipe e a jornada semanal de cada pessoa.
+- **Horários em minutos desde a meia-noite**, não `time`. Um fechamento às 00:40
+  é `1240`, sem virada de data — isso mantém o modelo válido se o horário ao
+  público de sexta/sábado for esticado.
+- `autonomia_fechamento` marca quem pode encerrar sozinho; a página alerta
+  quando escala alguém sem autonomia sozinho no fechamento.
+
+### escala_demanda_base
+- Tipo: view. Base da régua.
+- Desloca **cada transação** de `recebimento_transacao_net` para trás pela
+  defasagem configurada e agrega por dia da semana × hora. O pagamento acontece
+  no fim da refeição; o trabalho aconteceu antes. Sem o deslocamento a escala
+  seria dimensionada com mais de uma hora de atraso.
+- A defasagem de 75 min foi estimada cruzando a curva de lançamento do sistema
+  de vendas com a curva de pagamento deste banco.
+- Deslocar a transação (e não a curva já agregada) mantém o resultado exato
+  quando a defasagem não é múltipla de uma hora.
+- **Cobre ~94% do faturamento**: a venda em espécie não tem hora.
+
+### app_escala_demanda / app_escala_turnos / app_escala_cobertura
+- Tipo: views `app_*` no padrão do projeto (`security_barrier`,
+  `security_invoker = false`, gate por `usuario_pode_acessar_alguma_pagina`).
+- `app_escala_turnos` calcula horas da semana e o saldo contra a jornada
+  contratual (banco de horas planejado — o banco real depende de ponto, que o
+  app não tem).
+- `app_escala_cobertura` cruza pessoas presentes por hora com a demanda.
+  `escalas.html` recalcula o mesmo no navegador para dar resposta imediata na
+  edição; a view é a versão canônica para outros consumidores.
+
+### app_escala_config / app_escala_funcionamento
+- Tipo: views de leitura. As tabelas de origem não têm `grant` para
+  `authenticated`, então a página não as lê direto.
+
+### RPCs
+- `salvar_escala_funcionario`, `salvar_escala_turno`,
+  `excluir_escala_funcionario`, `salvar_escala_funcionamento` — todas
+  `SECURITY DEFINER` com checagem de permissão de `escalas.html`.
+- `escalas.html` entra em `pagina_permissao` com `papeis = {}`: só admin. Para
+  liberar o gerente basta marcar em `permissoes.html`, sem migration nova.
+
 ## Observações
 - O front-end autenticado usa views `app_*` e RPCs protegidas; tabelas internas
   não são expostas para leitura anônima.

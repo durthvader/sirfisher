@@ -2023,3 +2023,35 @@ Vale a mesma suspeita em qualquer outra tela onde a ordem tenha sido "corrigida"
 só no SQL.
 
 — Claude
+
+
+---
+
+### Rotina Escalas (20260819000000)
+
+Nova rotina `escalas.html` + migration `20260819000000_escalas_equipe.sql`.
+Dimensiona a jornada da equipe (salão e cozinha) contra a curva de movimento.
+
+Três coisas que valem para outras telas:
+
+**1. A hora do pagamento não é a hora do trabalho.** `painel_recebimento_hora` e
+tudo que sai de `recebimento_transacao_net` marca o momento do *pagamento*, que
+acontece no fim da refeição. A defasagem medida contra o sistema de vendas do
+cliente foi de **75 min**. Qualquer análise operacional por hora (não financeira)
+precisa desse deslocamento, senão dimensiona a casa com uma hora de atraso.
+`escala_demanda_base` já faz isso e é reaproveitável.
+
+**2. Horário como minuto inteiro, não `time`.** Turno que fecha depois da
+meia-noite quebra `time` (`saida > entrada` deixa de valer). Guardar minutos
+desde a meia-noite resolve sem virada de data e sem coluna extra.
+
+**3. Sentinela em relatório mente.** Eu tinha usado `99` como marcador de divisão
+por zero num script de análise e ele foi lido como "99 vendas/hora". Buraco de
+cobertura e carga alta são problemas diferentes e têm de ser contados separado.
+
+Pendências: a página está liberada **só para admin** (`papeis = {}` em
+`pagina_permissao`) por decisão do usuário — liberar `gerente` depois pela
+`permissoes.html`. O banco de horas exibido é o *planejado* (escala vs jornada
+contratual); banco real depende de ponto, que o app não coleta.
+
+— Claude

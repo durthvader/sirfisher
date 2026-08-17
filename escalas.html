@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; upgrade-insecure-requests">
+<title>Painel · Escalas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="assets/dashboard-common.css" rel="stylesheet">
+<link href="assets/product-pages.css" rel="stylesheet">
+<link href="assets/accessibility.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.108.2" integrity="sha384-JWEyvHh+lRf0sN/WWY+QTQwX+CyWqmNg4tkc8GQzAMEtR2wGNrCJlvnu1lHD1kDm" crossorigin="anonymous"></script>
+<script src="assets/supabase-client.js"></script>
+<script src="assets/app-config.js"></script>
+<script src="assets/auth.js"></script>
+<script src="assets/safe-dom.js"></script>
+<script src="assets/accessibility.js"></script>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="head-row"><div class="brand"><div class="mark" aria-hidden="true">P</div><div><h1 data-app-nome>Painel</h1><span data-app-subtitulo>Painel de Gestão</span></div></div><div class="head-meta"><div class="unidade">Escalas</div></div></div>
+    <nav class="tabs"><a href="./">Visão Geral</a><a href="vendas.html">Faturamento</a><a href="caixa.html">Caixa</a><a href="dre.html">DRE</a><a href="despesas.html">Despesas</a><a href="conciliacao.html">Conciliação</a><a href="planejamento.html">Planejamento</a><a href="rotinas.html" class="routines">Rotinas</a></nav>
+  </header>
+  <main id="main"><div class="loading">Carregando escalas…</div></main>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const sb=SirFisherSupabase;
+const esc=SirFisherDOM.escapeHTML;
+
+const DIAS=['','Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
+const EQUIPES={salao:'Salão',cozinha:'Cozinha'};
+const FUNCOES={gerente_salao:'Gerente de salão',garcom:'Garçom',lider_cozinha:'Líder de cozinha',cozinha:'Cozinha'};
+// A cobertura tambem existe como view (app_escala_cobertura) para quem consumir
+// o dado de fora. Aqui ela e recalculada no navegador para que a edicao de um
+// turno mostre o efeito na hora, sem ida e volta ao banco a cada celula.
+const HORA_INI=7,HORA_FIM=26;
+
+let AUTH=null,TURNOS=[],DEMANDA=[],FUNC=[],CFG={},EQUIPE_ATIVA='salao',LOAD_SEQ=0;
+
+function toast(msg,erro=false){const el=document.getElementById('toast');el.textContent=msg;el.className='toast show'+(erro?' err':'');setTimeout(()=>el.classList.remove('show'),2800);}
+function hhmm(min){if(min==null||min==='')return '';const m=Math.round(Number(min));return `${String(Math.floor(m/60)%24).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;}
+function paraMin(txt){if(!txt)return null;const [h,m]=String(txt).split(':').map(Number);if(!Number.isFinite(h)||!Number.isFinite(m))return null;return h*60+m;}
+function horas(v){const n=Number(v||0);const h=Math.floor(Math.abs(n));const m=Math.round((Math.abs(n)-h)*60);return `${n<0?'-':''}${h}h${m?String(m).padStart(2,'0'):''}`;}
+function cfg(chave,padrao){const v=CFG[chave];return v==null?padrao:Number(v);}
+
+/* ------------------------------------------------------------------ modelo */
+// Agrupa as 7 linhas de cada pessoa numa so. O cache existe porque cobertura()
+// e chamada celula a celula dentro de lacos aninhados (dia x hora x equipe).
+let _pessoas=null;
+function pessoas(){
+  if(_pessoas)return _pessoas;
+  const mapa=new Map();
+  TURNOS.forEach(t=>{
+    if(!mapa.has(t.funcionario_id))mapa.set(t.funcionario_id,{...t,dias:{}});
+    mapa.get(t.funcionario_id).dias[t.dia_semana]=t;
+  });
+  _pessoas=[...mapa.values()].sort((a,b)=>a.equipe.localeCompare(b.equipe)||a.ordem-b.ordem||a.nome.localeCompare(b.nome,'pt-BR'));
+  return _pessoas;
+}
+function demandaDe(dia,hora){
+  const r=DEMANDA.find(d=>d.dia_semana===dia&&d.hora===(hora%24));
+  return r?Number(r.vendas_hora):0;
+}
+function funcionamento(dia){
+  return FUNC.find(f=>f.dia_semana===dia)||{abertura_min:540,fechamento_min:1335,pre_abertura_min:30,pos_fechamento_min:30};
+}
+function presente(turno,minuto){
+  if(!turno||turno.folga||turno.entrada_min==null)return false;
+  if(minuto<turno.entrada_min||minuto>=turno.saida_min)return false;
+  if(turno.intervalo_inicio_min!=null&&minuto>=turno.intervalo_inicio_min&&minuto<turno.intervalo_fim_min)return false;
+  return true;
+}
+function cobertura(equipe,dia,hora){
+  const minuto=hora*60+30;
+  return pessoas().filter(p=>p.equipe===equipe&&p.ativo&&presente(p.dias[dia],minuto)).length;
+}
+
+/* ------------------------------------------------------- checagens da CLT */
+function alertas(){
+  const out=[];
+  const margem=cfg('margem_intervalo_min',90);
+  const carga=cfg('carga_semanal_horas',44);
+  pessoas().filter(p=>p.ativo).forEach(p=>{
+    const semana=Number(p.horas_semana||0);
+    if(semana>carga+2)out.push({nivel:'erro',quem:p.nome,texto:`${horas(semana)} na semana — ${horas(semana-carga)} acima da jornada, além do que o banco de horas absorve.`});
+    else if(semana<carga-2&&semana>0)out.push({nivel:'aviso',quem:p.nome,texto:`${horas(semana)} na semana — ${horas(carga-semana)} abaixo da jornada.`});
+    const folgas=Number(p.folgas_semana||0),esperado=p.regime==='5x2'?2:1;
+    if(folgas!==esperado)out.push({nivel:'aviso',quem:p.nome,texto:`${folgas} folga(s) na semana, mas o regime é ${p.regime}.`});
+    for(let d=1;d<=7;d++){
+      const t=p.dias[d];
+      if(!t||t.folga||t.entrada_min==null)continue;
+      const trab=Number(t.horas_trabalhadas||0);
+      if(trab>10)out.push({nivel:'erro',quem:p.nome,texto:`${DIAS[d]}: ${horas(trab)} de trabalho — acima do teto de 10h (8h + 2h extras).`});
+      if(trab>6&&t.intervalo_inicio_min==null)out.push({nivel:'erro',quem:p.nome,texto:`${DIAS[d]}: ${horas(trab)} sem intervalo. Acima de 6h a CLT exige no mínimo 1h.`});
+      if(t.intervalo_inicio_min!=null){
+        const dur=t.intervalo_fim_min-t.intervalo_inicio_min;
+        if(dur<60)out.push({nivel:'erro',quem:p.nome,texto:`${DIAS[d]}: intervalo de ${dur}min. O mínimo é 1h.`});
+        if(dur>120)out.push({nivel:'erro',quem:p.nome,texto:`${DIAS[d]}: intervalo de ${horas(dur/60)}. Acima de 2h só com acordo coletivo.`});
+        if(t.intervalo_inicio_min-t.entrada_min<margem)out.push({nivel:'aviso',quem:p.nome,texto:`${DIAS[d]}: intervalo começa ${t.intervalo_inicio_min-t.entrada_min}min após a entrada. Intervalo colado na ponta é tratado pelo TST como supressão.`});
+        if(t.saida_min-t.intervalo_fim_min<margem)out.push({nivel:'aviso',quem:p.nome,texto:`${DIAS[d]}: intervalo termina ${t.saida_min-t.intervalo_fim_min}min antes da saída. Mesmo risco de supressão.`});
+      }
+      const prox=p.dias[d===7?1:d+1];
+      if(prox&&!prox.folga&&prox.entrada_min!=null){
+        const descanso=(prox.entrada_min+1440)-t.saida_min;
+        if(descanso<11*60)out.push({nivel:'erro',quem:p.nome,texto:`${DIAS[d]}→${DIAS[d===7?1:d+1]}: ${horas(descanso/60)} entre a saída e a entrada. A interjornada mínima é 11h.`});
+      }
+    }
+  });
+  // Casa aberta sem ninguem, e fechamento sem quem tenha autonomia
+  Object.keys(EQUIPES).forEach(eq=>{
+    for(let d=1;d<=7;d++){
+      const f=funcionamento(d);
+      let vazio=0;
+      for(let h=HORA_INI;h<HORA_FIM;h++){
+        const min=h*60+30;
+        if(min<f.abertura_min-f.pre_abertura_min||min>f.fechamento_min+f.pos_fechamento_min)continue;
+        if(cobertura(eq,d,h)===0)vazio++;
+      }
+      if(vazio)out.push({nivel:'erro',quem:EQUIPES[eq],texto:`${DIAS[d]}: ${vazio}h com a casa aberta e ninguém escalado.`});
+      const ultimo=Math.floor((f.fechamento_min+f.pos_fechamento_min-30)/60);
+      const noFecho=pessoas().filter(p=>p.equipe===eq&&p.ativo&&presente(p.dias[d],ultimo*60+30));
+      if(noFecho.length===1&&!noFecho[0].autonomia_fechamento)out.push({nivel:'aviso',quem:EQUIPES[eq],texto:`${DIAS[d]}: ${esc(noFecho[0].nome)} encerra sozinho(a) e não está marcado(a) com autonomia de fechamento.`});
+    }
+  });
+  return out;
+}
+
+/* --------------------------------------------------------------- resumo */
+function resumo(equipe){
+  const cap=cfg('capacidade_vendas_hora_pessoa',4.18);
+  let entregues=0,deficit=0,vazio=0,pior=0,piorQd=null;
+  for(let d=1;d<=7;d++){
+    const f=funcionamento(d);
+    for(let h=HORA_INI;h<HORA_FIM;h++){
+      const cov=cobertura(equipe,d,h);
+      entregues+=cov;
+      const min=h*60+30;
+      if(min<f.abertura_min-f.pre_abertura_min||min>f.fechamento_min+f.pos_fechamento_min)continue;
+      const dem=demandaDe(d,h);
+      const req=Math.max(equipe==='cozinha'?2:1,dem/cap);
+      if(cov<req)deficit+=req-cov;
+      if(cov===0)vazio++;
+      else if(dem>2&&dem/cov>pior){pior=dem/cov;piorQd=`${DIAS[d]} ${String(h%24).padStart(2,'0')}h`;}
+    }
+  }
+  const banco=pessoas().filter(p=>p.equipe===equipe&&p.ativo)
+    .reduce((s,p)=>s+Number(p.banco_horas_semana||0),0);
+  return{entregues,deficit,vazio,pior,piorQd,banco};
+}
+
+/* ---------------------------------------------------------------- render */
+function render(){
+  const main=document.getElementById('main');
+  const alertasLista=alertas();
+  const erros=alertasLista.filter(a=>a.nivel==='erro').length;
+  main.innerHTML=`
+    <div class="page-intro"><div><h2>Escalas</h2><p>A jornada de cada pessoa contra a curva de movimento real da casa. A demanda vem do faturamento dos últimos 12 meses, deslocada ${cfg('defasagem_venda_pagamento_min',75)} min para o horário em que o pedido acontece — não o do pagamento.</p></div><div class="actions"><button id="recarregar" class="button secondary">Atualizar</button></div></div>
+    <div class="scale-tabs">${Object.entries(EQUIPES).map(([k,v])=>`<button class="scale-tab${k===EQUIPE_ATIVA?' active':''}" data-equipe="${k}">${v}</button>`).join('')}</div>
+    ${blocoResumo()}
+    ${blocoMapa()}
+    ${blocoEscala()}
+    ${blocoAlertas(alertasLista,erros)}
+    ${blocoFuncionamento()}
+    ${blocoCadastro()}`;
+  bind();
+}
+
+function blocoResumo(){
+  const r=resumo(EQUIPE_ATIVA);
+  return `<div class="summary-grid">
+    <div class="summary-card"><div class="label">Pessoas-hora por semana</div><div class="value">${r.entregues.toFixed(0)}</div><div class="note">Presença efetiva, já fora do intervalo</div></div>
+    <div class="summary-card ${r.deficit>5?'overdue':(r.deficit>1?'pending':'paid')}"><div class="label">Déficit contra a demanda</div><div class="value">${r.deficit.toFixed(1)}</div><div class="note">Pessoa-hora faltando nos horários de movimento</div></div>
+    <div class="summary-card ${r.vazio?'overdue':'paid'}"><div class="label">Casa aberta e vazia</div><div class="value">${r.vazio}h</div><div class="note">Horas sem ninguém da equipe escalado</div></div>
+    <div class="summary-card ${Math.abs(r.banco)>4?'pending':'paid'}"><div class="label">Banco de horas da semana</div><div class="value">${horas(r.banco)}</div><div class="note">Soma do que a escala passa ou falta da jornada</div></div>
+  </div>
+  ${r.piorQd?`<div class="scale-worst">Momento mais apertado: <strong>${r.piorQd}</strong> — ${r.pior.toFixed(1)} vendas/hora por pessoa (o teto calibrado é ${cfg('capacidade_vendas_hora_pessoa',4.18).toFixed(1)}).</div>`:''}`;
+}
+
+function blocoMapa(){
+  const cap=cfg('capacidade_vendas_hora_pessoa',4.18);
+  let linhas='';
+  for(let h=HORA_INI;h<HORA_FIM;h++){
+    let temAlgo=false;
+    let cels='';
+    for(let d=1;d<=7;d++){
+      const f=funcionamento(d),min=h*60+30;
+      const dentro=min>=f.abertura_min-f.pre_abertura_min&&min<=f.fechamento_min+f.pos_fechamento_min;
+      const cov=cobertura(EQUIPE_ATIVA,d,h),dem=demandaDe(d,h);
+      if(cov||dem>0.2)temAlgo=true;
+      if(!dentro){cels+='<td class="heat off"></td>';continue;}
+      const carga=cov?dem/cov:null;
+      let cls='ok';
+      if(!cov)cls='vazio';
+      else if(carga>cap*1.25)cls='alto';
+      else if(carga>cap)cls='medio';
+      else if(carga<cap*0.35)cls='folgado';
+      cels+=`<td class="heat ${cls}" title="${DIAS[d]} ${String(h%24).padStart(2,'0')}h — ${cov} pessoa(s), ${dem.toFixed(1)} vendas/h${carga!=null?', '+carga.toFixed(1)+' por pessoa':''}"><span class="q">${cov||''}</span><span class="d">${dem>=0.5?dem.toFixed(0):''}</span></td>`;
+    }
+    if(temAlgo)linhas+=`<tr><th>${String(h%24).padStart(2,'0')}h</th>${cels}</tr>`;
+  }
+  return `<section class="panel">
+    <div class="panel-head"><div><h3>Cobertura contra o movimento</h3><div class="hint">Número grande = pessoas escaladas. Número pequeno = vendas por hora esperadas naquele horário.</div></div></div>
+    <div class="scale-legend"><span><i class="heat-key vazio"></i>ninguém</span><span><i class="heat-key alto"></i>apertado</span><span><i class="heat-key medio"></i>no limite</span><span><i class="heat-key ok"></i>equilibrado</span><span><i class="heat-key folgado"></i>sobrando</span></div>
+    <div class="scale-scroll"><table class="scale-heat"><thead><tr><th></th>${DIAS.slice(1).map(d=>`<th>${d}</th>`).join('')}</tr></thead><tbody>${linhas}</tbody></table></div>
+  </section>`;
+}
+
+function blocoEscala(){
+  const lista=pessoas().filter(p=>p.equipe===EQUIPE_ATIVA);
+  if(!lista.length)return '<section class="panel"><div class="empty">Nenhuma pessoa cadastrada nesta equipe.</div></section>';
+  const linhas=lista.map(p=>{
+    const cels=[];
+    for(let d=1;d<=7;d++){
+      const t=p.dias[d]||{folga:true};
+      cels.push(`<td class="turno-cel${t.folga?' folga':''}" data-func="${p.funcionario_id}" data-dia="${d}">
+        <label class="turno-folga"><input type="checkbox" class="chk-folga"${t.folga?' checked':''}> folga</label>
+        <div class="turno-campos"${t.folga?' hidden':''}>
+          <input type="time" class="in-entrada" value="${hhmm(t.entrada_min)}" step="300" aria-label="Entrada ${DIAS[d]}">
+          <input type="time" class="in-saida" value="${hhmm(t.saida_min)}" step="300" aria-label="Saída ${DIAS[d]}">
+          <input type="time" class="in-int-ini" value="${hhmm(t.intervalo_inicio_min)}" step="300" aria-label="Início do intervalo ${DIAS[d]}">
+          <input type="time" class="in-int-fim" value="${hhmm(t.intervalo_fim_min)}" step="300" aria-label="Fim do intervalo ${DIAS[d]}">
+        </div>
+      </td>`);
+    }
+    const banco=Number(p.banco_horas_semana||0);
+    return `<tr><th class="pessoa"><strong>${esc(p.nome)}</strong><span>${esc(FUNCOES[p.funcao]||p.funcao)} · ${esc(p.regime)}${p.autonomia_fechamento?' · fecha sozinho':''}</span><span class="pessoa-horas ${Math.abs(banco)>2?'fora':''}">${horas(p.horas_semana)} / ${horas(p.carga_semanal_horas)}${banco?` (${horas(banco)})`:''}</span></th>${cels.join('')}</tr>`;
+  }).join('');
+  return `<section class="panel">
+    <div class="panel-head"><div><h3>Escala semanal — ${EQUIPES[EQUIPE_ATIVA]}</h3><div class="hint">Entrada, saída e o intervalo de 1h. A diferença para a jornada contratual vira banco de horas.</div></div></div>
+    <div class="scale-scroll"><table class="scale-grid"><thead><tr><th></th>${DIAS.slice(1).map(d=>`<th>${d}</th>`).join('')}</tr></thead><tbody>${linhas}</tbody></table></div>
+  </section>`;
+}
+
+function blocoAlertas(lista,erros){
+  if(!lista.length)return '<section class="panel"><div class="panel-head"><div><h3>Conformidade</h3></div></div><div class="empty">Nenhum apontamento. Jornada, intervalo e interjornada estão dentro dos limites.</div></section>';
+  return `<section class="panel">
+    <div class="panel-head"><div><h3>Conformidade</h3><div class="hint">${erros} ponto(s) para corrigir e ${lista.length-erros} aviso(s). Confirme os parâmetros com sua contabilidade e a convenção coletiva.</div></div></div>
+    <div class="scale-alerts">${lista.map(a=>`<div class="scale-alert ${a.nivel}"><strong>${esc(a.quem)}</strong><span>${esc(a.texto)}</span></div>`).join('')}</div>
+  </section>`;
+}
+
+function blocoFuncionamento(){
+  return `<details class="panel scale-config"><summary>Horário de funcionamento</summary>
+    <div class="hint">O que a casa comunica ao público, mais o tempo de produção antes de abrir e de encerramento depois de fechar.</div>
+    <div class="scale-scroll"><table class="scale-grid"><thead><tr><th>Dia</th><th>Abre</th><th>Fecha</th><th>Chega antes</th><th>Sai depois</th></tr></thead><tbody>
+    ${[1,2,3,4,5,6,7].map(d=>{const f=funcionamento(d);return `<tr data-dia="${d}"><th>${DIAS[d]}</th>
+      <td><input type="time" class="fn-abre" value="${hhmm(f.abertura_min)}" step="300"></td>
+      <td><input type="time" class="fn-fecha" value="${hhmm(f.fechamento_min)}" step="300"></td>
+      <td><input type="number" class="fn-pre" value="${f.pre_abertura_min}" min="0" max="180" step="5"> min</td>
+      <td><input type="number" class="fn-pos" value="${f.pos_fechamento_min}" min="0" max="180" step="5"> min</td></tr>`;}).join('')}
+    </tbody></table></div>
+    <button id="salvarFuncionamento" class="button">Salvar horários</button>
+  </details>`;
+}
+
+function blocoCadastro(){
+  const lista=pessoas();
+  return `<details class="panel scale-config"><summary>Equipe</summary>
+    <div class="scale-people">${lista.map(p=>`<form class="scale-person" data-id="${p.funcionario_id}">
+      <input name="nome" class="field" value="${esc(p.nome)}" required maxlength="120">
+      <select name="equipe" class="field">${Object.entries(EQUIPES).map(([k,v])=>`<option value="${k}"${k===p.equipe?' selected':''}>${v}</option>`).join('')}</select>
+      <select name="funcao" class="field">${Object.entries(FUNCOES).map(([k,v])=>`<option value="${k}"${k===p.funcao?' selected':''}>${v}</option>`).join('')}</select>
+      <select name="regime" class="field"><option value="5x2"${p.regime==='5x2'?' selected':''}>5x2</option><option value="6x1"${p.regime==='6x1'?' selected':''}>6x1</option></select>
+      <input name="carga" class="field small" type="number" min="20" max="44" step="0.5" value="${Number(p.carga_semanal_horas)}" title="Jornada semanal">
+      <label class="active-check"><input name="autonomia" type="checkbox"${p.autonomia_fechamento?' checked':''}> fecha sozinho</label>
+      <label class="active-check"><input name="ativo" type="checkbox"${p.ativo?' checked':''}> ativo</label>
+      <button class="button" type="submit">Salvar</button>
+      <button class="button danger remover" type="button">Remover</button>
+    </form>`).join('')}</div>
+    <form id="novaPessoa" class="scale-person nova">
+      <input name="nome" class="field" required maxlength="120" placeholder="Nome">
+      <select name="equipe" class="field">${Object.entries(EQUIPES).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select>
+      <select name="funcao" class="field">${Object.entries(FUNCOES).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select>
+      <select name="regime" class="field"><option value="5x2">5x2</option><option value="6x1">6x1</option></select>
+      <input name="carga" class="field small" type="number" min="20" max="44" step="0.5" value="44">
+      <label class="active-check"><input name="autonomia" type="checkbox"> fecha sozinho</label>
+      <button class="button" type="submit">Adicionar</button>
+    </form>
+  </details>`;
+}
+
+/* ----------------------------------------------------------------- bind */
+function bind(){
+  document.getElementById('recarregar').addEventListener('click',load);
+  document.querySelectorAll('.scale-tab').forEach(b=>b.addEventListener('click',()=>{EQUIPE_ATIVA=b.dataset.equipe;render();}));
+  document.querySelectorAll('.turno-cel').forEach(cel=>{
+    const chk=cel.querySelector('.chk-folga');
+    chk.addEventListener('change',()=>{cel.querySelector('.turno-campos').hidden=chk.checked;salvarTurno(cel);});
+    cel.querySelectorAll('input[type=time]').forEach(i=>i.addEventListener('change',()=>salvarTurno(cel)));
+  });
+  document.getElementById('salvarFuncionamento')?.addEventListener('click',salvarFuncionamento);
+  document.getElementById('novaPessoa')?.addEventListener('submit',e=>salvarPessoa(e,null));
+  document.querySelectorAll('.scale-person[data-id]').forEach(f=>{
+    f.addEventListener('submit',e=>salvarPessoa(e,Number(f.dataset.id)));
+    f.querySelector('.remover').addEventListener('click',()=>removerPessoa(Number(f.dataset.id),f.querySelector('[name=nome]').value));
+  });
+}
+
+/* ---------------------------------------------------------------- escrita */
+async function salvarTurno(cel){
+  const folga=cel.querySelector('.chk-folga').checked;
+  const ent=paraMin(cel.querySelector('.in-entrada').value);
+  let sai=paraMin(cel.querySelector('.in-saida').value);
+  const i0=paraMin(cel.querySelector('.in-int-ini').value);
+  let i1=paraMin(cel.querySelector('.in-int-fim').value);
+  if(!folga){
+    if(ent==null||sai==null){toast('Informe entrada e saída.',true);return;}
+    // fechamento depois da meia-noite vira minuto acima de 1440
+    if(sai<=ent)sai+=1440;
+    if(i1!=null&&i0!=null&&i1<=i0)i1+=1440;
+    if(i0!=null&&i1==null){toast('Informe o fim do intervalo.',true);return;}
+  }
+  const{error}=await sb.rpc('salvar_escala_turno',{
+    p_funcionario_id:Number(cel.dataset.func),p_dia_semana:Number(cel.dataset.dia),p_folga:folga,
+    p_entrada_min:folga?null:ent,p_saida_min:folga?null:sai,
+    p_intervalo_inicio_min:folga?null:i0,p_intervalo_fim_min:folga?null:i1});
+  if(error){toast('Não salvou: '+error.message,true);return;}
+  await load();
+}
+
+async function salvarPessoa(event,id){
+  event.preventDefault();
+  const f=new FormData(event.currentTarget);
+  const{error}=await sb.rpc('salvar_escala_funcionario',{
+    p_id:id,p_nome:f.get('nome'),p_equipe:f.get('equipe'),p_funcao:f.get('funcao'),
+    p_regime:f.get('regime'),p_carga:Number(f.get('carga')),
+    p_autonomia:f.get('autonomia')==='on',p_ativo:id==null?true:f.get('ativo')==='on',p_ordem:100});
+  if(error){toast('Não salvou: '+error.message,true);return;}
+  toast(id==null?'Pessoa adicionada.':'Cadastro atualizado.');
+  if(id==null)event.currentTarget.reset();
+  await load();
+}
+
+async function removerPessoa(id,nome){
+  if(!confirm(`Remover ${nome} da escala? Os turnos dessa pessoa serão apagados.`))return;
+  const{error}=await sb.rpc('excluir_escala_funcionario',{p_id:id});
+  if(error){toast('Não removeu: '+error.message,true);return;}
+  toast('Removido.');await load();
+}
+
+async function salvarFuncionamento(){
+  const linhas=[...document.querySelectorAll('.scale-config tr[data-dia]')];
+  for(const tr of linhas){
+    let fecha=paraMin(tr.querySelector('.fn-fecha').value);
+    const abre=paraMin(tr.querySelector('.fn-abre').value);
+    if(abre==null||fecha==null)continue;
+    if(fecha<=abre)fecha+=1440;
+    const{error}=await sb.rpc('salvar_escala_funcionamento',{
+      p_dia_semana:Number(tr.dataset.dia),p_abertura_min:abre,p_fechamento_min:fecha,
+      p_pre_min:Number(tr.querySelector('.fn-pre').value),
+      p_pos_min:Number(tr.querySelector('.fn-pos').value)});
+    if(error){toast('Não salvou: '+error.message,true);return;}
+  }
+  toast('Horários salvos.');await load();
+}
+
+/* ------------------------------------------------------------------ load */
+async function load(){
+  const seq=++LOAD_SEQ;
+  const [turnos,demanda,func,conf]=await Promise.all([
+    sb.from('app_escala_turnos').select('*'),
+    sb.from('app_escala_demanda').select('*'),
+    sb.from('app_escala_funcionamento').select('*'),
+    sb.from('app_escala_config').select('*')
+  ]);
+  if(seq!==LOAD_SEQ)return;
+  const error=turnos.error||demanda.error;
+  if(error){document.getElementById('main').innerHTML='<div class="erro">Não foi possível carregar as escalas.</div>';toast(error.message,true);return;}
+  TURNOS=turnos.data||[];DEMANDA=demanda.data||[];_pessoas=null;
+  FUNC=func.data||[];
+  CFG={};(conf.data||[]).forEach(r=>{CFG[r.chave]=r.valor;});
+  render();
+}
+
+(async()=>{AUTH=await SirFisherAuth.requireRole(sb);if(AUTH)await load();})();
+</script>
+</body>
+</html>

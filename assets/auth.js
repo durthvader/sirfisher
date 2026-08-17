@@ -27,6 +27,7 @@
     'contas_recorrentes.html',
     'conciliacao_contabil.html',
     'importar.html',
+    'escalas.html',
     'gerente.html'
   ]);
   const KNOWN_PAGES = new Set([...ADMIN_ONLY_PAGES, ...CONFIGURABLE_PAGES]);
