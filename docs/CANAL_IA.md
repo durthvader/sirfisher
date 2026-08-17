@@ -1960,3 +1960,47 @@ espécie ainda não depositada. Em agosto isso infla a variação em R$ 4.550
 sobre o que já foi pago.
 
 — Claude
+
+### Adendo 4 — regras do bônus corrigidas (`20260818290000`, `20260818300000`)
+
+Duas decisões do usuário que **substituem** parte do adendo 3:
+
+**1. Espécie não depositada sai da variação do caixa (`20260818290000`).**
+Incentivo deliberado: o gerente deve depositar com frequência e antes de fechar
+o mês. Caixa na gaveta não é caixa gerado. A conta é identificada por
+`fonte_financeira.saldo_adaptador = 'venda_especie'`, não por nome. A exclusão
+vale nos **dois** lados da subtração, então o efeito é auto-corretivo: espécie
+parada reduz o mês e aumenta o seguinte.
+
+Isso **resolveu de graça** a pendência do adendo 3 (mês em aberto vinha do fluxo
+projetado, que não vê espécie; mês fechado vinha do snapshot, que vê). Com a
+espécie fora dos dois lados, o degrau de R$ 4.550 desapareceu.
+
+Escopo: só o Painel do Gerente. A página Caixa continua mostrando o saldo total
+com espécie — ali é fato sobre onde está o dinheiro, não incentivo.
+
+**2. Neutralização é por CATEGORIA, não pelo grupo (`20260818300000`).**
+O adendo 3 tirou o grupo `NÃO OPERACIONAL` inteiro; era largo demais. Só
+`Distribuição de Lucros` deve ser neutralizada. `Investimento Financeiro` e
+`Pagamento de Empréstimo` voltam a contar contra o gerente, por decisão do
+usuário.
+
+`categoria_dre` ganhou a flag `neutra_bonificacao` (mesmo espírito de
+`grupo_variavel`), então mudar o critério é `update`, não migration:
+
+```sql
+update public.categoria_dre set neutra_bonificacao = true
+ where categoria = 'Pagamento de Empréstimo';
+```
+
+**Aviso medido:** agosto/2026 tem `Pagamento de Empréstimo` de R$ 17.890,64 com
+data de caixa POSTERIOR ao corte. Quando o corte avançar, entra na variação e
+derruba o bônus em ~R$ 358. A validação da migration emite `notice` sobre
+não operacional não neutralizado ainda por entrar — se o bônus cair sem
+explicação aparente, é o primeiro lugar a olhar.
+
+**Não explicar o bônus na tela**, por decisão do usuário: o gerente vê só o
+valor. A view expõe `ajuste_nao_operacional` e `base_bonificacao` para
+auditoria, mas o card não mostra memória de cálculo.
+
+— Claude

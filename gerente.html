@@ -152,13 +152,6 @@ function render(cur,rowsHist,dias,gastos,horas,saldoVar,cascata,parcial){
   const corCaixa=varCaixa==null?C.muted:(varCaixa>=0?C.green:C.red);
   const bonificacao=saldoVar?N(saldoVar.previsao_bonificacao):null;
   const corBonificacao=bonificacao==null||bonificacao===0?C.muted:(bonificacao>0?C.green:C.red);
-  // Movimento do sócio (distribuição de lucros, investimento) não conta para o
-  // bônus. Quando houver, dizer isso na tela em vez de deixar o valor sem
-  // explicação.
-  const ajusteBonif=saldoVar?N(saldoVar.ajuste_nao_operacional):0;
-  const hintBonif=ajusteBonif===0
-    ?'sujeito a mudanças'
-    :'sujeito a mudanças · desconsidera '+brl(Math.abs(ajusteBonif))+' não operacional';
   const resultadoReal=cascata?N(cascata.resultado_liquido_perc):null;
   const corResultadoReal=resultadoReal==null?C.muted:(resultadoReal>=0?C.green:C.red);
   const anterior=mesAnterior(cur.ano_mes);
@@ -175,7 +168,7 @@ function render(cur,rowsHist,dias,gastos,horas,saldoVar,cascata,parcial){
       <div class="summary-card"><div class="label">${esc(labelDia)}</div><div class="value" title="Valor exato: ${rs(vendaDia)}">${brl(vendaDia)}</div><div class="hint">${metaDia!=null?'Meta do dia: '+brl(metaDia)+(percDia!=null?' · '+pct(percDia):''):'Sem meta definida para o dia'}</div></div>
       <div class="summary-card"><div class="label">Ticket médio</div><div class="value">${rs(cur.ticket_medio)}</div><div class="hint">${(cur.qtd_vendas||0).toLocaleString('pt-BR')} vendas no mês</div></div>
       <div class="summary-card"><div class="label">Variação do caixa</div><div class="value" style="color:${corCaixa}">${varCaixa==null?'—':(varCaixa>=0?'▲ ':'▼ ')+pct(Math.abs(varCaixa))}</div><div class="hint">Fechamento projetado vs mês anterior</div></div>
-      <div class="summary-card"><div class="label">Previsão de bonificação</div><div class="value" style="color:${corBonificacao}">${rs(bonificacao)}</div><div class="hint">${esc(hintBonif)}</div></div>
+      <div class="summary-card"><div class="label">Previsão de bonificação</div><div class="value" style="color:${corBonificacao}">${rs(bonificacao)}</div><div class="hint">sujeito a mudanças</div></div>
       <div class="summary-card"><div class="label">Resultado líquido</div><div class="value" style="color:${corResultadoReal}">${pct(resultadoReal)}</div><div class="hint">Realizado até o corte</div></div>
     </div>
 
