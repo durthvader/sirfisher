@@ -420,7 +420,6 @@ function blocoEscala(){
           <input type="time" class="in-saida" value="${hhmm(t.saida_min)}" step="300" aria-label="Saída ${DIAS[d]}">
           <label class="turno-int"><span>int</span>
             <input type="time" class="in-int-ini" value="${hhmm(t.intervalo_inicio_min)}" step="300" aria-label="Início do intervalo ${DIAS[d]}">
-            <em class="int-fim">${t.intervalo_inicio_min!=null?'até '+hhmm(t.intervalo_inicio_min+60):''}</em>
           </label>
         </div>
       </td>`);
@@ -536,11 +535,6 @@ function bind(){
   document.querySelectorAll('.turno-cel').forEach(cel=>{
     const chk=cel.querySelector('.chk-folga');
     chk.addEventListener('change',()=>{cel.querySelector('.turno-campos').hidden=chk.checked;salvarTurno(cel);});
-    const ini=cel.querySelector('.in-int-ini'),fim=cel.querySelector('.int-fim');
-    if(ini&&fim)ini.addEventListener('input',()=>{
-      const v=paraMin(ini.value);
-      fim.textContent=v==null?'':'até '+hhmm(v+60);
-    });
     cel.querySelectorAll('input[type=time]').forEach(i=>i.addEventListener('change',()=>salvarTurno(cel)));
   });
   document.getElementById('salvarFuncionamento')?.addEventListener('click',salvarFuncionamento);
@@ -561,18 +555,35 @@ async function salvarTurno(cel){
   // minimo do art. 71 da CLT. Digitar os dois abria espaco para gravar
   // intervalo de duracao errada.
   let i1=i0==null?null:i0+60;
+  cel.classList.remove('nao-salvo');
   if(!folga){
     if(ent==null||sai==null){toast('Informe entrada e saída.',true);return;}
-    // fechamento depois da meia-noite vira minuto acima de 1440
+    // Saida antes da entrada significa fechamento depois da meia-noite. So que
+    // e tambem o que se ve NO MEIO de uma edicao: mudou a entrada e a saida
+    // ainda e a antiga. Somar 24h nos dois casos mandava ao banco jornadas de
+    // 20h+, e o usuario recebia na tela o nome da constraint em vez de saber
+    // que faltava ajustar a saida.
     if(sai<=ent)sai+=1440;
-    if(i0!=null&&i0<=ent){i0+=1440;i1=i0+60;}
-    if(i1!=null&&i1>=sai){toast('O intervalo termina depois da saída.',true);return;}
+    if(sai-ent>780||sai>1800){
+      cel.classList.add('nao-salvo');
+      toast(`Não salvei: ${hhmm(ent)} às ${hhmm(sai)} daria ${horas((sai-ent)/60)} na casa, acima do teto de 13h. Ajuste a saída.`,true);
+      return;
+    }
+    if(i0!=null){
+      if(i0<=ent)i0+=1440;
+      i1=i0+60;
+      if(i1>=sai){
+        cel.classList.add('nao-salvo');
+        toast(`Não salvei: o intervalo das ${hhmm(i0)} às ${hhmm(i1)} não cabe entre ${hhmm(ent)} e ${hhmm(sai)}.`,true);
+        return;
+      }
+    }
   }
   const{error}=await sb.rpc('salvar_escala_turno',{
     p_funcionario_id:Number(cel.dataset.func),p_dia_semana:Number(cel.dataset.dia),p_folga:folga,
     p_entrada_min:folga?null:ent,p_saida_min:folga?null:sai,
     p_intervalo_inicio_min:folga?null:i0,p_intervalo_fim_min:folga?null:i1});
-  if(error){toast('Não salvou: '+error.message,true);return;}
+  if(error){cel.classList.add('nao-salvo');toast('Não salvou: '+error.message,true);return;}
   await load();
 }
 
@@ -583,7 +594,7 @@ async function salvarPessoa(event,id){
     p_id:id,p_nome:f.get('nome'),p_equipe:f.get('equipe'),p_funcao:f.get('funcao'),
     p_regime:f.get('regime'),p_carga:Number(f.get('carga')),
     p_autonomia:f.get('autonomia')==='on',p_ativo:id==null?true:f.get('ativo')==='on',p_ordem:100});
-  if(error){toast('Não salvou: '+error.message,true);return;}
+  if(error){cel.classList.add('nao-salvo');toast('Não salvou: '+error.message,true);return;}
   toast(id==null?'Pessoa adicionada.':'Cadastro atualizado.');
   if(id==null)event.currentTarget.reset();
   await load();
@@ -607,7 +618,7 @@ async function salvarFuncionamento(){
       p_dia_semana:Number(tr.dataset.dia),p_abertura_min:abre,p_fechamento_min:fecha,
       p_pre_min:Number(tr.querySelector('.fn-pre').value),
       p_pos_min:Number(tr.querySelector('.fn-pos').value)});
-    if(error){toast('Não salvou: '+error.message,true);return;}
+    if(error){cel.classList.add('nao-salvo');toast('Não salvou: '+error.message,true);return;}
   }
   toast('Horários salvos.');await load();
 }
