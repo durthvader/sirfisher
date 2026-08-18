@@ -78,8 +78,9 @@ function presente(turno,minuto){
   if(turno.intervalo_inicio_min!=null&&minuto>=turno.intervalo_inicio_min&&minuto<turno.intervalo_fim_min)return false;
   return true;
 }
-function cobertura(equipe,dia,hora){
-  const minuto=hora*60+30;
+// minuto, nao hora: o mapa passou a mostrar meia em meia hora e o resumo e os
+// alertas amostram no meio de cada faixa para nao contar quem esta na virada.
+function cobertura(equipe,dia,minuto){
   return pessoas().filter(p=>p.equipe===equipe&&p.ativo&&presente(p.dias[dia],minuto)).length;
 }
 
@@ -119,14 +120,12 @@ function alertas(){
     for(let d=1;d<=7;d++){
       const f=funcionamento(d);
       let vazio=0;
-      for(let h=HORA_INI;h<HORA_FIM;h++){
-        const min=h*60+30;
-        if(min<f.abertura_min-f.pre_abertura_min||min>f.fechamento_min+f.pos_fechamento_min)continue;
-        if(cobertura(eq,d,h)===0)vazio++;
+      for(let m=HORA_INI*60;m<HORA_FIM*60;m+=30){
+        if(m+15<f.abertura_min-f.pre_abertura_min||m+15>f.fechamento_min+f.pos_fechamento_min)continue;
+        if(cobertura(eq,d,m+15)===0)vazio+=0.5;
       }
-      if(vazio)out.push({nivel:'erro',quem:EQUIPES[eq],texto:`${DIAS[d]}: ${vazio}h com a casa aberta e ninguém escalado.`});
-      const ultimo=Math.floor((f.fechamento_min+f.pos_fechamento_min-30)/60);
-      const noFecho=pessoas().filter(p=>p.equipe===eq&&p.ativo&&presente(p.dias[d],ultimo*60+30));
+      if(vazio)out.push({nivel:'erro',quem:EQUIPES[eq],texto:`${DIAS[d]}: ${horas(vazio)} com a casa aberta e ninguém escalado.`});
+      const noFecho=pessoas().filter(p=>p.equipe===eq&&p.ativo&&presente(p.dias[d],f.fechamento_min+f.pos_fechamento_min-15));
       if(noFecho.length===1&&!noFecho[0].autonomia_fechamento)out.push({nivel:'aviso',quem:EQUIPES[eq],texto:`${DIAS[d]}: ${esc(noFecho[0].nome)} encerra sozinho(a) e não está marcado(a) com autonomia de fechamento.`});
     }
   });
@@ -139,16 +138,15 @@ function resumo(equipe){
   let entregues=0,deficit=0,vazio=0,pior=0,piorQd=null;
   for(let d=1;d<=7;d++){
     const f=funcionamento(d);
-    for(let h=HORA_INI;h<HORA_FIM;h++){
-      const cov=cobertura(equipe,d,h);
-      entregues+=cov;
-      const min=h*60+30;
-      if(min<f.abertura_min-f.pre_abertura_min||min>f.fechamento_min+f.pos_fechamento_min)continue;
-      const dem=demandaDe(d,h);
+    for(let m=HORA_INI*60;m<HORA_FIM*60;m+=30){
+      const cov=cobertura(equipe,d,m+15);
+      entregues+=cov/2;                       // cada faixa vale meia hora
+      if(m+15<f.abertura_min-f.pre_abertura_min||m+15>f.fechamento_min+f.pos_fechamento_min)continue;
+      const dem=demandaDe(d,Math.floor(m/60));
       const req=Math.max(equipe==='cozinha'?2:1,dem/cap);
-      if(cov<req)deficit+=req-cov;
-      if(cov===0)vazio++;
-      else if(dem>2&&dem/cov>pior){pior=dem/cov;piorQd=`${DIAS[d]} ${String(h%24).padStart(2,'0')}h`;}
+      if(cov<req)deficit+=(req-cov)/2;
+      if(cov===0)vazio+=0.5;
+      else if(dem>2&&dem/cov>pior){pior=dem/cov;piorQd=`${DIAS[d]} ${hhmm(m)}`;}
     }
   }
   const banco=pessoas().filter(p=>p.equipe===equipe&&p.ativo)
@@ -221,13 +219,14 @@ function blocoCartaz(){
 function blocoMapa(){
   const cap=cfg('capacidade_vendas_hora_pessoa',4.18);
   let linhas='';
-  for(let h=HORA_INI;h<HORA_FIM;h++){
+  for(let m=HORA_INI*60;m<HORA_FIM*60;m+=30){
+    const h=Math.floor(m/60),meia=m%60===30;
     let temAlgo=false;
     let cels='';
     for(let d=1;d<=7;d++){
-      const f=funcionamento(d),min=h*60+30;
-      const dentro=min>=f.abertura_min-f.pre_abertura_min&&min<=f.fechamento_min+f.pos_fechamento_min;
-      const cov=cobertura(EQUIPE_ATIVA,d,h),dem=demandaDe(d,h);
+      const f=funcionamento(d),amostra=m+15;
+      const dentro=amostra>=f.abertura_min-f.pre_abertura_min&&amostra<=f.fechamento_min+f.pos_fechamento_min;
+      const cov=cobertura(EQUIPE_ATIVA,d,amostra),dem=demandaDe(d,h);
       if(cov||dem>0.2)temAlgo=true;
       if(!dentro){cels+='<td class="heat off"></td>';continue;}
       const carga=cov?dem/cov:null;
@@ -236,9 +235,9 @@ function blocoMapa(){
       else if(carga>cap*1.25)cls='alto';
       else if(carga>cap)cls='medio';
       else if(carga<cap*0.35)cls='folgado';
-      cels+=`<td class="heat ${cls}" title="${DIAS[d]} ${String(h%24).padStart(2,'0')}h — ${cov} pessoa(s), ${dem.toFixed(1)} vendas/h${carga!=null?', '+carga.toFixed(1)+' por pessoa':''}"><span class="q">${cov||''}</span><span class="d">${dem>=0.5?dem.toFixed(0):''}</span></td>`;
+      cels+=`<td class="heat ${cls}" title="${DIAS[d]} ${hhmm(m)} — ${cov} pessoa(s), ${dem.toFixed(1)} vendas/h${carga!=null?', '+carga.toFixed(1)+' por pessoa':''}"><span class="q">${cov||''}</span>${meia?'':`<span class="d">${dem>=0.5?dem.toFixed(0):''}</span>`}</td>`;
     }
-    if(temAlgo)linhas+=`<tr><th>${String(h%24).padStart(2,'0')}h</th>${cels}</tr>`;
+    if(temAlgo)linhas+=`<tr class="${meia?'meia':'cheia'}"><th>${meia?'':hhmm(m)}</th>${cels}</tr>`;
   }
   return `<section class="panel">
     <div class="panel-head"><div><h3>Cobertura contra o movimento</h3><div class="hint">Número grande = pessoas escaladas. Número pequeno = vendas por hora esperadas naquele horário.</div></div></div>
