@@ -426,7 +426,7 @@ function blocoEscala(){
       </td>`);
     }
     const banco=Number(p.banco_horas_semana||0);
-    return `<tr><th class="pessoa"><strong>${esc(p.nome)}</strong><span>${esc(FUNCOES[p.funcao]||p.funcao)} · ${esc(p.regime)}${p.autonomia_fechamento?' · fecha sozinho':''}</span><span class="pessoa-horas ${Math.abs(banco)>2?'fora':''}">${horas(p.horas_semana)} / ${horas(p.carga_semanal_horas)}${banco?` (${horas(banco)})`:''}</span></th>${cels.join('')}</tr>`;
+    return `<tr><th class="pessoa"><strong>${esc(p.nome)}</strong><span>${esc(FUNCOES[p.funcao]||p.funcao)} · ${esc(p.regime)}</span><span class="pessoa-horas ${Math.abs(banco)>2?'fora':''}">${horas(p.horas_semana)} / ${horas(p.carga_semanal_horas)}${banco?` (${horas(banco)})`:''}</span></th>${cels.join('')}</tr>`;
   }).join('');
   return `<section class="panel">
     <div class="panel-head"><div><h3>Escala semanal — ${EQUIPES[EQUIPE_ATIVA]}</h3><div class="hint">Entrada, saída e o intervalo de 1h. A diferença para a jornada contratual vira banco de horas.</div></div></div>

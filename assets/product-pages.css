@@ -253,6 +253,11 @@ header{background:var(--header);color:#fff;position:sticky;top:0;z-index:10}
 .turno-folga{display:flex;align-items:center;gap:4px;font-size:10px;color:var(--muted);margin-bottom:4px}
 .turno-campos{display:grid;grid-template-columns:1fr 1fr;gap:3px}
 .turno-campos input{font:inherit;font-size:10.5px;padding:3px 4px;border:1px solid var(--border);border-radius:5px;width:100%;font-variant-numeric:tabular-nums}
+/* O botao de relogio do input[type=time] come metade da largura util da
+   celula. Escondido, o campo continua editavel por digitacao e, no celular,
+   o teclado nativo de hora abre igual no foco. */
+.turno-campos input[type=time]::-webkit-calendar-picker-indicator{display:none}
+.turno-campos input[type=time]{-webkit-appearance:none;appearance:none;min-width:0}
 .turno-int{grid-column:1/-1;display:flex;align-items:center;gap:4px;font-size:9.5px;color:var(--muted)}
 .turno-int input{flex:1;min-width:0;opacity:.75}
 .turno-int .int-fim{font-style:normal;white-space:nowrap;font-variant-numeric:tabular-nums}
