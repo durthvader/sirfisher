@@ -221,8 +221,10 @@ function blocoEscala(){
         <div class="turno-campos"${t.folga?' hidden':''}>
           <input type="time" class="in-entrada" value="${hhmm(t.entrada_min)}" step="300" aria-label="Entrada ${DIAS[d]}">
           <input type="time" class="in-saida" value="${hhmm(t.saida_min)}" step="300" aria-label="Saída ${DIAS[d]}">
-          <input type="time" class="in-int-ini" value="${hhmm(t.intervalo_inicio_min)}" step="300" aria-label="Início do intervalo ${DIAS[d]}">
-          <input type="time" class="in-int-fim" value="${hhmm(t.intervalo_fim_min)}" step="300" aria-label="Fim do intervalo ${DIAS[d]}">
+          <label class="turno-int"><span>int</span>
+            <input type="time" class="in-int-ini" value="${hhmm(t.intervalo_inicio_min)}" step="300" aria-label="Início do intervalo ${DIAS[d]}">
+            <em class="int-fim">${t.intervalo_inicio_min!=null?'até '+hhmm(t.intervalo_inicio_min+60):''}</em>
+          </label>
         </div>
       </td>`);
     }
@@ -290,6 +292,11 @@ function bind(){
   document.querySelectorAll('.turno-cel').forEach(cel=>{
     const chk=cel.querySelector('.chk-folga');
     chk.addEventListener('change',()=>{cel.querySelector('.turno-campos').hidden=chk.checked;salvarTurno(cel);});
+    const ini=cel.querySelector('.in-int-ini'),fim=cel.querySelector('.int-fim');
+    if(ini&&fim)ini.addEventListener('input',()=>{
+      const v=paraMin(ini.value);
+      fim.textContent=v==null?'':'até '+hhmm(v+60);
+    });
     cel.querySelectorAll('input[type=time]').forEach(i=>i.addEventListener('change',()=>salvarTurno(cel)));
   });
   document.getElementById('salvarFuncionamento')?.addEventListener('click',salvarFuncionamento);
@@ -305,14 +312,17 @@ async function salvarTurno(cel){
   const folga=cel.querySelector('.chk-folga').checked;
   const ent=paraMin(cel.querySelector('.in-entrada').value);
   let sai=paraMin(cel.querySelector('.in-saida').value);
-  const i0=paraMin(cel.querySelector('.in-int-ini').value);
-  let i1=paraMin(cel.querySelector('.in-int-fim').value);
+  let i0=paraMin(cel.querySelector('.in-int-ini').value);
+  // O fim do intervalo nao e digitado: e sempre a entrada dele + 1h, que e o
+  // minimo do art. 71 da CLT. Digitar os dois abria espaco para gravar
+  // intervalo de duracao errada.
+  let i1=i0==null?null:i0+60;
   if(!folga){
     if(ent==null||sai==null){toast('Informe entrada e saída.',true);return;}
     // fechamento depois da meia-noite vira minuto acima de 1440
     if(sai<=ent)sai+=1440;
-    if(i1!=null&&i0!=null&&i1<=i0)i1+=1440;
-    if(i0!=null&&i1==null){toast('Informe o fim do intervalo.',true);return;}
+    if(i0!=null&&i0<=ent){i0+=1440;i1=i0+60;}
+    if(i1!=null&&i1>=sai){toast('O intervalo termina depois da saída.',true);return;}
   }
   const{error}=await sb.rpc('salvar_escala_turno',{
     p_funcionario_id:Number(cel.dataset.func),p_dia_semana:Number(cel.dataset.dia),p_folga:folga,
