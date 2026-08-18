@@ -45,7 +45,17 @@ let AUTH=null,TURNOS=[],DEMANDA=[],FUNC=[],CFG={},EQUIPE_ATIVA='salao',VISTA='cu
 function toast(msg,erro=false){const el=document.getElementById('toast');el.textContent=msg;el.className='toast show'+(erro?' err':'');setTimeout(()=>el.classList.remove('show'),2800);}
 function hhmm(min){if(min==null||min==='')return '';const m=Math.round(Number(min));return `${String(Math.floor(m/60)%24).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;}
 function paraMin(txt){if(!txt)return null;const [h,m]=String(txt).split(':').map(Number);if(!Number.isFinite(h)||!Number.isFinite(m))return null;return h*60+m;}
-function horas(v){const n=Number(v||0);const h=Math.floor(Math.abs(n));const m=Math.round((Math.abs(n)-h)*60);return `${n<0?'-':''}${h}h${m?String(m).padStart(2,'0'):''}`;}
+// Arredonda em MINUTOS e so depois separa hora e minuto. Arredondar a fracao
+// primeiro imprimia "43h60": horas_trabalhadas e numeric(6,3), entao cinco dias
+// somados perdem ate 0,0025h e 44h vira 43,9975 — cuja fracao arredonda para
+// 60min. O mesmo motivo fazia o banco de horas zerado sair como "-0h".
+function horas(v){
+  const n=Number(v||0);
+  let m=Math.round(Math.abs(n)*60);
+  const h=Math.floor(m/60);
+  m%=60;
+  return `${n<0&&(h||m)?'-':''}${h}h${m?String(m).padStart(2,'0'):''}`;
+}
 function cfg(chave,padrao){const v=CFG[chave];return v==null?padrao:Number(v);}
 
 /* ------------------------------------------------------------------ modelo */
@@ -425,7 +435,7 @@ function blocoEscala(){
       </td>`);
     }
     const banco=Number(p.banco_horas_semana||0);
-    return `<tr><th class="pessoa"><strong>${esc(p.nome)}</strong><span>${esc(FUNCOES[p.funcao]||p.funcao)} · ${esc(p.regime)}</span><span class="pessoa-horas ${Math.abs(banco)>2?'fora':''}">${horas(p.horas_semana)} / ${horas(p.carga_semanal_horas)}${banco?` (${horas(banco)})`:''}</span></th>${cels.join('')}</tr>`;
+    return `<tr><th class="pessoa"><strong>${esc(p.nome)}</strong><span>${esc(FUNCOES[p.funcao]||p.funcao)} · ${esc(p.regime)}</span><span class="pessoa-horas ${Math.abs(banco)>2?'fora':''}">${horas(p.horas_semana)} / ${horas(p.carga_semanal_horas)}${Math.round(banco*60)?` (${horas(banco)})`:''}</span></th>${cels.join('')}</tr>`;
   }).join('');
   return `<section class="panel">
     <div class="panel-head"><div><h3>Escala semanal — ${EQUIPES[EQUIPE_ATIVA]}</h3><div class="hint">Entrada, saída e o intervalo de 1h. A diferença para a jornada contratual vira banco de horas.</div></div></div>
