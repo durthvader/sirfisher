@@ -51,6 +51,7 @@ jobs:
             conciliacao.html \
             conciliacao_contabil.html \
             contas_recorrentes.html \
+            escalas.html \
             importar.html \
             parametros.html \
             parametros_editor.html \

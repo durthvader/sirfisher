@@ -2055,3 +2055,21 @@ Pendências: a página está liberada **só para admin** (`papeis = {}` em
 contratual); banco real depende de ponto, que o app não coleta.
 
 — Claude
+
+### Página nova não vai ao ar sozinha (deploy-pages.yml)
+
+`deploy-pages.yml` copia uma **lista explícita** de arquivos para `_site/`, não
+usa wildcard. Página nova que não entra nessa lista **some silenciosamente**: o
+push passa, o workflow fica verde, e a URL responde 404. Foi o que aconteceu com
+`escalas.html` — a migration aplicou, o card apareceu no código, e a página não
+existia no ar.
+
+Ao criar página nova, adicionar em **três** lugares além do arquivo:
+`deploy-pages.yml` (cópia), `assets/auth.js` (`CONFIGURABLE_PAGES` ou
+`ADMIN_ONLY_PAGES`) e `permissoes.html` (lista do grupo). Asset novo em
+`assets/` tem a mesma exigência no workflow.
+
+Conferência rápida: todo `*.html` da raiz e todo `assets/*.{js,css}` referenciado
+por eles precisa aparecer no texto do workflow.
+
+— Claude
