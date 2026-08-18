@@ -58,7 +58,11 @@ function pessoas(){
     if(!mapa.has(t.funcionario_id))mapa.set(t.funcionario_id,{...t,dias:{}});
     mapa.get(t.funcionario_id).dias[t.dia_semana]=t;
   });
-  _pessoas=[...mapa.values()].sort((a,b)=>a.equipe.localeCompare(b.equipe)||a.ordem-b.ordem||a.nome.localeCompare(b.nome,'pt-BR'));
+  // Chefia primeiro dentro de cada equipe, depois a ordem manual, depois nome.
+  const chefia=f=>(f==='gerente_salao'||f==='lider_cozinha')?0:1;
+  _pessoas=[...mapa.values()].sort((a,b)=>
+    a.equipe.localeCompare(b.equipe)||chefia(a.funcao)-chefia(b.funcao)
+    ||a.ordem-b.ordem||a.nome.localeCompare(b.nome,'pt-BR'));
   return _pessoas;
 }
 function demandaDe(dia,hora){
@@ -161,6 +165,7 @@ function render(){
     <div class="page-intro"><div><h2>Escalas</h2><p>A jornada de cada pessoa contra a curva de movimento real da casa. A demanda vem do faturamento dos últimos 12 meses, deslocada ${cfg('defasagem_venda_pagamento_min',75)} min para o horário em que o pedido acontece — não o do pagamento.</p></div><div class="actions"><button id="recarregar" class="button secondary">Atualizar</button></div></div>
     <div class="scale-tabs">${Object.entries(EQUIPES).map(([k,v])=>`<button class="scale-tab${k===EQUIPE_ATIVA?' active':''}" data-equipe="${k}">${v}</button>`).join('')}</div>
     ${blocoResumo()}
+    ${blocoCartaz()}
     ${blocoMapa()}
     ${blocoEscala()}
     ${blocoAlertas(alertasLista,erros)}
@@ -178,6 +183,39 @@ function blocoResumo(){
     <div class="summary-card ${Math.abs(r.banco)>4?'pending':'paid'}"><div class="label">Banco de horas da semana</div><div class="value">${horas(r.banco)}</div><div class="note">Soma do que a escala passa ou falta da jornada</div></div>
   </div>
   ${r.piorQd?`<div class="scale-worst">Momento mais apertado: <strong>${r.piorQd}</strong> — ${r.pior.toFixed(1)} vendas/hora por pessoa (o teto calibrado é ${cfg('capacidade_vendas_hora_pessoa',4.18).toFixed(1)}).</div>`:''}`;
+}
+
+// Cartaz da semana: versao limpa, para tirar print e mandar nos grupos.
+function blocoCartaz(){
+  const lista=pessoas().filter(p=>p.equipe===EQUIPE_ATIVA&&p.ativo);
+  if(!lista.length)return '';
+  const linhas=lista.map(p=>{
+    const cels=[];
+    for(let d=1;d<=7;d++){
+      const t=p.dias[d]||{folga:true};
+      cels.push(t.folga
+        ?'<td class="cz-folga">folga</td>'
+        :`<td><b>${hhmm(t.entrada_min)}</b><i>${hhmm(t.saida_min)}</i>${
+            t.intervalo_inicio_min!=null?`<u>int ${hhmm(t.intervalo_inicio_min)}</u>`:''}</td>`);
+    }
+    const chefe=p.funcao==='gerente_salao'||p.funcao==='lider_cozinha';
+    return `<tr><th${chefe?' class="chefe"':''}>${esc(p.nome)}<span>${
+      esc(FUNCOES[p.funcao]||p.funcao)}</span></th>${cels.join('')}</tr>`;
+  }).join('');
+  const porDia=[];
+  for(let d=1;d<=7;d++)porDia.push(lista.filter(p=>!(p.dias[d]||{folga:true}).folga).length);
+  return `<section class="panel cartaz" id="cartaz">
+    <div class="cartaz-head">
+      <div><h3>Escala da semana — ${EQUIPES[EQUIPE_ATIVA]}</h3>
+      <span>Entrada e saída · o horário menor é o início do intervalo de 1h</span></div>
+      <button id="imprimir" class="button secondary">Imprimir</button>
+    </div>
+    <div class="scroll"><table class="cartaz-grid">
+      <thead><tr><th></th>${DIAS.slice(1).map(d=>`<th>${d}</th>`).join('')}</tr></thead>
+      <tbody>${linhas}</tbody>
+      <tfoot><tr><th>na casa</th>${porDia.map(n=>`<td>${n}</td>`).join('')}</tr></tfoot>
+    </table></div>
+  </section>`;
 }
 
 function blocoMapa(){
@@ -288,6 +326,7 @@ function blocoCadastro(){
 /* ----------------------------------------------------------------- bind */
 function bind(){
   document.getElementById('recarregar').addEventListener('click',load);
+  document.getElementById('imprimir')?.addEventListener('click',()=>window.print());
   document.querySelectorAll('.scale-tab').forEach(b=>b.addEventListener('click',()=>{EQUIPE_ATIVA=b.dataset.equipe;render();}));
   document.querySelectorAll('.turno-cel').forEach(cel=>{
     const chk=cel.querySelector('.chk-folga');

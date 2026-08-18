@@ -230,3 +230,26 @@ header{background:var(--header);color:#fff;position:sticky;top:0;z-index:10}
   .scale-person .field,.scale-person .field.small{min-width:0;width:100%;flex:auto}
   .scale-person .button{width:100%}
 }
+/* Cartaz da semana — feito para print e screenshot em grupo */
+.cartaz-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:14px}
+.cartaz-head h3{font-size:15px}
+.cartaz-head span{display:block;font-size:11px;color:var(--muted);margin-top:3px}
+.cartaz-grid{border-collapse:separate;border-spacing:3px;width:100%;min-width:640px}
+.cartaz-grid thead th{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700;padding:2px 0 6px;text-align:center}
+.cartaz-grid tbody th{text-align:left;padding:9px 11px;background:#f4f6f7;border-radius:8px;font-size:12.5px;font-weight:700;min-width:132px;line-height:1.25}
+.cartaz-grid tbody th.chefe{background:#e6f1f6;box-shadow:inset 3px 0 0 var(--teal)}
+.cartaz-grid tbody th span{display:block;font-size:10px;font-weight:400;color:var(--muted);margin-top:2px}
+.cartaz-grid td{text-align:center;padding:8px 4px;background:#fbfcfc;border:1px solid var(--border);border-radius:8px;font-variant-numeric:tabular-nums;line-height:1.3}
+.cartaz-grid td b{display:block;font-size:13px;font-weight:700}
+.cartaz-grid td i{display:block;font-size:12px;font-style:normal;color:#4a5a63}
+.cartaz-grid td u{display:block;font-size:9.5px;text-decoration:none;color:var(--muted);margin-top:2px}
+.cartaz-grid td.cz-folga{background:#f4f5f6;color:var(--muted);font-style:italic;font-size:11.5px}
+.cartaz-grid tfoot th{background:none;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);text-align:right;padding-right:10px;min-width:0}
+.cartaz-grid tfoot td{background:none;border:0;font-size:12px;font-weight:700;color:var(--muted);padding-top:4px}
+@media print{
+  header,.tabs,.scale-tabs,.summary-grid,.scale-worst,#cartaz .button,
+  .panel:not(.cartaz),.scale-config,.toast{display:none!important}
+  .app,.cartaz{margin:0;padding:0;border:0;box-shadow:none}
+  .cartaz-grid{min-width:0}
+  body{background:#fff}
+}
