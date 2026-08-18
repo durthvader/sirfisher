@@ -2073,3 +2073,32 @@ Conferência rápida: todo `*.html` da raiz e todo `assets/*.{js,css}` referenci
 por eles precisa aparecer no texto do workflow.
 
 — Claude
+
+### Escalas: cobertura virou gráfico, e o piso da cozinha caiu para 1
+
+O mapa de calor de `escalas.html` pedia duas leituras numéricas por célula
+(gente escalada e vendas/hora) e deixava a divisão entre elas para o leitor.
+Trocado por sete mini-gráficos, um por dia: a demanda é convertida para
+**pessoas necessárias** (`vendas_hora / capacidade_vendas_hora_pessoa`), o que
+põe as duas séries na mesma unidade e num eixo só. A tabela virou alternador,
+com um número por célula. Detalhes que valem lembrar:
+
+- **`serie(equipe, dia)`** é a fonte única, de 5 em 5 min, usada por resumo,
+  alertas, gráfico e tabela. Antes cada um amostrava do seu jeito (hora cheia
+  aqui, meia hora ali) e o déficit do cartão não batia com o do mapa.
+- A demanda só existe **agregada por hora**; `demandaMin()` interpola entre os
+  centros das horas. Sem isso as duas metades de uma hora repetem o mesmo valor.
+- O SVG usa `preserveAspectRatio="none"`, então **nenhum texto vive dentro
+  dele** e todo traço precisa de `vector-effect: non-scaling-stroke`. Eixo e
+  escala são HTML posicionado por cima.
+- **Piso removido:** o painel exigia 2 pessoas na cozinha o tempo todo. Isso
+  era arbitrário — criava 44,5 pessoas-hora/semana de exigência que a demanda
+  não pede e cobrava 24h de déficit de uma escala dimensionada pela demanda.
+  Agora o piso é 1 nas duas equipes ("tem de ter alguém com a casa aberta").
+
+A malha de 5 min revelou o que a de 30 escondia: um vão real de 5 minutos com a
+cozinha vazia (quarta, 14:50, três intervalos cruzados) e ~7,7h/semana com
+alguém sozinho tendo colega disponível na janela. Corrigido escalonando os
+intervalos — sem mexer em folga, entrada, saída ou carga semanal.
+
+— Claude
