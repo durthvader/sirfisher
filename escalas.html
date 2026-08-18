@@ -127,6 +127,49 @@ function janelaSemana(){
          Math.min(HORA_FIM*60,Math.ceil(x1/60)*60+30)];
 }
 
+// Agrupa os minutos vazios em faixas contiguas. Um alerta por faixa, e nao um
+// total do dia: dois vaos de 5 min em horarios diferentes tem causas
+// diferentes e viram consertos diferentes.
+function vaos(equipe,dia){
+  const f=funcionamento(dia);
+  const ji=f.abertura_min-f.pre_abertura_min,jf=f.fechamento_min+f.pos_fechamento_min;
+  const out=[];
+  let atual=null;
+  serie(equipe,dia).forEach(p=>{
+    if(p.dentro&&p.cov===0){
+      if(atual)atual.fim=p.m+PASSO;
+      else atual={ini:p.m,fim:p.m+PASSO};
+    }else if(atual){out.push(atual);atual=null;}
+  });
+  if(atual)out.push(atual);
+  return out.map(v=>({ini:Math.max(ji,v.ini),fim:Math.min(jf,v.fim)}));
+}
+// Constatar o vao nao ajuda a consertar. O que resolve e dizer onde a janela
+// termina e quem foi embora antes dela — ou quem entrou em intervalo junto.
+function causaDoVao(equipe,dia,v){
+  const f=funcionamento(dia);
+  const ji=f.abertura_min-f.pre_abertura_min,jf=f.fechamento_min+f.pos_fechamento_min;
+  const noDia=pessoas().filter(p=>p.equipe===equipe&&p.ativo
+    &&p.dias[dia]&&!p.dias[dia].folga&&p.dias[dia].entrada_min!=null);
+  if(!noDia.length)return 'Ninguém da equipe está escalado neste dia.';
+  if(v.fim>=jf){
+    const ultima=Math.max(...noDia.map(p=>p.dias[dia].saida_min));
+    return `A última saída é ${hhmm(ultima)}, mas a janela vai até ${hhmm(jf)} — fechamento ${hhmm(f.fechamento_min)} mais ${f.pos_fechamento_min}min de pós-fechamento.`;
+  }
+  if(v.ini<=ji){
+    const primeira=Math.min(...noDia.map(p=>p.dias[dia].entrada_min));
+    return `A primeira entrada é ${hhmm(primeira)}, mas a janela abre ${hhmm(ji)} — abertura ${hhmm(f.abertura_min)} menos ${f.pre_abertura_min}min de pré-abertura.`;
+  }
+  const meio=(v.ini+v.fim)/2;
+  const emInt=noDia.filter(p=>{
+    const t=p.dias[dia];
+    return t.entrada_min<=meio&&meio<t.saida_min
+      &&t.intervalo_inicio_min!=null&&meio>=t.intervalo_inicio_min&&meio<t.intervalo_fim_min;
+  });
+  if(emInt.length)return `${esc(emInt.map(p=>p.nome).join(', '))} em intervalo ao mesmo tempo — escalonar um deles resolve.`;
+  return 'Nenhum turno cobre esse horário: um turno precisa começar antes ou terminar depois.';
+}
+
 /* ------------------------------------------------------- checagens da CLT */
 function alertas(){
   const out=[];
@@ -162,9 +205,8 @@ function alertas(){
   Object.keys(EQUIPES).forEach(eq=>{
     for(let d=1;d<=7;d++){
       const f=funcionamento(d);
-      let vazio=0;
-      for(const p of serie(eq,d))if(p.dentro&&p.cov===0)vazio+=PASSO/60;
-      if(vazio)out.push({nivel:'erro',quem:EQUIPES[eq],texto:`${DIAS[d]}: ${horas(vazio)} com a casa aberta e ninguém escalado.`});
+      vaos(eq,d).forEach(v=>out.push({nivel:'erro',quem:EQUIPES[eq],
+        texto:`${DIAS[d]}, ${hhmm(v.ini)}–${hhmm(v.fim)}: ${horas((v.fim-v.ini)/60)} com a casa aberta e ninguém escalado. ${causaDoVao(eq,d,v)}`}));
       const noFecho=pessoas().filter(p=>p.equipe===eq&&p.ativo&&presente(p.dias[d],f.fechamento_min+f.pos_fechamento_min-15));
       if(noFecho.length===1&&!noFecho[0].autonomia_fechamento)out.push({nivel:'aviso',quem:EQUIPES[eq],texto:`${DIAS[d]}: ${esc(noFecho[0].nome)} encerra sozinho(a) e não está marcado(a) com autonomia de fechamento.`});
     }
