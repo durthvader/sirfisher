@@ -95,6 +95,7 @@ jobs:
             contas_recorrentes.html \
             despesas.html \
             dre.html \
+            escalas.html \
             gerenciador_de_para.html \
             gerente.html \
             importar.html \
