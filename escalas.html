@@ -38,8 +38,9 @@ const FUNCOES={gerente_salao:'Gerente de salão',garcom:'Garçom',lider_cozinha:
 // o dado de fora. Aqui ela e recalculada no navegador para que a edicao de um
 // turno mostre o efeito na hora, sem ida e volta ao banco a cada celula.
 const HORA_INI=7,HORA_FIM=26;
+const PASSO=5;   // resolucao da amostragem, em minutos
 
-let AUTH=null,TURNOS=[],DEMANDA=[],FUNC=[],CFG={},EQUIPE_ATIVA='salao',LOAD_SEQ=0;
+let AUTH=null,TURNOS=[],DEMANDA=[],FUNC=[],CFG={},EQUIPE_ATIVA='salao',VISTA='curva',LOAD_SEQ=0;
 
 function toast(msg,erro=false){const el=document.getElementById('toast');el.textContent=msg;el.className='toast show'+(erro?' err':'');setTimeout(()=>el.classList.remove('show'),2800);}
 function hhmm(min){if(min==null||min==='')return '';const m=Math.round(Number(min));return `${String(Math.floor(m/60)%24).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;}
@@ -83,6 +84,48 @@ function presente(turno,minuto){
 function cobertura(equipe,dia,minuto){
   return pessoas().filter(p=>p.equipe===equipe&&p.ativo&&presente(p.dias[dia],minuto)).length;
 }
+// A venda so existe agregada por hora cheia. Cada balde representa o meio da
+// hora (h:30); entre dois meios a curva e interpolada, senao o movimento vira
+// degrau e as duas metades de uma hora repetem o mesmo numero.
+function demandaMin(dia,minuto){
+  const t=minuto/60-0.5,h0=Math.floor(t),f=t-h0;
+  return demandaDe(dia,h0)*(1-f)+demandaDe(dia,h0+1)*f;
+}
+// Serie unica do dia, consumida pelo resumo, pelos alertas, pelo grafico e pela
+// tabela. Antes cada um amostrava do seu jeito e o deficit do cartao nao batia
+// com o que o mapa mostrava.
+let _serie=null;
+function serie(equipe,dia){
+  if(!_serie)_serie=new Map();
+  const k=equipe+'|'+dia;
+  if(_serie.has(k))return _serie.get(k);
+  const cap=cfg('capacidade_vendas_hora_pessoa',4.18);
+  // Piso 1 nas duas equipes: so "tem de ter alguem com a casa aberta". O piso
+  // de 2 na cozinha era arbitrario — criava 44,5 pessoas-hora de exigencia por
+  // semana que a demanda nao pede, e cobrava 24h de deficit de uma escala que
+  // foi montada, e aplicada, com a regra de dimensionar pela demanda.
+  const piso=1;
+  const f=funcionamento(dia);
+  const ab=f.abertura_min-f.pre_abertura_min,fe=f.fechamento_min+f.pos_fechamento_min;
+  const pts=[];
+  for(let m=HORA_INI*60;m<HORA_FIM*60;m+=PASSO){
+    const meio=m+PASSO/2,dem=demandaMin(dia,meio);
+    pts.push({m,dem,cov:cobertura(equipe,dia,meio),
+      req:Math.max(piso,dem/cap),dentro:meio>=ab&&meio<=fe});
+  }
+  _serie.set(k,pts);
+  return pts;
+}
+function janelaSemana(){
+  let x0=24*60,x1=0;
+  for(let d=1;d<=7;d++){
+    const f=funcionamento(d);
+    x0=Math.min(x0,f.abertura_min-f.pre_abertura_min);
+    x1=Math.max(x1,f.fechamento_min+f.pos_fechamento_min);
+  }
+  return[Math.max(HORA_INI*60,Math.floor(x0/60)*60-30),
+         Math.min(HORA_FIM*60,Math.ceil(x1/60)*60+30)];
+}
 
 /* ------------------------------------------------------- checagens da CLT */
 function alertas(){
@@ -120,10 +163,7 @@ function alertas(){
     for(let d=1;d<=7;d++){
       const f=funcionamento(d);
       let vazio=0;
-      for(let m=HORA_INI*60;m<HORA_FIM*60;m+=30){
-        if(m+15<f.abertura_min-f.pre_abertura_min||m+15>f.fechamento_min+f.pos_fechamento_min)continue;
-        if(cobertura(eq,d,m+15)===0)vazio+=0.5;
-      }
+      for(const p of serie(eq,d))if(p.dentro&&p.cov===0)vazio+=PASSO/60;
       if(vazio)out.push({nivel:'erro',quem:EQUIPES[eq],texto:`${DIAS[d]}: ${horas(vazio)} com a casa aberta e ninguém escalado.`});
       const noFecho=pessoas().filter(p=>p.equipe===eq&&p.ativo&&presente(p.dias[d],f.fechamento_min+f.pos_fechamento_min-15));
       if(noFecho.length===1&&!noFecho[0].autonomia_fechamento)out.push({nivel:'aviso',quem:EQUIPES[eq],texto:`${DIAS[d]}: ${esc(noFecho[0].nome)} encerra sozinho(a) e não está marcado(a) com autonomia de fechamento.`});
@@ -134,20 +174,14 @@ function alertas(){
 
 /* --------------------------------------------------------------- resumo */
 function resumo(equipe){
-  const cap=cfg('capacidade_vendas_hora_pessoa',4.18);
+  const passo=PASSO/60;
   let entregues=0,deficit=0,vazio=0,pior=0,piorQd=null;
-  for(let d=1;d<=7;d++){
-    const f=funcionamento(d);
-    for(let m=HORA_INI*60;m<HORA_FIM*60;m+=30){
-      const cov=cobertura(equipe,d,m+15);
-      entregues+=cov/2;                       // cada faixa vale meia hora
-      if(m+15<f.abertura_min-f.pre_abertura_min||m+15>f.fechamento_min+f.pos_fechamento_min)continue;
-      const dem=demandaDe(d,Math.floor(m/60));
-      const req=Math.max(equipe==='cozinha'?2:1,dem/cap);
-      if(cov<req)deficit+=(req-cov)/2;
-      if(cov===0)vazio+=0.5;
-      else if(dem>2&&dem/cov>pior){pior=dem/cov;piorQd=`${DIAS[d]} ${hhmm(m)}`;}
-    }
+  for(let d=1;d<=7;d++)for(const p of serie(equipe,d)){
+    entregues+=p.cov*passo;
+    if(!p.dentro)continue;
+    if(p.cov<p.req)deficit+=(p.req-p.cov)*passo;
+    if(p.cov===0)vazio+=passo;
+    else if(p.dem>2&&p.dem/p.cov>pior){pior=p.dem/p.cov;piorQd=`${DIAS[d]} ${hhmm(p.m)}`;}
   }
   const banco=pessoas().filter(p=>p.equipe===equipe&&p.ativo)
     .reduce((s,p)=>s+Number(p.banco_horas_semana||0),0);
@@ -177,7 +211,7 @@ function blocoResumo(){
   return `<div class="summary-grid">
     <div class="summary-card"><div class="label">Pessoas-hora por semana</div><div class="value">${r.entregues.toFixed(0)}</div><div class="note">Presença efetiva, já fora do intervalo</div></div>
     <div class="summary-card ${r.deficit>5?'overdue':(r.deficit>1?'pending':'paid')}"><div class="label">Déficit contra a demanda</div><div class="value">${r.deficit.toFixed(1)}</div><div class="note">Pessoa-hora faltando nos horários de movimento</div></div>
-    <div class="summary-card ${r.vazio?'overdue':'paid'}"><div class="label">Casa aberta e vazia</div><div class="value">${r.vazio}h</div><div class="note">Horas sem ninguém da equipe escalado</div></div>
+    <div class="summary-card ${r.vazio?'overdue':'paid'}"><div class="label">Casa aberta e vazia</div><div class="value">${horas(r.vazio)}</div><div class="note">Horas sem ninguém da equipe escalado</div></div>
     <div class="summary-card ${Math.abs(r.banco)>4?'pending':'paid'}"><div class="label">Banco de horas da semana</div><div class="value">${horas(r.banco)}</div><div class="note">Soma do que a escala passa ou falta da jornada</div></div>
   </div>
   ${r.piorQd?`<div class="scale-worst">Momento mais apertado: <strong>${r.piorQd}</strong> — ${r.pior.toFixed(1)} vendas/hora por pessoa (o teto calibrado é ${cfg('capacidade_vendas_hora_pessoa',4.18).toFixed(1)}).</div>`:''}`;
@@ -216,33 +250,117 @@ function blocoCartaz(){
   </section>`;
 }
 
+// A leitura util nao e "quantas pessoas" nem "quantas vendas", e a distancia
+// entre as duas. Convertendo a demanda para pessoas necessarias (vendas/hora
+// dividido pela capacidade de uma pessoa) as duas series ficam na mesma unidade
+// e cabem no mesmo eixo — a falta vira area vermelha, a sobra vira folga acima
+// da linha. Nenhum numero precisa ser lido para ver onde aperta.
+const VW=760,VH=66,TOPO=3;   // sistema interno do SVG; a caixa estica pela CSS
+
+function curvaDia(dia,x0,x1,ymax){
+  const pts=serie(EQUIPE_ATIVA,dia);
+  const px=m=>(m-x0)/(x1-x0)*VW;
+  // TOPO: sem essa folga o traco no valor maximo encosta na borda e some.
+  const py=v=>TOPO+(VH-TOPO)*(1-Math.min(v,ymax)/ymax);
+  // A demanda e continua; a escala e degrau. Cada uma vira o seu tipo de
+  // caminho, senao a curva de gente aparece com rampas que nao existem.
+  const areaCont=(campo)=>{
+    const d=pts.filter(p=>p.m>=x0&&p.m<=x1)
+      .map((p,i)=>`${i?'L':'M'}${px(p.m).toFixed(1)} ${py(p.dentro?p[campo]:0).toFixed(1)}`).join('');
+    return d?`${d}L${VW} ${VH}L0 ${VH}Z`:'';
+  };
+  const linhaCont=()=>pts.filter(p=>p.m>=x0&&p.m<=x1)
+    .map((p,i)=>`${i?'L':'M'}${px(p.m).toFixed(1)} ${py(p.dentro?p.req:0).toFixed(1)}`).join('');
+  let degrau='',ant=null;
+  pts.filter(p=>p.m>=x0&&p.m<=x1).forEach((p,i)=>{
+    const x=px(p.m).toFixed(1),y=py(p.cov).toFixed(1);
+    if(i===0)degrau=`M${x} ${y}`;
+    else if(p.cov!==ant)degrau+=`L${x} ${py(ant).toFixed(1)}L${x} ${y}`;
+    ant=p.cov;
+  });
+  if(degrau)degrau+=`L${VW} ${py(ant).toFixed(1)}`;
+  const f=funcionamento(dia);
+  const ab=px(f.abertura_min),fe=px(f.fechamento_min);
+  let grade='';
+  for(let n=1;n<ymax;n++)grade+=`<line class="gy" x1="0" y1="${py(n).toFixed(1)}" x2="${VW}" y2="${py(n).toFixed(1)}"/>`;
+  for(let m=Math.ceil(x0/120)*120;m<=x1;m+=120)grade+=`<line class="gx" x1="${px(m).toFixed(1)}" y1="0" x2="${px(m).toFixed(1)}" y2="${VH}"/>`;
+  return `<svg viewBox="0 0 ${VW} ${VH}" preserveAspectRatio="none" role="img"
+      aria-label="Cobertura de ${DIAS[dia]}">
+    <rect class="dp-abre" x="${ab.toFixed(1)}" y="0" width="${Math.max(0,fe-ab).toFixed(1)}" height="${VH}"/>
+    ${grade}
+    <path class="dp-falta" d="${areaCont('req')}"/>
+    <path class="dp-tem" d="${degrau?degrau+`L${VW} ${VH}L0 ${VH}Z`:''}"/>
+    <path class="dp-linha" d="${degrau}"/>
+    <path class="dp-req" d="${linhaCont()}"/>
+    <line class="dp-cruz" x1="-9" y1="0" x2="-9" y2="${VH}"/>
+  </svg>`;
+}
+
+function blocoCurva(){
+  const [x0,x1]=janelaSemana();
+  let ymax=2;
+  for(let d=1;d<=7;d++)for(const p of serie(EQUIPE_ATIVA,d))
+    if(p.dentro)ymax=Math.max(ymax,p.cov,p.req);
+  ymax=Math.ceil(ymax);
+  const passo=PASSO/60;
+  const linhas=[];
+  for(let d=1;d<=7;d++){
+    let falta=0,gente=0;
+    for(const p of serie(EQUIPE_ATIVA,d)){if(p.dentro&&p.cov<p.req)falta+=(p.req-p.cov)*passo;}
+    gente=pessoas().filter(p=>p.equipe===EQUIPE_ATIVA&&p.ativo&&!(p.dias[d]||{folga:true}).folga).length;
+    linhas.push(`<div class="dp-row">
+      <div class="dp-name"><b>${DIAS[d]}</b><span>${gente} na casa</span></div>
+      <div class="dp-chart" data-dia="${d}">${curvaDia(d,x0,x1,ymax)}</div>
+      <div class="dp-falta-num ${falta>0.4?'ruim':''}">${falta>0.05?horas(falta):'—'}</div>
+    </div>`);
+  }
+  let eixo='';
+  for(let m=Math.ceil(x0/120)*120;m<=x1;m+=120)
+    eixo+=`<span style="left:${((m-x0)/(x1-x0)*100).toFixed(2)}%">${String(Math.floor(m/60)%24).padStart(2,'0')}h</span>`;
+  let escala='';   // em px, para casar com o TOPO reservado dentro do SVG
+  for(let n=1;n<=ymax;n++)escala+=`<span style="bottom:${((VH-TOPO)*n/ymax).toFixed(1)}px">${n}</span>`;
+  return `<div class="dayplot" style="--dp-h:${VH}px">
+    <div class="dp-scale">${escala}</div>
+    ${linhas.join('')}
+    <div class="dp-row dp-eixo"><div class="dp-name"></div><div class="dp-chart">${eixo}</div><div></div></div>
+    <div class="dp-tip" hidden></div>
+  </div>`;
+}
+
+function blocoTabela(){
+  const [x0,x1]=janelaSemana();
+  let linhas='';
+  for(let m=Math.floor(x0/30)*30;m<x1;m+=30){
+    let cels='',temAlgo=false;
+    for(let d=1;d<=7;d++){
+      const p=serie(EQUIPE_ATIVA,d).find(q=>q.m>=m+15)||{dentro:false,cov:0,dem:0,req:0};
+      if(!p.dentro){cels+='<td class="heat off"></td>';continue;}
+      temAlgo=true;
+      let cls='ok';
+      if(!p.cov)cls='vazio';
+      else if(p.cov<p.req-0.5)cls='alto';
+      else if(p.cov<p.req)cls='medio';
+      else if(p.cov>p.req+1)cls='folgado';
+      cels+=`<td class="heat ${cls}" title="${DIAS[d]} ${hhmm(m)} — ${p.cov} escalada(s), ${p.req.toFixed(1)} necessária(s) para ${p.dem.toFixed(1)} vendas/h">${p.cov||'0'}</td>`;
+    }
+    if(temAlgo)linhas+=`<tr class="${m%60?'meia':'cheia'}"><th>${m%60?'':hhmm(m)}</th>${cels}</tr>`;
+  }
+  return `<div class="scale-scroll"><table class="scale-heat"><thead><tr><th></th>${
+    DIAS.slice(1).map(d=>`<th>${d}</th>`).join('')}</tr></thead><tbody>${linhas}</tbody></table></div>`;
+}
+
 function blocoMapa(){
   const cap=cfg('capacidade_vendas_hora_pessoa',4.18);
-  let linhas='';
-  for(let m=HORA_INI*60;m<HORA_FIM*60;m+=30){
-    const h=Math.floor(m/60),meia=m%60===30;
-    let temAlgo=false;
-    let cels='';
-    for(let d=1;d<=7;d++){
-      const f=funcionamento(d),amostra=m+15;
-      const dentro=amostra>=f.abertura_min-f.pre_abertura_min&&amostra<=f.fechamento_min+f.pos_fechamento_min;
-      const cov=cobertura(EQUIPE_ATIVA,d,amostra),dem=demandaDe(d,h);
-      if(cov||dem>0.2)temAlgo=true;
-      if(!dentro){cels+='<td class="heat off"></td>';continue;}
-      const carga=cov?dem/cov:null;
-      let cls='ok';
-      if(!cov)cls='vazio';
-      else if(carga>cap*1.25)cls='alto';
-      else if(carga>cap)cls='medio';
-      else if(carga<cap*0.35)cls='folgado';
-      cels+=`<td class="heat ${cls}" title="${DIAS[d]} ${hhmm(m)} — ${cov} pessoa(s), ${dem.toFixed(1)} vendas/h${carga!=null?', '+carga.toFixed(1)+' por pessoa':''}"><span class="q">${cov||''}</span>${meia?'':`<span class="d">${dem>=0.5?dem.toFixed(0):''}</span>`}</td>`;
-    }
-    if(temAlgo)linhas+=`<tr class="${meia?'meia':'cheia'}"><th>${meia?'':hhmm(m)}</th>${cels}</tr>`;
-  }
   return `<section class="panel">
-    <div class="panel-head"><div><h3>Cobertura contra o movimento</h3><div class="hint">Número grande = pessoas escaladas. Número pequeno = vendas por hora esperadas naquele horário.</div></div></div>
-    <div class="scale-legend"><span><i class="heat-key vazio"></i>ninguém</span><span><i class="heat-key alto"></i>apertado</span><span><i class="heat-key medio"></i>no limite</span><span><i class="heat-key ok"></i>equilibrado</span><span><i class="heat-key folgado"></i>sobrando</span></div>
-    <div class="scale-scroll"><table class="scale-heat"><thead><tr><th></th>${DIAS.slice(1).map(d=>`<th>${d}</th>`).join('')}</tr></thead><tbody>${linhas}</tbody></table></div>
+    <div class="panel-head">
+      <div><h3>Cobertura contra o movimento</h3><div class="hint">A demanda está convertida em gente: ${cap.toFixed(1)} vendas por hora é o que uma pessoa dá conta. Os sete dias usam a mesma escala.</div></div>
+      <div class="scale-views">${[['curva','Gráfico'],['tabela','Tabela']].map(([k,v])=>
+        `<button class="scale-view${k===VISTA?' active':''}" data-vista="${k}">${v}</button>`).join('')}</div>
+    </div>
+    <div class="scale-legend">${VISTA==='curva'
+      ?'<span><i class="key-tem"></i>pessoas escaladas</span><span><i class="key-req"></i>pessoas que o movimento pede</span><span><i class="key-falta"></i>faltando</span>'
+      :'<span><i class="heat-key vazio"></i>ninguém</span><span><i class="heat-key alto"></i>falta gente</span><span><i class="heat-key medio"></i>no limite</span><span><i class="heat-key ok"></i>equilibrado</span><span><i class="heat-key folgado"></i>sobrando</span>'}</div>
+    ${VISTA==='curva'?blocoCurva():blocoTabela()}
   </section>`;
 }
 
@@ -307,8 +425,10 @@ function blocoCadastro(){
       <input name="carga" class="field small" type="number" min="20" max="44" step="0.5" value="${Number(p.carga_semanal_horas)}" title="Jornada semanal">
       <label class="active-check"><input name="autonomia" type="checkbox"${p.autonomia_fechamento?' checked':''}> fecha sozinho</label>
       <label class="active-check"><input name="ativo" type="checkbox"${p.ativo?' checked':''}> ativo</label>
-      <button class="button" type="submit">Salvar</button>
-      <button class="button danger remover" type="button">Remover</button>
+      <div class="scale-acoes">
+        <button class="button" type="submit">Salvar</button>
+        <button class="button danger remover" type="button">Remover</button>
+      </div>
     </form>`).join('')}</div>
     <form id="novaPessoa" class="scale-person nova">
       <input name="nome" class="field" required maxlength="120" placeholder="Nome">
@@ -317,16 +437,60 @@ function blocoCadastro(){
       <select name="regime" class="field"><option value="5x2">5x2</option><option value="6x1">6x1</option></select>
       <input name="carga" class="field small" type="number" min="20" max="44" step="0.5" value="44">
       <label class="active-check"><input name="autonomia" type="checkbox"> fecha sozinho</label>
-      <button class="button" type="submit">Adicionar</button>
+      <div class="scale-acoes"><button class="button" type="submit">Adicionar</button></div>
     </form>
   </details>`;
 }
 
 /* ----------------------------------------------------------------- bind */
+// Sem eixo escrito dentro do SVG (ele estica em X e distorceria o texto), a
+// leitura ponto a ponto fica no hover: linha vertical no grafico e um balao com
+// hora, gente escalada, gente necessaria e vendas/hora esperadas.
+function bindCurva(){
+  const caixa=document.querySelector('.dayplot');
+  if(!caixa)return;
+  const tip=caixa.querySelector('.dp-tip');
+  const [x0,x1]=janelaSemana();
+  const limpar=()=>{tip.hidden=true;caixa.querySelectorAll('.dp-cruz').forEach(l=>{l.setAttribute('x1',-9);l.setAttribute('x2',-9);});};
+  caixa.querySelectorAll('.dp-chart[data-dia]').forEach(el=>{
+    const mover=ev=>{
+      const r=el.getBoundingClientRect();
+      const cx=(ev.touches?ev.touches[0].clientX:ev.clientX)-r.left;
+      const frac=Math.min(1,Math.max(0,cx/r.width));
+      const min=x0+frac*(x1-x0);
+      const d=Number(el.dataset.dia);
+      const pts=serie(EQUIPE_ATIVA,d);
+      const p=pts.reduce((a,b)=>Math.abs(b.m+PASSO/2-min)<Math.abs(a.m+PASSO/2-min)?b:a);
+      const cruz=el.querySelector('.dp-cruz'),vx=(p.m-x0)/(x1-x0)*VW;
+      cruz.setAttribute('x1',vx);cruz.setAttribute('x2',vx);
+      tip.innerHTML=`<b>${DIAS[d]} ${hhmm(p.m)}</b>`+(p.dentro
+        ?`<span><i class="key-tem"></i>${p.cov} escalada(s)</span>
+          <span><i class="key-req"></i>${p.req.toFixed(1)} necessária(s)</span>
+          <span class="dp-tip-dem">${p.dem.toFixed(1)} vendas/h esperadas · ${
+            p.cov?(p.dem/p.cov).toFixed(1)+' por pessoa':'ninguém na casa'}</span>`
+        :'<span class="dp-tip-dem">casa fechada</span>');
+      tip.hidden=false;
+      const cr=caixa.getBoundingClientRect();
+      const larg=tip.offsetWidth;
+      tip.style.left=Math.min(cr.width-larg-4,Math.max(4,(ev.touches?ev.touches[0].clientX:ev.clientX)-cr.left-larg/2))+'px';
+      // Nos ultimos dias o balao abriria fora do painel: vira para cima.
+      const acima=r.top-cr.top>cr.height*0.55;
+      tip.style.top=acima?(r.top-cr.top-tip.offsetHeight-6)+'px':(r.top-cr.top+r.height+6)+'px';
+    };
+    el.addEventListener('mousemove',mover);
+    el.addEventListener('touchstart',mover,{passive:true});
+    el.addEventListener('touchmove',mover,{passive:true});
+    el.addEventListener('mouseleave',limpar);
+  });
+  caixa.addEventListener('mouseleave',limpar);
+}
+
 function bind(){
   document.getElementById('recarregar').addEventListener('click',load);
   document.getElementById('imprimir')?.addEventListener('click',()=>window.print());
   document.querySelectorAll('.scale-tab').forEach(b=>b.addEventListener('click',()=>{EQUIPE_ATIVA=b.dataset.equipe;render();}));
+  document.querySelectorAll('.scale-view').forEach(b=>b.addEventListener('click',()=>{VISTA=b.dataset.vista;render();}));
+  bindCurva();
   document.querySelectorAll('.turno-cel').forEach(cel=>{
     const chk=cel.querySelector('.chk-folga');
     chk.addEventListener('change',()=>{cel.querySelector('.turno-campos').hidden=chk.checked;salvarTurno(cel);});
@@ -418,7 +582,7 @@ async function load(){
   if(seq!==LOAD_SEQ)return;
   const error=turnos.error||demanda.error;
   if(error){document.getElementById('main').innerHTML='<div class="erro">Não foi possível carregar as escalas.</div>';toast(error.message,true);return;}
-  TURNOS=turnos.data||[];DEMANDA=demanda.data||[];_pessoas=null;
+  TURNOS=turnos.data||[];DEMANDA=demanda.data||[];_pessoas=null;_serie=null;
   FUNC=func.data||[];
   CFG={};(conf.data||[]).forEach(r=>{CFG[r.chave]=r.valor;});
   render();

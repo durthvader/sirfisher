@@ -181,16 +181,56 @@ header{background:var(--header);color:#fff;position:sticky;top:0;z-index:10}
 .scale-tab.active{border-color:#7a5230;color:#7a5230;background:#fbf6f1;font-weight:700}
 .scale-worst{background:#fbf3e0;border:1px solid #e6d6a8;color:#72591e;border-radius:10px;padding:10px 13px;font-size:11.5px;margin-bottom:15px}
 .scale-scroll{overflow-x:auto}
+.scale-views{display:flex;gap:0;border:1px solid var(--border);border-radius:8px;overflow:hidden;flex-shrink:0}
+.scale-view{background:#fff;border:0;border-left:1px solid var(--border);font:inherit;font-size:11px;font-weight:600;color:var(--muted);padding:6px 13px;cursor:pointer}
+.scale-view:first-child{border-left:0}
+.scale-view.active{background:#eef4f5;color:#0f6f6f}
+
+/* ------------------------------------------------- curva do dia (grafico) */
+/* Duas series na mesma unidade (pessoas), entao um eixo so. O SVG estica em X
+   com preserveAspectRatio=none — por isso nenhum texto vive dentro dele e todo
+   traco usa vector-effect, senao a espessura deforma junto. */
+.dayplot{position:relative;padding-left:20px}
+.dp-row{display:grid;grid-template-columns:56px minmax(0,1fr) 52px;align-items:center;gap:9px;margin-bottom:4px}
+.dp-name{text-align:right;line-height:1.25;padding-bottom:2px}
+.dp-name b{font-size:12px;display:block}
+.dp-name span{font-size:9.5px;color:var(--muted)}
+.dp-chart{position:relative;height:var(--dp-h);cursor:crosshair}
+.dp-chart svg{display:block;width:100%;height:100%;overflow:hidden}
+.dp-chart svg *{vector-effect:non-scaling-stroke}
+.dp-abre{fill:#fafaf8}
+.dayplot .gy{stroke:#e8eaec;stroke-width:1}
+.dayplot .gx{stroke:#eef0f1;stroke-width:1}
+.dp-falta{fill:#f2cac6}
+.dp-tem{fill:#cbe4e2}
+.dp-linha{fill:none;stroke:#0f9c9c;stroke-width:1.8}
+.dp-req{fill:none;stroke:#c14a4a;stroke-width:1.4;stroke-dasharray:3 2.5}
+.dp-cruz{stroke:#12313f;stroke-width:1;opacity:.5}
+.dp-falta-num{font-size:10.5px;font-variant-numeric:tabular-nums;color:var(--muted);text-align:right}
+.dp-falta-num.ruim{color:var(--red);font-weight:700}
+/* A escala vale por grafico, nao pela pilha: rotulada uma vez, na primeira
+   linha, porque os sete dias compartilham o mesmo teto. */
+.dp-scale{position:absolute;left:0;top:0;height:var(--dp-h);width:18px;pointer-events:none}
+.dp-scale span{position:absolute;right:2px;font-size:9px;color:#aeb5ba;transform:translateY(50%);line-height:1}
+.dp-eixo .dp-chart{height:16px;cursor:default}
+.dp-eixo span{position:absolute;top:2px;font-size:9.5px;color:var(--muted);transform:translateX(-50%);font-variant-numeric:tabular-nums}
+.dp-tip{position:absolute;z-index:5;background:#12313f;color:#fff;border-radius:8px;padding:7px 9px;font-size:10.5px;line-height:1.5;pointer-events:none;box-shadow:0 4px 14px rgba(0,0,0,.22);white-space:nowrap}
+.dp-tip b{display:block;font-size:11px;margin-bottom:2px}
+.dp-tip span{display:flex;align-items:center;gap:5px}
+.dp-tip .dp-tip-dem{color:#a9c2cc;margin-top:2px;display:block}
+.key-tem,.key-req,.key-falta{width:12px;height:12px;border-radius:3px;display:inline-block;flex-shrink:0}
+.key-tem{background:#cbe4e2;border-bottom:2px solid #0f9c9c}
+.key-req{background:transparent;border-bottom:2px dashed #c14a4a;border-radius:0;height:8px}
+.key-falta{background:#f2cac6}
+
 .scale-heat,.scale-grid{border-collapse:collapse;width:100%;min-width:640px}
 .scale-heat th,.scale-grid th{font-size:11px;color:var(--muted);font-weight:500;padding:6px 8px;text-align:left;white-space:nowrap}
 .scale-heat thead th,.scale-grid thead th{text-align:center}
-/* O mapa mostra de 30 em 30 min, entao dobrou de linhas: rotulo so na hora
-   cheia, numeros na mesma linha e espacamento minimo, para caber na tela. */
+/* Mapa de 30 em 30 min: um numero so por celula (quantas pessoas). A demanda
+   nao vira segundo numero — ela esta na cor e no title da celula. */
 .scale-heat{border-spacing:0}
 .scale-heat tbody th{font-variant-numeric:tabular-nums;text-align:right;padding:0 8px 0 0;font-size:10px;width:1%}
-.scale-heat td.heat{border:0;border-bottom:1px solid #fff;border-right:1px solid #fff;text-align:center;padding:2px 3px;font-variant-numeric:tabular-nums;line-height:1.1;white-space:nowrap}
-.scale-heat td.heat .q{font-size:11.5px;font-weight:700}
-.scale-heat td.heat .d{font-size:9px;opacity:.7;margin-left:3px}
+.scale-heat td.heat{border:0;border-bottom:1px solid #fff;border-right:1px solid #fff;text-align:center;padding:3px;font-size:11.5px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.15}
 .scale-heat tr.cheia td.heat{border-top:1px solid rgba(0,0,0,.09)}
 .heat.off{background:#f4f5f6}
 .heat.vazio{background:#8c2b2b;color:#fff}
@@ -227,12 +267,26 @@ header{background:var(--header);color:#fff;position:sticky;top:0;z-index:10}
 .scale-people{display:flex;flex-direction:column;gap:8px;margin-top:10px}
 .scale-person{display:flex;gap:7px;align-items:center;flex-wrap:wrap;padding:9px;border:1px solid var(--border);border-radius:9px;background:var(--card)}
 .scale-person.nova{margin-top:12px;border-style:dashed}
-.scale-person .field{min-width:120px}
-.scale-person .field.small{min-width:70px;width:70px}
+/* Larguras justas por campo: com min-width igual para todos, a linha estourava
+   e o "Remover" caia sozinho numa segunda linha. So o nome estica. */
+.scale-person .field{min-width:0}
+.scale-person [name=nome]{flex:1 1 130px;min-width:118px}
+.scale-person [name=equipe]{flex:0 0 90px}
+.scale-person [name=funcao]{flex:0 0 124px}
+.scale-person [name=regime]{flex:0 0 64px}
+.scale-person .field.small{flex:0 0 56px;width:auto}
+.scale-person .active-check{white-space:nowrap}
+.scale-acoes{display:flex;gap:7px;margin-left:auto}
 @media (max-width:760px){
   .scale-tabs{overflow-x:auto}
   .scale-person .field,.scale-person .field.small{min-width:0;width:100%;flex:auto}
   .scale-person .button{width:100%}
+  .scale-acoes{width:100%;margin-left:0}
+  .scale-acoes .button{flex:1}
+  .dayplot{padding-left:16px}
+  .dp-row{grid-template-columns:44px minmax(0,1fr) 42px;gap:6px}
+  .dp-name b{font-size:11px}
+  .dp-name span{font-size:9px}
 }
 /* Cartaz da semana — feito para print e screenshot em grupo */
 .cartaz-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:14px}
