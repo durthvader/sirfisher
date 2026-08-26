@@ -21,10 +21,20 @@ CASES = [
     ("01_importar_extrato_stone.py", ",", "utf-8-sig", [{"Movimentação": "Crédito", "Valor": "10,00", "Saldo antes": "0,00", "Saldo depois": "10,00", "Data": "01/07/2026 10:00"}]),
     ("02_importar_vendas_stone.py", ";", "utf-8-sig", [{"DATA DA VENDA": "01/07/2026 10:00", "STONE ID": "teste-1", "VALOR BRUTO": "10,00", "VALOR LIQUIDO": "9,50"}]),
     ("03_importar_recebiveis_stone.py", ";", "utf-8-sig", [{"DATA DA VENDA": "01/07/2026 10:00", "DATA DE VENCIMENTO": "02/07/2026", "DATA DE VENCIMENTO ORIGINAL": "02/07/2026", "STONE ID": "teste-1", "QTD DE PARCELAS": "1", "Nº DA PARCELA": "1", "VALOR BRUTO": "10,00", "VALOR LÍQUIDO": "9,50"}]),
+    # Formato antigo do BB: o débito vem com sinal e com sufixo "D".
     ("04_importar_bb.py", ",", "latin-1", [
-        {"Data": "01/07/2026", "Lançamento": "Saldo Anterior", "Valor": "100,00"},
-        {"Data": "01/07/2026", "Lançamento": "Pix recebido", "Valor": "10,00"},
-        {"Data": "01/07/2026", "Lançamento": "S A L D O", "Valor": "110,00"},
+        {"Data": "01/07/2026", "Lançamento": "Saldo Anterior", "Valor": "100,00 C"},
+        {"Data": "01/07/2026", "Lançamento": "Pix recebido", "Valor": "10,00 C", "Tipo Lançamento": "Entrada"},
+        {"Data": "01/07/2026", "Lançamento": "Pix - Enviado", "Valor": "-4,00 D", "Tipo Lançamento": "Saída"},
+        {"Data": "01/07/2026", "Lançamento": "S A L D O", "Valor": "106,00 C"},
+    ]),
+    # Formato de agosto/2026: o débito perdeu o sinal e o "Tipo Lançamento"
+    # diz "Entrada" mesmo na saída. Só o sufixo "D" identifica o débito.
+    ("04_importar_bb.py", ",", "latin-1", [
+        {"Data": "01/08/2026", "Lançamento": "Saldo Anterior", "Valor": "100,00 C"},
+        {"Data": "01/08/2026", "Lançamento": "Pix recebido", "Valor": "10,00 C", "Tipo Lançamento": "Entrada"},
+        {"Data": "01/08/2026", "Lançamento": "Pix - Enviado", "Valor": "4,00 D", "Tipo Lançamento": "Entrada"},
+        {"Data": "01/08/2026", "Lançamento": "S A L D O", "Valor": "106,00 C"},
     ]),
     ("05_importar_bs_cash.py", ",", "utf-8", [{
         "Data": "01/07/2026 10:00:00", "Dcto.": "1", "Operação": "PIX",
@@ -126,6 +136,39 @@ def test_resolucao_conta_fonte() -> None:
         raise AssertionError("Fonte inexistente ou inativa deveria ser rejeitada")
 
 
+def test_valor_e_hash_bb(bb_module) -> None:
+    if bb_module.parse_valor_bb("1.234,56 D") != -1234.56:
+        raise AssertionError("Débito sem sinal deveria virar negativo pelo sufixo D")
+    if bb_module.parse_valor_bb("-1.234,56 D") != -1234.56:
+        raise AssertionError("Débito no formato antigo deveria continuar negativo")
+    if bb_module.parse_valor_bb("1.234,56 C") != 1234.56:
+        raise AssertionError("Crédito deveria ficar positivo")
+    if bb_module.parse_valor_bb("") is not None:
+        raise AssertionError("Valor vazio deveria continuar inválido")
+
+    # O mesmo lançamento reexportado no formato novo tem de cair no mesmo
+    # dedup_hash, senão a reimportação duplica o histórico.
+    linhas = [
+        {"Data": "01/08/2026", "Lançamento": "Saldo Anterior", "Valor": "100,00 C"},
+        {"Data": "01/08/2026", "Lançamento": "Pix - Enviado", "Valor": "SINAL", "N° documento": "9"},
+        {"Data": "01/08/2026", "Lançamento": "S A L D O", "Valor": "96,00 C"},
+    ]
+    hashes = []
+    with tempfile.TemporaryDirectory() as tmp:
+        for valor in ("-4,00 D", "4,00 D"):
+            caminho = Path(tmp) / f"bb-{len(hashes)}.csv"
+            atual = [dict(linha) for linha in linhas]
+            atual[1]["Valor"] = valor
+            write_csv(caminho, bb_module, ",", "latin-1", atual)
+            opcoes = bb_module.ler_opcoes(
+                bb_module.criar_parser("teste"), [str(caminho), "--dry-run"]
+            )
+            registros, _, _ = bb_module.ler_csv(caminho, opcoes)
+            hashes.append([item["dedup_hash"] for item in registros])
+    if hashes[0] != hashes[1]:
+        raise AssertionError("Formatos antigo e novo do BB geraram dedup_hash diferentes")
+
+
 def main() -> int:
     test_resolucao_conta_fonte()
     with tempfile.TemporaryDirectory() as tmp:
@@ -151,11 +194,12 @@ def main() -> int:
             raise AssertionError(f"CSV inválido deveria retornar 2, retornou {result.returncode}")
 
         bb_module = load_module(IMPORT_DIR / "04_importar_bb.py", len(CASES))
+        test_valor_e_hash_bb(bb_module)
         invalid_balance = tmp_path / "invalid-bb-balance.csv"
         write_csv(invalid_balance, bb_module, ",", "latin-1", [
-            {"Data": "01/07/2026", "Lançamento": "Saldo Anterior", "Valor": "100,00"},
-            {"Data": "01/07/2026", "Lançamento": "Pix recebido", "Valor": "10,00"},
-            {"Data": "01/07/2026", "Lançamento": "S A L D O", "Valor": "108,00"},
+            {"Data": "01/07/2026", "Lançamento": "Saldo Anterior", "Valor": "100,00 C"},
+            {"Data": "01/07/2026", "Lançamento": "Pix recebido", "Valor": "10,00 C"},
+            {"Data": "01/07/2026", "Lançamento": "S A L D O", "Valor": "108,00 C"},
         ])
         result = subprocess.run(
             [sys.executable, str(IMPORT_DIR / "04_importar_bb.py"), str(invalid_balance), "--dry-run"],
@@ -169,7 +213,7 @@ def main() -> int:
 
     print(
         f"IMPORT_TESTS_OK dry_runs={len(CASES) + 1} invalid_header=1 "
-        "invalid_bb_balance=1 source_account_rules=3"
+        "invalid_bb_balance=1 source_account_rules=3 bb_formatos=2"
     )
     return 0
 

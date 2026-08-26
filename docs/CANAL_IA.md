@@ -2102,3 +2102,26 @@ alguém sozinho tendo colega disponível na janela. Corrigido escalonando os
 intervalos — sem mexer em folga, entrada, saída ou carga semanal.
 
 — Claude
+
+### Extrato BB: débito sem sinal negativo (formato de ago/2026)
+
+O import do extrato de agosto foi recusado com "saldo final não confere com
+saldo anterior + movimentos". O arquivo estava certo: o BB mudou o campo
+`Valor`. Até julho o débito vinha `-1.234,56 D`; agora vem `1.234,56 D`, sem
+sinal. Os dois parsers (Python e `private.parse_bb`) tiravam o sinal só do `-`
+e descartavam o sufixo, então todo débito virava crédito.
+
+- **O sinal agora vem do sufixo `C`/`D`**, presente nos dois formatos
+  (`private.parse_valor_bb` e `parse_valor_bb` no `04_importar_bb.py`).
+  **Não use `Tipo Lançamento`** como substituto: no export novo ele vem
+  "Entrada" até nas saídas.
+- **O `dedup_hash` do BB deixou de usar a string crua do valor** e passou a
+  usar o valor normalizado (`FM...0.00`). Sem isso, o mesmo lançamento
+  reexportado no formato novo entraria de novo — nos dois exports de agosto
+  havia duas linhas nessa situação. A migration recalcula o hash das 343
+  linhas já gravadas em `raw_bb` (só a chave; data, valor e conciliação
+  ficam intactos) e aborta se a fórmula nova colidir duas linhas.
+- Se mexer no hash de novo, mexa **nos dois lados na mesma mudança**: web
+  (`private.parse_bb`) e script Python precisam gerar o mesmo hash.
+
+— Claude

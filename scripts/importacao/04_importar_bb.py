@@ -23,12 +23,27 @@ from importacao_core import (
 
 
 LINHAS_NAO_TRANSACAO = {"Saldo Anterior", "Saldo do dia", "S A L D O"}
+# Em agosto de 2026 o BB parou de mandar o sinal negativo nos débitos: o que
+# separa entrada de saída é o sufixo "C"/"D" do próprio campo Valor, presente
+# nos dois formatos. "Tipo Lançamento" não serve de substituto — no export
+# novo ele vem "Entrada" até nas saídas.
+SINAL_POR_SUFIXO = {"C": 1, "D": -1}
 ROTULOS_FUNDO_BB = {"Aplicação Fundo BB", "BB RF LP Selic"}
 CABECALHOS = {"Data", "Lançamento", "Detalhes", "N° documento", "Valor", "Tipo Lançamento"}
 COLUNAS = [
     "conta_id", "data", "data_raw", "lancamento", "detalhes",
     "n_documento", "valor", "tipo_lancamento", "dedup_hash",
 ]
+
+
+def parse_valor_bb(valor_raw):
+    numero = parse_valor_brasileiro(valor_raw)
+    if numero is None:
+        return None
+    sinal = SINAL_POR_SUFIXO.get(str(valor_raw or "").strip()[-1:].upper())
+    if sinal is None:
+        return numero
+    return sinal * abs(numero) if numero else 0.0
 
 
 def ler_csv(caminho, opcoes):
@@ -49,7 +64,7 @@ def ler_csv(caminho, opcoes):
             total += 1
             lancamento = campo(row, "Lançamento")
             if lancamento in LINHAS_NAO_TRANSACAO:
-                valor_saldo = parse_valor_brasileiro(campo(row, "Valor"))
+                valor_saldo = parse_valor_bb(campo(row, "Valor"))
                 if lancamento == "Saldo Anterior":
                     saldos_anteriores.append(valor_saldo)
                 elif lancamento == "S A L D O":
@@ -60,7 +75,7 @@ def ler_csv(caminho, opcoes):
             data_raw = campo(row, "Data")
             valor_raw = campo(row, "Valor")
             data = parse_data_formatos(data_raw, ("%d/%m/%Y",))
-            valor = parse_valor_brasileiro(valor_raw)
+            valor = parse_valor_bb(valor_raw)
             motivos = []
             if data is None:
                 motivos.append("data inválida")
@@ -82,7 +97,14 @@ def ler_csv(caminho, opcoes):
             if lancamento in ROTULOS_FUNDO_BB and valor < 0:
                 base = f"{data.isoformat()}|FUNDO_BB_RF_LP_SELIC|{valor:.2f}"
             else:
-                base = f"{data_raw}|{lancamento}|{numero_documento}|{valor_raw}|{detalhes}"
+                # O valor entra normalizado, e não como veio no arquivo: o
+                # mesmo lançamento reexportado no formato novo ("1.234,56 D"
+                # em vez de "-1.234,56 D") precisa cair no mesmo hash, senão
+                # duplica.
+                base = (
+                    f"{data_raw}|{lancamento}|{numero_documento}"
+                    f"|{valor:.2f}|{detalhes}"
+                )
             registros.append({
                 "data": data,
                 "data_raw": data_raw,
